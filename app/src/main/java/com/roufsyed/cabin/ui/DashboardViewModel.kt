@@ -7,7 +7,6 @@ import com.roufsyed.cabin.model.BrightnessUi
 import com.roufsyed.cabin.model.ClockUi
 import com.roufsyed.cabin.model.NavUi
 import com.roufsyed.cabin.model.NowPlayingUi
-import com.roufsyed.cabin.model.Samples
 import com.roufsyed.cabin.model.Slot
 import com.roufsyed.cabin.model.SourceId
 import com.roufsyed.cabin.model.SourceUi
@@ -16,7 +15,6 @@ import com.roufsyed.cabin.model.VolumeUi
 import com.roufsyed.cabin.model.nowPlayingUi
 import com.roufsyed.cabin.nav.SavedPlace
 import com.roufsyed.cabin.sources.Opened
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -44,8 +42,7 @@ class DashboardViewModel(private val container: AppContainer) : ViewModel() {
 
     val nav: StateFlow<NavUi> = container.navigation.state
 
-    // Not wired to the unit yet: this still shows the design's values.
-    val status: StateFlow<StatusUi> = MutableStateFlow(Samples.status)
+    val status: StateFlow<StatusUi> = container.status.status
 
     fun playPause() = container.media.playPause()
     fun next() = container.media.next()

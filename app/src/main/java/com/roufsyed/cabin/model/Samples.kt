@@ -3,6 +3,8 @@ package com.roufsyed.cabin.model
 import com.roufsyed.cabin.media.NowPlaying
 import com.roufsyed.cabin.media.PlaybackProgress
 import com.roufsyed.cabin.media.QueueItem
+import com.roufsyed.cabin.notify.TrayItem
+import com.roufsyed.cabin.notify.TrayKind
 
 /**
  * The values the design itself is drawn with. Used for the static Home, for the debug "demo" launch
@@ -42,6 +44,12 @@ object Samples {
         ),
     )
     val nowPlaying = nowPlayingUi(playing, access = true)
+    /** The three notifications in the design's tray. */
+    val notifications = listOf(
+        TrayItem("call", TrayKind.Call, "P", "Missed call", "Meera · tap to call back", "10:02"),
+        TrayItem("message", TrayKind.Message, "M", "Kabir", "Running ten minutes late", "9:58"),
+        TrayItem("usb", TrayKind.Media, "M", "USB drive connected", "Tap to play from USB", "9:41"),
+    )
     val volume = VolumeUi(level = 12, muted = false)
     val brightness = BrightnessUi(level = 8, night = false, mode = BrightnessMode.Auto)
     val sources = listOf(

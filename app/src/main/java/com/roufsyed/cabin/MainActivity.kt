@@ -25,7 +25,10 @@ import kotlinx.coroutines.launch
 import com.roufsyed.cabin.notify.CabinNotificationListener
 import com.roufsyed.cabin.ui.CabinRoot
 import com.roufsyed.cabin.ui.HostActions
+import com.roufsyed.cabin.ui.shell.Overlay
 import com.roufsyed.cabin.ui.shell.ShellViewModel
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 /** Cabin's only activity. It is the unit's home screen, so it is never finished. */
 class MainActivity : ComponentActivity() {
@@ -70,7 +73,10 @@ class MainActivity : ComponentActivity() {
     private fun followWindowBrightness() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                container.brightness.windowBrightness.collect { level ->
+                combine(container.brightness.windowBrightness, shell.state) { level, state ->
+                    // The screen-off clock wants the backlight as low as it goes, whatever the level is.
+                    if (state.overlay == Overlay.ScreenOff) 0.01f else level
+                }.distinctUntilChanged().collect { level ->
                     window.attributes = window.attributes.apply {
                         screenBrightness = level ?: WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
                     }
@@ -128,6 +134,7 @@ class MainActivity : ComponentActivity() {
         container.media.refreshAccess()
         container.brightness.refresh()
         container.volume.refresh()
+        container.status.refresh()
     }
 
     /** Opens Android's notification-access switch for Cabin, or the list of such apps if that fails. */

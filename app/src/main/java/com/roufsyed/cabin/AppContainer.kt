@@ -22,20 +22,26 @@ import com.roufsyed.cabin.nav.FixedVoice
 import com.roufsyed.cabin.nav.MapsNavigation
 import com.roufsyed.cabin.nav.NavigationSource
 import com.roufsyed.cabin.nav.VoiceInput
+import com.roufsyed.cabin.notify.AndroidTray
+import com.roufsyed.cabin.notify.FixedTray
 import com.roufsyed.cabin.notify.ListenerClient
 import com.roufsyed.cabin.notify.ListenerHub
+import com.roufsyed.cabin.notify.TraySource
 import com.roufsyed.cabin.sources.SourceController
 import com.roufsyed.cabin.system.AndroidBrightness
 import com.roufsyed.cabin.system.AndroidClock
 import com.roufsyed.cabin.system.AndroidHomeRole
+import com.roufsyed.cabin.system.AndroidStatus
 import com.roufsyed.cabin.system.AndroidVolume
 import com.roufsyed.cabin.system.BrightnessControl
 import com.roufsyed.cabin.system.ClockSource
 import com.roufsyed.cabin.system.FixedBrightness
 import com.roufsyed.cabin.system.FixedClock
 import com.roufsyed.cabin.system.FixedHomeRole
+import com.roufsyed.cabin.system.FixedStatus
 import com.roufsyed.cabin.system.FixedVolume
 import com.roufsyed.cabin.system.HomeRole
+import com.roufsyed.cabin.system.StatusSource
 import com.roufsyed.cabin.system.VolumeControl
 import android.service.notification.NotificationListenerService
 import kotlinx.coroutines.CoroutineScope
@@ -58,6 +64,8 @@ class AppContainer(
     val brightness: BrightnessControl,
     val navigation: NavigationSource,
     val voice: VoiceInput,
+    val tray: TraySource,
+    val status: StatusSource,
     val listenerHub: ListenerHub = ListenerHub(),
 ) {
     val sources = SourceController(settings, apps, media, scope)
@@ -71,8 +79,10 @@ class AppContainer(
         brightness: BrightnessControl = this.brightness,
         navigation: NavigationSource = this.navigation,
         voice: VoiceInput = this.voice,
+        tray: TraySource = this.tray,
+        status: StatusSource = this.status,
     ): AppContainer = AppContainer(
-        scope, settings, apps, clock, homeRole, media, volume, brightness, navigation, voice, listenerHub,
+        scope, settings, apps, clock, homeRole, media, volume, brightness, navigation, voice, tray, status, listenerHub,
     )
 
     companion object {
@@ -86,6 +96,7 @@ class AppContainer(
             val media = AndroidMediaSource(app, scope)
             val clock = AndroidClock(app)
             val navigation = MapsNavigation(app, scope)
+            val tray = AndroidTray(app)
             return AppContainer(
                 scope = scope,
                 settings = settings,
@@ -97,9 +108,12 @@ class AppContainer(
                 brightness = AndroidBrightness(app, settings, scope, clock),
                 navigation = navigation,
                 voice = AndroidVoiceInput(app),
+                tray = tray,
+                status = AndroidStatus(app),
                 listenerHub = ListenerHub(
                     listOf(
                         navigation,
+                        tray,
                         object : ListenerClient {
                             override fun onConnected(service: NotificationListenerService) = media.connect()
                             override fun onDisconnected() = media.disconnect()
@@ -129,6 +143,8 @@ class AppContainer(
             brightness = FixedBrightness(),
             navigation = FixedNavigation(Samples.nav),
             voice = FixedVoice(),
+            tray = FixedTray(Samples.notifications),
+            status = FixedStatus(Samples.status),
         )
     }
 }

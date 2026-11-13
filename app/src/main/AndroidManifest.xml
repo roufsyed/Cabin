@@ -9,6 +9,13 @@
     <!-- Only the last position Android already has, to work out sunrise and sunset for Auto brightness. -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
+    <!-- The Wi-Fi and phone marks beside the clock. Neither changes anything; they only read state. -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+
     <!-- "Where to?" listens for one spoken destination. Asked for the first time it is used. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 

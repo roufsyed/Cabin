@@ -39,6 +39,8 @@ import com.roufsyed.cabin.ui.chrome.Rail
 import com.roufsyed.cabin.ui.chrome.TopStrip
 import com.roufsyed.cabin.ui.home.HomePanels
 import com.roufsyed.cabin.ui.music.MusicScreen
+import com.roufsyed.cabin.ui.overlay.ScreenOffClock
+import com.roufsyed.cabin.ui.overlay.TrayOverlay
 import com.roufsyed.cabin.ui.overlay.VoiceOverlay
 import com.roufsyed.cabin.ui.overlay.VolumeHud
 import com.roufsyed.cabin.ui.settings.SettingsGrid
@@ -107,7 +109,8 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
         when (gesture) {
             Gesture.SwipeLeft -> shellModel.swipeLeft(pageCount(shell, appsModel))
             Gesture.SwipeRight -> shellModel.swipeRight()
-            Gesture.SwipeDown, Gesture.SwipeUp -> Unit
+            Gesture.SwipeDown -> if (shell.overlay == Overlay.None) shellModel.show(Overlay.Tray)
+            Gesture.SwipeUp -> if (shell.overlay == Overlay.Tray) shellModel.closeOverlay()
             Gesture.VolumeBegin -> volumeDrag = dashboard.volume.value.level
             is Gesture.Volume -> volumeDrag?.let { start -> dashboard.setVolume(start + gesture.steps) }
             Gesture.VolumeEnd -> volumeDrag = null
@@ -160,9 +163,35 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
                     },
                 )
             }
+            if (shell.overlay == Overlay.Tray) TrayContent(container, shellModel, host)
+            if (shell.overlay == Overlay.ScreenOff) {
+                val clock by dashboard.clock.collectAsStateWithLifecycle()
+                ScreenOffClock(clock, onWake = shellModel::closeOverlay)
+            }
             if (volumeDrag != null) VolumeReadout(dashboard)
         }
     }
+}
+
+@Composable
+private fun TrayContent(container: AppContainer, shellModel: ShellViewModel, host: HostActions) {
+    val items by container.tray.items.collectAsStateWithLifecycle()
+    val access by container.media.access.collectAsStateWithLifecycle()
+    TrayOverlay(
+        items = items,
+        needsAccess = !access,
+        onOpen = { item ->
+            container.tray.open(item.key)
+            shellModel.closeOverlay()
+        },
+        onAllowAccess = {
+            shellModel.closeOverlay()
+            host.requestNotificationAccess()
+        },
+        onClearAll = container.tray::clearAll,
+        onScreenOff = { shellModel.show(Overlay.ScreenOff) },
+        onClose = shellModel::closeOverlay,
+    )
 }
 
 /** How many pages the grid on screen has, so a swipe left knows whether there is a next one. */

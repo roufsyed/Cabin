@@ -1,9 +1,12 @@
 package com.roufsyed.cabin
 
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipe
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.roufsyed.cabin.model.NavUi
 import com.roufsyed.cabin.nav.FixedNavigation
@@ -123,6 +126,20 @@ class LayoutTest {
         at("Navigate to Airport", 329f, 479f, 199.33f, 96f)
         at("Navigate to City Mall", 540.33f, 479f, 199.33f, 96f)
         at("Cancel", 751.67f, 479f, 199.33f, 96f)
+    }
+
+    @Test
+    fun trayMatchesTheDesignGrid() {
+        cabin.onRoot().performTouchInput {
+            swipe(Offset(visibleSize.width * 0.4f, visibleSize.height * 0.15f), Offset(visibleSize.width * 0.4f, visibleSize.height * 0.45f), 200)
+        }
+        // A 1200-wide sheet from the top edge at x = 40: a 76-high heading, 104-high rows, 96-high buttons.
+        at("Missed call. Meera · tap to call back", 41f, 76f, 1198f, 104f)
+        at("Kabir. Running ten minutes late", 41f, 180f, 1198f, 104f)
+        at("USB drive connected. Tap to play from USB", 41f, 284f, 1198f, 104f)
+        at("Clear all notifications", 41f, 389f, 398f, 96f)
+        at("Screen off", 440f, 389f, 398f, 96f)
+        at("Close notification tray", 839f, 389f, 400f, 96f)
     }
 
     @Test
