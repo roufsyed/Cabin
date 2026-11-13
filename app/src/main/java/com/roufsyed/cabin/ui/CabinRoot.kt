@@ -4,10 +4,14 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
@@ -16,6 +20,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.roufsyed.cabin.AppContainer
+import com.roufsyed.cabin.gesture.Gesture
+import com.roufsyed.cabin.gesture.cabinGestures
 import com.roufsyed.cabin.model.AppTile
 import com.roufsyed.cabin.model.Slot
 import com.roufsyed.cabin.model.SourceId
@@ -32,6 +38,7 @@ import com.roufsyed.cabin.ui.chrome.Rail
 import com.roufsyed.cabin.ui.chrome.TopStrip
 import com.roufsyed.cabin.ui.home.HomePanels
 import com.roufsyed.cabin.ui.music.MusicScreen
+import com.roufsyed.cabin.ui.overlay.VolumeHud
 import com.roufsyed.cabin.ui.settings.SettingsGrid
 import com.roufsyed.cabin.ui.settings.SettingsTile
 import com.roufsyed.cabin.ui.shell.EditKind
@@ -45,6 +52,7 @@ import com.roufsyed.cabin.ui.theme.DesignSurface
 class HostActions(
     val requestHomeRole: () -> Unit = {},
     val requestNotificationAccess: () -> Unit = {},
+    val requestWriteSettings: () -> Unit = {},
 )
 
 @Composable
@@ -70,37 +78,68 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
         if (dashboard.open(slot) == Opened.NeedsApp) shellModel.pickApp(slot)
     }
 
+    // The two-finger volume drag: the level it started from, and whether its readout is up.
+    var volumeDrag by remember { mutableStateOf<Int?>(null) }
+    val onGesture: (Gesture) -> Unit = { gesture ->
+        when (gesture) {
+            Gesture.SwipeLeft -> shellModel.swipeLeft(pageCount(shell, appsModel))
+            Gesture.SwipeRight -> shellModel.swipeRight()
+            Gesture.SwipeDown, Gesture.SwipeUp -> Unit
+            Gesture.VolumeBegin -> volumeDrag = dashboard.volume.value.level
+            is Gesture.Volume -> volumeDrag?.let { start -> dashboard.setVolume(start + gesture.steps) }
+            Gesture.VolumeEnd -> volumeDrag = null
+        }
+    }
+
     DesignSurface {
-        CabinFrame(
-            content = {
-                if (shell.screen == Screen.Home) {
-                    HomeContent(dashboard, shellModel, host)
-                } else {
-                    Column {
-                        when {
-                            shell.edit == EditKind.Apps -> AppsEditBar(shell, appsModel, shellModel)
-                            shell.edit == EditKind.Sources -> SourcesEditBar(shell, container, shellModel)
-                            shell.screen == Screen.Pick -> SlotPickBar(shell, container, shellModel)
-                            else -> Strip(dashboard, shellModel, host, showMini = shell.screen != Screen.Music)
-                        }
-                        Spacer(Modifier.height(16.dp))
-                        Box(Modifier.size(1036.dp, 488.dp)) {
-                            when (shell.screen) {
-                                Screen.Apps -> AppsContent(shell, appsModel, shellModel)
-                                Screen.Music -> MusicContent(dashboard)
-                                Screen.Settings -> SettingsContent(container, shellModel, host)
-                                Screen.Sources -> SourcesContent(shell, container, shellModel)
-                                Screen.Pick -> SlotPickContent(shell, container, appsModel, shellModel)
-                                else -> Unit
+        Box(Modifier.fillMaxSize().cabinGestures(onGesture)) {
+            CabinFrame(
+                content = {
+                    if (shell.screen == Screen.Home) {
+                        HomeContent(dashboard, shellModel, host)
+                    } else {
+                        Column {
+                            when {
+                                shell.edit == EditKind.Apps -> AppsEditBar(shell, appsModel, shellModel)
+                                shell.edit == EditKind.Sources -> SourcesEditBar(shell, container, shellModel)
+                                shell.screen == Screen.Pick -> SlotPickBar(shell, container, shellModel)
+                                else -> Strip(dashboard, shellModel, host, showMini = shell.screen != Screen.Music)
+                            }
+                            Spacer(Modifier.height(16.dp))
+                            Box(Modifier.size(1036.dp, 488.dp)) {
+                                when (shell.screen) {
+                                    Screen.Apps -> AppsContent(shell, appsModel, shellModel)
+                                    Screen.Music -> MusicContent(dashboard)
+                                    Screen.Settings -> SettingsContent(container, shellModel, host)
+                                    Screen.Sources -> SourcesContent(shell, container, shellModel)
+                                    Screen.Pick -> SlotPickContent(shell, container, appsModel, shellModel)
+                                    else -> Unit
+                                }
                             }
                         }
                     }
-                }
-            },
-            bottomRow = { BottomRowContent(dashboard, selectSource) },
-            rail = { RailContent(dashboard, shell.screen == Screen.Home, shellModel, openSlot) },
-        )
+                },
+                bottomRow = { BottomRowContent(dashboard, selectSource) },
+                rail = { RailContent(dashboard, shell.screen == Screen.Home, shellModel, openSlot) },
+            )
+            if (volumeDrag != null) VolumeReadout(dashboard)
+        }
     }
+}
+
+/** How many pages the grid on screen has, so a swipe left knows whether there is a next one. */
+private fun pageCount(shell: Shell, apps: AppsViewModel): Int {
+    val ui = apps.ui.value
+    return when {
+        shell.screen == Screen.Pick -> AppsUi.pagesFor(ui.all.count { it.app.id != apps.ownId })
+        else -> ui.pageCount(editing = shell.edit == EditKind.Apps)
+    }
+}
+
+@Composable
+private fun VolumeReadout(dashboard: DashboardViewModel) {
+    val volume by dashboard.volume.collectAsStateWithLifecycle()
+    VolumeHud(volume.level)
 }
 
 @Composable
@@ -263,6 +302,7 @@ private fun SlotPickContent(shell: Shell, container: AppContainer, apps: AppsVie
 private fun SettingsContent(container: AppContainer, shellModel: ShellViewModel, host: HostActions) {
     val isHome by container.homeRole.held.collectAsStateWithLifecycle()
     val notifications by container.media.access.collectAsStateWithLifecycle()
+    val canSetBrightness by container.brightness.canWrite.collectAsStateWithLifecycle()
     SettingsGrid(
         listOf(
             SettingsTile("Apps", "Choose and arrange", "Arrange apps") { shellModel.arrangeApps() },
@@ -275,6 +315,10 @@ private fun SettingsContent(container: AppContainer, shellModel: ShellViewModel,
                 "Notification access", "Shows what is playing", "Allow notification access",
                 value = if (notifications) "On" else "Off", on = notifications, onClick = host.requestNotificationAccess,
             ),
+            SettingsTile(
+                "Brightness control", "Lets Cabin dim the screen", "Allow changing system settings",
+                value = if (canSetBrightness) "On" else "Off", on = canSetBrightness, onClick = host.requestWriteSettings,
+            ),
         ),
     )
 }
@@ -286,9 +330,9 @@ private fun BottomRowContent(dashboard: DashboardViewModel, onSource: (SourceId)
     BottomRow(
         brightness = brightness,
         sources = sources,
-        onBrightnessDown = {},
-        onBrightnessMode = {},
-        onBrightnessUp = {},
+        onBrightnessDown = dashboard::brightnessDown,
+        onBrightnessMode = dashboard::cycleBrightnessMode,
+        onBrightnessUp = dashboard::brightnessUp,
         onSource = onSource,
     )
 }
@@ -307,8 +351,8 @@ private fun RailContent(
         onPhone = { onSlot(Slot.Phone) },
         onLink = { onSlot(Slot.Link) },
         onAppsOrHome = { if (onHome) shell.open(Screen.Apps) else shell.home() },
-        onVolumeUp = {},
-        onMute = {},
-        onVolumeDown = {},
+        onVolumeUp = dashboard::volumeUp,
+        onMute = dashboard::toggleMute,
+        onVolumeDown = dashboard::volumeDown,
     )
 }

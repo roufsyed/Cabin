@@ -19,12 +19,18 @@ import com.roufsyed.cabin.model.SourceId
 import com.roufsyed.cabin.notify.ListenerClient
 import com.roufsyed.cabin.notify.ListenerHub
 import com.roufsyed.cabin.sources.SourceController
+import com.roufsyed.cabin.system.AndroidBrightness
 import com.roufsyed.cabin.system.AndroidClock
 import com.roufsyed.cabin.system.AndroidHomeRole
+import com.roufsyed.cabin.system.AndroidVolume
+import com.roufsyed.cabin.system.BrightnessControl
 import com.roufsyed.cabin.system.ClockSource
+import com.roufsyed.cabin.system.FixedBrightness
 import com.roufsyed.cabin.system.FixedClock
 import com.roufsyed.cabin.system.FixedHomeRole
+import com.roufsyed.cabin.system.FixedVolume
 import com.roufsyed.cabin.system.HomeRole
+import com.roufsyed.cabin.system.VolumeControl
 import android.service.notification.NotificationListenerService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -42,9 +48,20 @@ class AppContainer(
     val clock: ClockSource,
     val homeRole: HomeRole,
     val media: MediaSource,
+    val volume: VolumeControl,
+    val brightness: BrightnessControl,
     val listenerHub: ListenerHub = ListenerHub(),
 ) {
     val sources = SourceController(settings, apps, media, scope)
+
+    /** The same set with some parts swapped, for tests that need a particular unit. */
+    fun copy(
+        settings: SettingsStore = this.settings,
+        apps: AppsSource = this.apps,
+        media: MediaSource = this.media,
+        volume: VolumeControl = this.volume,
+        brightness: BrightnessControl = this.brightness,
+    ): AppContainer = AppContainer(scope, settings, apps, clock, homeRole, media, volume, brightness, listenerHub)
 
     companion object {
         fun live(app: Application): AppContainer {
@@ -55,13 +72,16 @@ class AppContainer(
             )
             val settings = DataStoreSettings(store, scope)
             val media = AndroidMediaSource(app, scope)
+            val clock = AndroidClock(app)
             return AppContainer(
                 scope = scope,
                 settings = settings,
                 apps = AndroidAppsSource(app, settings, scope),
-                clock = AndroidClock(app),
+                clock = clock,
                 homeRole = AndroidHomeRole(app),
                 media = media,
+                volume = AndroidVolume(app),
+                brightness = AndroidBrightness(app, settings, scope, clock),
                 listenerHub = ListenerHub(
                     listOf(
                         object : ListenerClient {
@@ -88,6 +108,8 @@ class AppContainer(
             clock = FixedClock(Samples.clock),
             homeRole = FixedHomeRole(),
             media = FixedMedia(Samples.playing),
+            volume = FixedVolume(),
+            brightness = FixedBrightness(),
         )
     }
 }

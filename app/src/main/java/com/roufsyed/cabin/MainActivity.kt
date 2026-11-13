@@ -3,9 +3,12 @@ package com.roufsyed.cabin
 import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.view.KeyEvent
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -13,6 +16,10 @@ import androidx.activity.viewModels
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.launch
 import com.roufsyed.cabin.notify.CabinNotificationListener
 import com.roufsyed.cabin.ui.CabinRoot
 import com.roufsyed.cabin.ui.HostActions
@@ -39,8 +46,53 @@ class MainActivity : ComponentActivity() {
         val host = HostActions(
             requestHomeRole = { container.homeRole.requestIntent()?.let(homeRoleRequest::launch) },
             requestNotificationAccess = ::openNotificationAccess,
+            requestWriteSettings = ::openWriteSettings,
         )
         setContent { CabinRoot(container, host) }
+        followWindowBrightness()
+    }
+
+    /**
+     * Until Cabin is allowed to change the unit's brightness setting, the stepper dims Cabin's own
+     * window instead, so it is never a dead control.
+     */
+    private fun followWindowBrightness() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                container.brightness.windowBrightness.collect { level ->
+                    window.attributes = window.attributes.apply {
+                        screenBrightness = level ?: WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Volume keys, which is also how the steering wheel's volume buttons arrive, step Cabin's volume
+     * directly, so the rail's number moves and Android's own volume panel does not cover the screen.
+     */
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        when (keyCode) {
+            KeyEvent.KEYCODE_VOLUME_UP -> container.volume.up()
+            KeyEvent.KEYCODE_VOLUME_DOWN -> container.volume.down()
+            KeyEvent.KEYCODE_VOLUME_MUTE -> if (event.repeatCount == 0) container.volume.toggleMute()
+            else -> return super.onKeyDown(keyCode, event)
+        }
+        return true
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean = when (keyCode) {
+        KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_VOLUME_MUTE -> true
+        else -> super.onKeyUp(keyCode, event)
+    }
+
+    private fun openWriteSettings() {
+        try {
+            startActivity(Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:$packageName")))
+        } catch (e: ActivityNotFoundException) {
+            // The unit's settings app has no such screen; NOTES.md gives the adb command instead.
+        }
     }
 
     /** The Home button while Cabin is already showing: go back to the Home screen. */
@@ -54,6 +106,8 @@ class MainActivity : ComponentActivity() {
         // The user may be coming back from a system settings screen.
         container.homeRole.refresh()
         container.media.refreshAccess()
+        container.brightness.refresh()
+        container.volume.refresh()
     }
 
     /** Opens Android's notification-access switch for Cabin, or the list of such apps if that fails. */

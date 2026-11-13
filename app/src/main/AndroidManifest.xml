@@ -1,6 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Sets the unit's screen brightness. The user grants it from Cabin's Settings. -->
+    <uses-permission
+        android:name="android.permission.WRITE_SETTINGS"
+        xmlns:tools="http://schemas.android.com/tools"
+        tools:ignore="ProtectedPermissions" />
+    <!-- Only the last position Android already has, to work out sunrise and sunset for Auto brightness. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
     <!-- A launcher has to see every launchable app. -->
     <queries>
         <intent>

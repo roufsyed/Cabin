@@ -38,16 +38,26 @@ class DashboardViewModel(private val container: AppContainer) : ViewModel() {
     val sources: StateFlow<List<SourceUi>> = container.sources.state.map { it.row }
         .stateIn(viewModelScope, SharingStarted.Eagerly, container.sources.state.value.row)
 
+    val volume: StateFlow<VolumeUi> = container.volume.volume
+    val brightness: StateFlow<BrightnessUi> = container.brightness.state
+
     // Not wired to the unit yet: these still show the design's values.
     val status: StateFlow<StatusUi> = MutableStateFlow(Samples.status)
     val nav: StateFlow<NavUi> = MutableStateFlow(Samples.nav)
-    val volume: StateFlow<VolumeUi> = MutableStateFlow(Samples.volume)
-    val brightness: StateFlow<BrightnessUi> = MutableStateFlow(Samples.brightness)
 
     fun playPause() = container.media.playPause()
     fun next() = container.media.next()
     fun previous() = container.media.previous()
     fun playQueueItem(id: Long) = container.media.playQueueItem(id)
+
+    fun volumeUp() = container.volume.up()
+    fun volumeDown() = container.volume.down()
+    fun toggleMute() = container.volume.toggleMute()
+    fun setVolume(level: Int) = container.volume.set(level)
+
+    fun brightnessUp() = container.brightness.up()
+    fun brightnessDown() = container.brightness.down()
+    fun cycleBrightnessMode() = container.brightness.cycleMode()
 
     fun selectSource(source: SourceId): Opened = container.sources.select(source)
     fun open(slot: Slot): Opened = container.sources.open(slot)

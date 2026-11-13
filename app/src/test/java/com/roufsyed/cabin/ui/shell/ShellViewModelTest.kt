@@ -74,4 +74,67 @@ class ShellViewModelTest {
         shell.home()
         assertEquals(Shell(), state)
     }
+
+    @Test
+    fun `swiping left goes from Home through the pages of apps and stops at the last`() {
+        shell.swipeLeft(pages = 2)
+        assertEquals(Shell(screen = Screen.Apps, page = 0), state)
+        shell.swipeLeft(pages = 2)
+        assertEquals(1, state.page)
+        shell.swipeLeft(pages = 2)
+        assertEquals(1, state.page)
+    }
+
+    @Test
+    fun `swiping right goes back a page, then Home, and from any other screen straight Home`() {
+        shell.appsPage(1)
+        shell.swipeRight()
+        assertEquals(Shell(screen = Screen.Apps, page = 0), state)
+        shell.swipeRight()
+        assertEquals(Shell(), state)
+        shell.swipeRight()
+        assertEquals(Shell(), state)
+
+        shell.open(Screen.Music)
+        shell.swipeRight()
+        assertEquals(Shell(), state)
+    }
+
+    @Test
+    fun `a swipe while arranging only changes page`() {
+        shell.arrangeApps()
+        shell.pick("a")
+        shell.swipeLeft(pages = 3)
+        assertEquals(Shell(screen = Screen.Apps, page = 1, edit = EditKind.Apps, picked = "a"), state)
+        shell.swipeRight()
+        shell.swipeRight()
+        // Still arranging, on the first page: a stray swipe must not throw the work away.
+        assertEquals(Shell(screen = Screen.Apps, page = 0, edit = EditKind.Apps, picked = "a"), state)
+
+        shell.arrangeSources()
+        shell.swipeRight()
+        assertEquals(EditKind.Sources, state.edit)
+    }
+
+    @Test
+    fun `swipes do nothing under an overlay`() {
+        shell.show(Overlay.Tray)
+        shell.swipeLeft(pages = 2)
+        assertEquals(Shell(overlay = Overlay.Tray), state)
+    }
+
+    @Test
+    fun `the app chooser returns to where it was opened from`() {
+        shell.arrangeSources()
+        shell.pick("Radio")
+        shell.pickApp(com.roufsyed.cabin.model.Slot.Radio)
+        assertEquals(Screen.Pick, state.screen)
+        shell.pickDone()
+        assertEquals(Shell(screen = Screen.Sources, edit = EditKind.Sources, picked = "Radio"), state)
+
+        shell.home()
+        shell.pickApp(com.roufsyed.cabin.model.Slot.Phone)
+        shell.back()
+        assertEquals(Shell(), state)
+    }
 }

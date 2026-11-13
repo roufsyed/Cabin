@@ -68,6 +68,32 @@ class ShellViewModel : ViewModel() {
         }
     }
 
+    /**
+     * One finger swiped left: Home leads to the first page of apps, and a page of apps to the next of
+     * [pages]. Nothing moves while an overlay is up.
+     */
+    fun swipeLeft(pages: Int) = _state.update {
+        when {
+            it.overlay != Overlay.None -> it
+            it.screen == Screen.Home -> Shell(screen = Screen.Apps)
+            (it.screen == Screen.Apps || it.screen == Screen.Pick) && it.page + 1 < pages -> it.copy(page = it.page + 1)
+            else -> it
+        }
+    }
+
+    /**
+     * One finger swiped right: back a page, from the first page of apps to Home, and from any other
+     * screen to Home. While arranging or choosing an app it only pages, so a stray swipe loses nothing.
+     */
+    fun swipeRight() = _state.update {
+        when {
+            it.overlay != Overlay.None || it.screen == Screen.Home -> it
+            (it.screen == Screen.Apps || it.screen == Screen.Pick) && it.page > 0 -> it.copy(page = it.page - 1)
+            it.edit != null || it.screen == Screen.Pick -> it
+            else -> Shell()
+        }
+    }
+
     fun show(overlay: Overlay) = _state.update { it.copy(overlay = overlay) }
 
     fun closeOverlay() = _state.update { it.copy(overlay = Overlay.None) }

@@ -30,14 +30,7 @@ class UnboundSlotTest {
 
     @get:Rule(order = 0)
     val values = FreshDesignValues { design ->
-        AppContainer(
-            scope = design.scope,
-            settings = InMemorySettings(),
-            apps = unknownApps,
-            clock = design.clock,
-            homeRole = design.homeRole,
-            media = FixedMedia(null),
-        )
+        design.copy(settings = InMemorySettings(), apps = unknownApps, media = FixedMedia(null))
     }
 
     @get:Rule(order = 1)
