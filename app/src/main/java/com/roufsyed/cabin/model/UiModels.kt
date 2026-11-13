@@ -1,4 +1,4 @@
-package com.roufsyed.cabin.ui.model
+package com.roufsyed.cabin.model
 
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.ImageBitmap

@@ -21,7 +21,7 @@ import com.roufsyed.cabin.ui.components.pressable
 import com.roufsyed.cabin.ui.icons.Icon
 import com.roufsyed.cabin.ui.icons.SlateIcon
 import com.roufsyed.cabin.ui.icons.SlateIcons
-import com.roufsyed.cabin.ui.model.VolumeUi
+import com.roufsyed.cabin.model.VolumeUi
 import com.roufsyed.cabin.ui.theme.Slate
 import com.roufsyed.cabin.ui.theme.Txt
 

@@ -13,6 +13,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextMotion
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
@@ -83,6 +84,9 @@ object Slate {
         textAlign = align,
         platformStyle = PlatformTextStyle(includeFontPadding = false),
         lineHeightStyle = if (lineHeight < NATURAL_LINE_HEIGHT) tightLines else looseLines,
+        // Fractional glyph positions, as the design's renderer uses. With the default, every glyph
+        // advance is rounded to a whole pixel and a line of text drifts a pixel or two off the design.
+        textMotion = TextMotion.Animated,
     )
 }
 

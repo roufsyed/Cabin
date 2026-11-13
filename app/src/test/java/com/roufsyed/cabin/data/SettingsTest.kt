@@ -1,0 +1,139 @@
+package com.roufsyed.cabin.data
+
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
+import com.roufsyed.cabin.model.AppEntry
+import com.roufsyed.cabin.model.BrightnessMode
+import com.roufsyed.cabin.model.Glyph
+import com.roufsyed.cabin.model.Slot
+import com.roufsyed.cabin.model.SourceId
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Rule
+import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import java.io.File
+
+class SettingsTest {
+
+    @get:Rule
+    val folder = TemporaryFolder()
+
+    private val scopes = mutableListOf<CoroutineScope>()
+
+    @After
+    fun tearDown() = scopes.forEach { it.cancel() }
+
+    /** A settings store on [file], as a fresh process would open it. */
+    private fun open(file: File): DataStoreSettings {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO).also { scopes += it }
+        val store = PreferenceDataStoreFactory.create(scope = scope, produceFile = { file })
+        return DataStoreSettings(store, scope)
+    }
+
+    private fun DataStoreSettings.loaded(): CabinSettings = runBlocking { settings.first { it.loaded } }
+
+    @Test
+    fun `a new install has the design's defaults`() {
+        val settings = open(File(folder.root, "new.preferences_pb")).loaded()
+
+        assertEquals(SourceId.entries.toList(), settings.sourceOrder)
+        assertEquals(setOf(SourceId.Aux), settings.sourceHidden)
+        assertEquals(BrightnessMode.Auto, settings.brightnessMode)
+        assertEquals(8, settings.dayLevel)
+        assertEquals(3, settings.nightLevel)
+        assertTrue(settings.appOrder.isEmpty())
+        assertTrue(settings.appHidden.isEmpty())
+        assertFalse(settings.setupDone)
+        assertNull(settings.activeSource)
+    }
+
+    @Test
+    fun `every setting survives a restart`() {
+        val file = File(folder.root, "saved.preferences_pb")
+        val saved = CabinSettings(
+            loaded = true,
+            appOrder = listOf("com.b/.Main", "com.a/.Main"),
+            appHidden = setOf("com.a/.Main"),
+            appCache = listOf(
+                AppEntry("com.a/.Main", "Alpha", Glyph.Music),
+                AppEntry("com.b/.Main", "Beta\twith tab", Glyph.Letter),
+            ),
+            sourceOrder = listOf(SourceId.Usb, SourceId.Radio, SourceId.Aux, SourceId.Bluetooth, SourceId.Auto),
+            sourceHidden = setOf(SourceId.Radio),
+            bindings = mapOf(Slot.Radio to "com.radio/.Main", Slot.Phone to "com.phone/.Dial"),
+            activeSource = SourceId.Usb,
+            brightnessMode = BrightnessMode.Night,
+            dayLevel = 10,
+            nightLevel = 1,
+            setupDone = true,
+            latitude = 12.97,
+            longitude = 77.59,
+            recentPlaces = listOf("Airport", "City Mall"),
+        )
+
+        val first = open(file)
+        first.loaded()
+        runBlocking {
+            first.update { saved }
+            // Close the first store completely, as a process exit would, before opening the file again.
+            scopes.removeAt(0).coroutineContext[Job]!!.cancelAndJoin()
+        }
+
+        val restored = open(file).loaded()
+        assertEquals(saved.copy(appCache = saved.appCache.map { it.copy(label = it.label.replace('\t', ' ')) }), restored)
+    }
+
+    @Test
+    fun `an update changes only what it touches`() {
+        val store = open(File(folder.root, "partial.preferences_pb"))
+        store.loaded()
+        runBlocking {
+            store.update { it.copy(appHidden = setOf("x")) }
+            store.update { it.copy(dayLevel = 5) }
+        }
+        val settings = runBlocking { store.settings.first { it.dayLevel == 5 } }
+        assertEquals(setOf("x"), settings.appHidden)
+        assertEquals(3, settings.nightLevel)
+    }
+
+    @Test
+    fun `damaged values fall back to defaults instead of failing`() {
+        val file = File(folder.root, "damaged.preferences_pb")
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO).also { scopes += it }
+        val raw = PreferenceDataStoreFactory.create(scope = scope, produceFile = { file })
+        runBlocking {
+            raw.edit {
+                it[stringPreferencesKey("source_order")] = "Usb,Nonsense,Radio"
+                it[stringPreferencesKey("brightness_mode")] = "Dusk"
+                it[intPreferencesKey("brightness_day")] = 99
+                it[stringPreferencesKey("position")] = "not,numbers"
+                it[stringPreferencesKey("app_cache")] = "broken line\ncom.a/.Main\tWhat\tAlpha"
+            }
+        }
+        val settings = SettingsCodec.decode(runBlocking { raw.data.first() })
+
+        // Known sources keep their saved place; the rest are appended so none can go missing.
+        assertEquals(
+            listOf(SourceId.Usb, SourceId.Radio, SourceId.Bluetooth, SourceId.Auto, SourceId.Aux),
+            settings.sourceOrder,
+        )
+        assertEquals(BrightnessMode.Auto, settings.brightnessMode)
+        assertEquals(10, settings.dayLevel)
+        assertNull(settings.latitude)
+        assertEquals(listOf(AppEntry("com.a/.Main", "Alpha", Glyph.Letter)), settings.appCache)
+    }
+}

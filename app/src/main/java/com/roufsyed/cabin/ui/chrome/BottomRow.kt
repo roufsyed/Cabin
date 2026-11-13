@@ -19,9 +19,9 @@ import com.roufsyed.cabin.ui.components.Rule
 import com.roufsyed.cabin.ui.components.pressable
 import com.roufsyed.cabin.ui.icons.Icon
 import com.roufsyed.cabin.ui.icons.SlateIcons
-import com.roufsyed.cabin.ui.model.BrightnessUi
-import com.roufsyed.cabin.ui.model.SourceId
-import com.roufsyed.cabin.ui.model.SourceUi
+import com.roufsyed.cabin.model.BrightnessUi
+import com.roufsyed.cabin.model.SourceId
+import com.roufsyed.cabin.model.SourceUi
 import com.roufsyed.cabin.ui.theme.Slate
 import com.roufsyed.cabin.ui.theme.Txt
 

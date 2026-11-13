@@ -1,4 +1,4 @@
-package com.roufsyed.cabin.ui.model
+package com.roufsyed.cabin.model
 
 /**
  * The values the design itself is drawn with. Used for the static Home, for the debug "demo" launch

@@ -27,10 +27,10 @@ import com.roufsyed.cabin.ui.components.Panel
 import com.roufsyed.cabin.ui.components.pressable
 import com.roufsyed.cabin.ui.icons.Icon
 import com.roufsyed.cabin.ui.icons.SlateIcons
-import com.roufsyed.cabin.ui.model.ClockUi
-import com.roufsyed.cabin.ui.model.NavUi
-import com.roufsyed.cabin.ui.model.NowPlayingUi
-import com.roufsyed.cabin.ui.model.StatusUi
+import com.roufsyed.cabin.model.ClockUi
+import com.roufsyed.cabin.model.NavUi
+import com.roufsyed.cabin.model.NowPlayingUi
+import com.roufsyed.cabin.model.StatusUi
 import com.roufsyed.cabin.ui.theme.Slate
 import com.roufsyed.cabin.ui.theme.Txt
 

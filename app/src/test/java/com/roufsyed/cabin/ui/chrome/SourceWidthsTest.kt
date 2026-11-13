@@ -1,6 +1,6 @@
 package com.roufsyed.cabin.ui.chrome
 
-import com.roufsyed.cabin.ui.model.SourceId
+import com.roufsyed.cabin.model.SourceId
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
