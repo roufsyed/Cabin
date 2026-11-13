@@ -7,8 +7,9 @@ import com.roufsyed.cabin.notify.TrayItem
 import com.roufsyed.cabin.notify.TrayKind
 
 /**
- * The values the design itself is drawn with. Used for the static Home, for the debug "demo" launch
- * that makes the app directly comparable with the design, and by tests.
+ * The values the design itself is drawn with. They back the debug "design" launch, which makes the app
+ * directly comparable with the design, and the tests. Volume (12) and brightness (8, Auto) are the
+ * defaults of their in-memory stand-ins.
  */
 object Samples {
     val clock = ClockUi(
@@ -18,18 +19,19 @@ object Samples {
         dateLong = "12 November",
         dateShort = "Thu 12 Nov",
     )
+
     val status = StatusUi(phone = true, wifi = true, gps = true)
+
     val nav = NavUi.Active(
         distance = "350 m",
         road = "Ring Road",
         arrive = "Arrive 10:48",
         remaining = "38 min · 17 km",
     )
-    /** The app the sample track plays in. In the design this is the phone's Bluetooth audio. */
-    const val PLAYING_PACKAGE = "design.music"
 
+    /** In the design this is the phone's Bluetooth audio; here it "plays" in the design's Music app. */
     val playing = NowPlaying(
-        packageName = PLAYING_PACKAGE,
+        packageName = "design.music",
         appLabel = "Bluetooth audio",
         title = "Open Road",
         artist = "Aster Lane",
@@ -43,19 +45,11 @@ object Samples {
             QueueItem(4, "Slow Tide", "Marlow Reed", current = false, duration = "2:58"),
         ),
     )
-    val nowPlaying = nowPlayingUi(playing, access = true)
+
     /** The three notifications in the design's tray. */
     val notifications = listOf(
         TrayItem("call", TrayKind.Call, "P", "Missed call", "Meera · tap to call back", "10:02"),
         TrayItem("message", TrayKind.Message, "M", "Kabir", "Running ten minutes late", "9:58"),
         TrayItem("usb", TrayKind.Media, "M", "USB drive connected", "Tap to play from USB", "9:41"),
-    )
-    val volume = VolumeUi(level = 12, muted = false)
-    val brightness = BrightnessUi(level = 8, night = false, mode = BrightnessMode.Auto)
-    val sources = listOf(
-        SourceUi(SourceId.Radio, active = false),
-        SourceUi(SourceId.Bluetooth, active = true),
-        SourceUi(SourceId.Usb, active = false),
-        SourceUi(SourceId.Auto, active = false),
     )
 }
