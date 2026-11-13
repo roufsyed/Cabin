@@ -52,6 +52,18 @@ class PlaybackProgressTest {
     }
 
     @Test
+    fun `with nothing playing the line is empty and no times are shown`() {
+        val none = PlaybackProgress.None
+        assertFalse(none.live)
+        assertEquals(0f, none.fractionAt(60_000), 0f)
+        assertEquals("", none.positionLabel(60_000))
+        assertEquals("", none.durationLabel)
+        // The panel for "nothing playing" and for "no access yet" both use it.
+        assertEquals(none, nowPlayingUi(null, access = true).progress)
+        assertEquals(none, nowPlayingUi(null, access = false).progress)
+    }
+
+    @Test
     fun `times are written as minutes and seconds, with hours when needed`() {
         assertEquals("0:00", PlaybackProgress.formatTime(0))
         assertEquals("0:09", PlaybackProgress.formatTime(9_999))

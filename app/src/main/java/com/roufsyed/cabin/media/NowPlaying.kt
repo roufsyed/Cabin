@@ -14,8 +14,10 @@ data class PlaybackProgress(
     val playing: Boolean,
     /** The elapsed-realtime clock reading at which [positionMs] was true. */
     val atElapsedMs: Long,
+    /** True when there is no track at all: the line is empty and no times are shown. */
+    val empty: Boolean = false,
 ) {
-    val live: Boolean get() = durationMs <= 0L
+    val live: Boolean get() = !empty && durationMs <= 0L
 
     /** The position at [nowElapsedMs], advanced by the time gone by while playing. */
     fun positionAt(nowElapsedMs: Long): Long {
@@ -25,15 +27,23 @@ data class PlaybackProgress(
     }
 
     /** The played part of the track, 0..1. A live stream reads as full, as the design draws radio. */
-    fun fractionAt(nowElapsedMs: Long): Float =
-        if (live) 1f else (positionAt(nowElapsedMs).toFloat() / durationMs).coerceIn(0f, 1f)
+    fun fractionAt(nowElapsedMs: Long): Float = when {
+        empty -> 0f
+        live -> 1f
+        else -> (positionAt(nowElapsedMs).toFloat() / durationMs).coerceIn(0f, 1f)
+    }
 
-    fun positionLabel(nowElapsedMs: Long): String = if (live) "Live" else formatTime(positionAt(nowElapsedMs))
+    fun positionLabel(nowElapsedMs: Long): String = when {
+        empty -> ""
+        live -> "Live"
+        else -> formatTime(positionAt(nowElapsedMs))
+    }
 
-    val durationLabel: String get() = if (live) "" else formatTime(durationMs)
+    val durationLabel: String get() = if (empty || live) "" else formatTime(durationMs)
 
     companion object {
-        val None = PlaybackProgress(0L, 0L, 0f, playing = false, atElapsedMs = 0L)
+        /** Nothing is playing. */
+        val None = PlaybackProgress(0L, 0L, 0f, playing = false, atElapsedMs = 0L, empty = true)
 
         /** "1:24", "12:05", "1:02:03". */
         fun formatTime(ms: Long): String {
