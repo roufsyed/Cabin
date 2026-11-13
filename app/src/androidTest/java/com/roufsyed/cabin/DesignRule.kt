@@ -1,10 +1,12 @@
 package com.roufsyed.cabin
 
+import android.Manifest
 import android.content.Intent
 import androidx.compose.ui.test.junit4.AndroidComposeTestRule
 import androidx.compose.ui.test.junit4.v2.AndroidComposeTestRule as composeRule
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.rules.ActivityScenarioRule
+import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.rules.ExternalResource
 
 /** Gives each test a fresh copy of the design's values, before the activity starts. */
@@ -13,6 +15,11 @@ class FreshDesignValues(private val configure: (AppContainer) -> AppContainer = 
         private set
 
     override fun before() {
+        // "Where to?" asks for the microphone on first use; a system dialog would stall a test.
+        InstrumentationRegistry.getInstrumentation().uiAutomation.grantRuntimePermission(
+            ApplicationProvider.getApplicationContext<CabinApp>().packageName,
+            Manifest.permission.RECORD_AUDIO,
+        )
         container = configure(AppContainer.design())
         ApplicationProvider.getApplicationContext<CabinApp>().replaceContainer(container)
     }

@@ -131,11 +131,13 @@ private fun NavigationPanel(
                 Txt("Navigation", 24, color = Slate.Muted)
                 Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
                     if (nav.glyph != null) {
+                        // The maps app's own manoeuvre arrow, in the accent, at the bottom left of the
+                        // space the design gives its arrow.
                         Image(
                             bitmap = nav.glyph,
                             contentDescription = null,
                             modifier = Modifier.size(84.dp, 108.dp),
-                            alignment = Alignment.CenterStart,
+                            alignment = Alignment.BottomStart,
                             contentScale = ContentScale.Fit,
                             colorFilter = ColorFilter.tint(Slate.Accent),
                         )

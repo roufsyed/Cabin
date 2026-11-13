@@ -25,6 +25,7 @@ import com.roufsyed.cabin.gesture.cabinGestures
 import com.roufsyed.cabin.model.AppTile
 import com.roufsyed.cabin.model.Slot
 import com.roufsyed.cabin.model.SourceId
+import com.roufsyed.cabin.nav.SavedPlace
 import com.roufsyed.cabin.sources.Opened
 import com.roufsyed.cabin.ui.apps.APPS_PER_PAGE
 import com.roufsyed.cabin.ui.apps.AppsGrid
@@ -38,10 +39,12 @@ import com.roufsyed.cabin.ui.chrome.Rail
 import com.roufsyed.cabin.ui.chrome.TopStrip
 import com.roufsyed.cabin.ui.home.HomePanels
 import com.roufsyed.cabin.ui.music.MusicScreen
+import com.roufsyed.cabin.ui.overlay.VoiceOverlay
 import com.roufsyed.cabin.ui.overlay.VolumeHud
 import com.roufsyed.cabin.ui.settings.SettingsGrid
 import com.roufsyed.cabin.ui.settings.SettingsTile
 import com.roufsyed.cabin.ui.shell.EditKind
+import com.roufsyed.cabin.ui.shell.Overlay
 import com.roufsyed.cabin.ui.shell.Screen
 import com.roufsyed.cabin.ui.shell.Shell
 import com.roufsyed.cabin.ui.shell.ShellViewModel
@@ -53,6 +56,8 @@ class HostActions(
     val requestHomeRole: () -> Unit = {},
     val requestNotificationAccess: () -> Unit = {},
     val requestWriteSettings: () -> Unit = {},
+    /** Asks for the microphone if it has not been granted, then reports whether it may be used. */
+    val withMicrophone: ((Boolean) -> Unit) -> Unit = { it(true) },
 )
 
 @Composable
@@ -65,6 +70,7 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
     val shellModel: ShellViewModel = viewModel()
     val dashboard = cabinViewModel { DashboardViewModel(container) }
     val appsModel = cabinViewModel { AppsViewModel(container.apps, container.settings) }
+    val voiceModel = cabinViewModel { VoiceViewModel(container) }
     val shell by shellModel.state.collectAsStateWithLifecycle()
 
     // The launcher has nothing behind it, so Back is always handled here and never closes Cabin.
@@ -76,6 +82,23 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
     }
     val openSlot: (Slot) -> Unit = { slot ->
         if (dashboard.open(slot) == Opened.NeedsApp) shellModel.pickApp(slot)
+    }
+
+    // "Where to?" listens for a destination. With no recogniser on the unit, or no microphone
+    // permission, it opens the maps app instead, which has its own search.
+    val whereTo: () -> Unit = {
+        if (!container.voice.available) {
+            dashboard.openMaps()
+        } else {
+            host.withMicrophone { granted ->
+                if (granted) {
+                    shellModel.show(Overlay.Voice)
+                    voiceModel.listen(onDone = shellModel::closeOverlay)
+                } else {
+                    dashboard.openMaps()
+                }
+            }
+        }
     }
 
     // The two-finger volume drag: the level it started from, and whether its readout is up.
@@ -96,7 +119,7 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
             CabinFrame(
                 content = {
                     if (shell.screen == Screen.Home) {
-                        HomeContent(dashboard, shellModel, host)
+                        HomeContent(dashboard, shellModel, host, whereTo)
                     } else {
                         Column {
                             when {
@@ -122,6 +145,21 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
                 bottomRow = { BottomRowContent(dashboard, selectSource) },
                 rail = { RailContent(dashboard, shell.screen == Screen.Home, shellModel, openSlot) },
             )
+            if (shell.overlay == Overlay.Voice) {
+                val voice by voiceModel.ui.collectAsStateWithLifecycle()
+                VoiceOverlay(
+                    ui = voice,
+                    onRetry = { voiceModel.listen(onDone = shellModel::closeOverlay) },
+                    onPick = { place ->
+                        voiceModel.go(place)
+                        shellModel.closeOverlay()
+                    },
+                    onCancel = {
+                        voiceModel.cancel()
+                        shellModel.closeOverlay()
+                    },
+                )
+            }
             if (volumeDrag != null) VolumeReadout(dashboard)
         }
     }
@@ -143,7 +181,12 @@ private fun VolumeReadout(dashboard: DashboardViewModel) {
 }
 
 @Composable
-private fun HomeContent(dashboard: DashboardViewModel, shell: ShellViewModel, host: HostActions) {
+private fun HomeContent(
+    dashboard: DashboardViewModel,
+    shell: ShellViewModel,
+    host: HostActions,
+    onWhereTo: () -> Unit,
+) {
     val clock by dashboard.clock.collectAsStateWithLifecycle()
     val status by dashboard.status.collectAsStateWithLifecycle()
     val nav by dashboard.nav.collectAsStateWithLifecycle()
@@ -153,10 +196,10 @@ private fun HomeContent(dashboard: DashboardViewModel, shell: ShellViewModel, ho
         status = status,
         nav = nav,
         nowPlaying = nowPlaying,
-        onOpenMaps = {},
-        onWhereTo = {},
-        onNavigateHome = {},
-        onNavigateOffice = {},
+        onOpenMaps = { dashboard.openMaps() },
+        onWhereTo = onWhereTo,
+        onNavigateHome = { dashboard.navigateTo(SavedPlace.Home) },
+        onNavigateOffice = { dashboard.navigateTo(SavedPlace.Work) },
         onOpenNowPlaying = { if (nowPlaying.needsAccess) host.requestNotificationAccess() else shell.open(Screen.Music) },
         onPrevious = dashboard::previous,
         onPlayPause = dashboard::playPause,

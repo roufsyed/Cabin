@@ -1,8 +1,10 @@
 package com.roufsyed.cabin
 
+import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -36,6 +38,14 @@ class MainActivity : ComponentActivity() {
             container.homeRole.refresh()
         }
 
+    /** Who is waiting to hear whether the microphone was granted. */
+    private var microphoneAnswer: ((Boolean) -> Unit)? = null
+    private val microphoneRequest =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            microphoneAnswer?.invoke(granted)
+            microphoneAnswer = null
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (BuildConfig.DEBUG && intent?.getBooleanExtra(EXTRA_DESIGN_VALUES, false) == true) {
@@ -47,6 +57,7 @@ class MainActivity : ComponentActivity() {
             requestHomeRole = { container.homeRole.requestIntent()?.let(homeRoleRequest::launch) },
             requestNotificationAccess = ::openNotificationAccess,
             requestWriteSettings = ::openWriteSettings,
+            withMicrophone = ::withMicrophone,
         )
         setContent { CabinRoot(container, host) }
         followWindowBrightness()
@@ -85,6 +96,15 @@ class MainActivity : ComponentActivity() {
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean = when (keyCode) {
         KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_VOLUME_MUTE -> true
         else -> super.onKeyUp(keyCode, event)
+    }
+
+    private fun withMicrophone(answer: (Boolean) -> Unit) {
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            answer(true)
+        } else {
+            microphoneAnswer = answer
+            microphoneRequest.launch(Manifest.permission.RECORD_AUDIO)
+        }
     }
 
     private fun openWriteSettings() {

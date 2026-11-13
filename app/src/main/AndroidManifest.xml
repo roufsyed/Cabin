@@ -9,8 +9,14 @@
     <!-- Only the last position Android already has, to work out sunrise and sunset for Auto brightness. -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
-    <!-- A launcher has to see every launchable app. -->
+    <!-- "Where to?" listens for one spoken destination. Asked for the first time it is used. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!-- A launcher has to see every launchable app, and "Where to?" the unit's speech recogniser. -->
     <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />

@@ -5,6 +5,8 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.roufsyed.cabin.model.NavUi
+import com.roufsyed.cabin.nav.FixedNavigation
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -106,6 +108,21 @@ class LayoutTest {
         at("Previous", 787f, 41f, 96f, 94f)
         at("Play or pause", 883f, 41f, 96f, 94f)
         at("Next", 979f, 41f, 96f, 94f)
+    }
+
+    @Test
+    fun idleNavigationPanelAndVoiceDialogMatchTheDesignGrid() {
+        cabin.runOnUiThread { (values.container.navigation as FixedNavigation).set(NavUi.Idle) }
+        at("Where to?", 395f, 41f, 326f, 374f)
+        at("Navigate home", 395f, 415f, 326f, 112f)
+        at("Navigate to office", 395f, 527f, 326f, 112f)
+
+        cabin.onNodeWithContentDescription("Where to?").performClick()
+        // A 680 x 408 dialog at (300, 196); its three 96-high buttons share the 622 px inside it, 12 apart.
+        at("Listen again", 592f, 229f, 96f, 96f)
+        at("Navigate to Airport", 329f, 479f, 199.33f, 96f)
+        at("Navigate to City Mall", 540.33f, 479f, 199.33f, 96f)
+        at("Cancel", 751.67f, 479f, 199.33f, 96f)
     }
 
     @Test
