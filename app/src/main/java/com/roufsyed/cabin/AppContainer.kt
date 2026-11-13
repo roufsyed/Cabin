@@ -31,6 +31,7 @@ import com.roufsyed.cabin.sources.SourceController
 import com.roufsyed.cabin.system.AndroidBrightness
 import com.roufsyed.cabin.system.AndroidClock
 import com.roufsyed.cabin.system.AndroidHomeRole
+import com.roufsyed.cabin.system.AndroidPermissions
 import com.roufsyed.cabin.system.AndroidStatus
 import com.roufsyed.cabin.system.AndroidVolume
 import com.roufsyed.cabin.system.BrightnessControl
@@ -38,9 +39,11 @@ import com.roufsyed.cabin.system.ClockSource
 import com.roufsyed.cabin.system.FixedBrightness
 import com.roufsyed.cabin.system.FixedClock
 import com.roufsyed.cabin.system.FixedHomeRole
+import com.roufsyed.cabin.system.FixedPermissions
 import com.roufsyed.cabin.system.FixedStatus
 import com.roufsyed.cabin.system.FixedVolume
 import com.roufsyed.cabin.system.HomeRole
+import com.roufsyed.cabin.system.PermissionsSource
 import com.roufsyed.cabin.system.StatusSource
 import com.roufsyed.cabin.system.VolumeControl
 import android.service.notification.NotificationListenerService
@@ -66,6 +69,7 @@ class AppContainer(
     val voice: VoiceInput,
     val tray: TraySource,
     val status: StatusSource,
+    val permissions: PermissionsSource,
     val listenerHub: ListenerHub = ListenerHub(),
 ) {
     val sources = SourceController(settings, apps, media, scope)
@@ -81,8 +85,11 @@ class AppContainer(
         voice: VoiceInput = this.voice,
         tray: TraySource = this.tray,
         status: StatusSource = this.status,
+        homeRole: HomeRole = this.homeRole,
+        permissions: PermissionsSource = this.permissions,
     ): AppContainer = AppContainer(
-        scope, settings, apps, clock, homeRole, media, volume, brightness, navigation, voice, tray, status, listenerHub,
+        scope, settings, apps, clock, homeRole, media, volume, brightness, navigation, voice, tray, status,
+        permissions, listenerHub,
     )
 
     companion object {
@@ -110,6 +117,7 @@ class AppContainer(
                 voice = AndroidVoiceInput(app),
                 tray = tray,
                 status = AndroidStatus(app),
+                permissions = AndroidPermissions(app),
                 listenerHub = ListenerHub(
                     listOf(
                         navigation,
@@ -129,6 +137,7 @@ class AppContainer(
             settings = InMemorySettings(
                 CabinSettings(
                     loaded = true,
+                    setupDone = true,
                     // The design shows the phone's Bluetooth audio playing; its sample track "plays" in Music.
                     activeSource = SourceId.Bluetooth,
                     bindings = mapOf(Slot.Bluetooth to FixedApps.id("Music")),
@@ -145,6 +154,7 @@ class AppContainer(
             voice = FixedVoice(),
             tray = FixedTray(Samples.notifications),
             status = FixedStatus(Samples.status),
+            permissions = FixedPermissions(),
         )
     }
 }

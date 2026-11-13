@@ -2,11 +2,13 @@ package com.roufsyed.cabin.ui.shell
 
 import androidx.lifecycle.ViewModel
 import com.roufsyed.cabin.model.Slot
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 
-enum class Screen { Home, Apps, Music, Settings, Keys, Sources, Pick }
+enum class Screen { Home, Apps, Music, Settings, Keys, Sources, Pick, Setup }
 
 enum class EditKind { Apps, Sources }
 
@@ -31,6 +33,15 @@ data class Shell(
 class ShellViewModel : ViewModel() {
     private val _state = MutableStateFlow(Shell())
     val state: StateFlow<Shell> = _state
+
+    private val _voiceRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+
+    /** Fired when the wheel's voice key is pressed; the screen answers it the way "Where to?" does. */
+    val voiceRequests: SharedFlow<Unit> = _voiceRequests
+
+    fun requestVoice() {
+        _voiceRequests.tryEmit(Unit)
+    }
 
     /** Home, with every overlay and edit mode closed. Also what the unit's Home button does. */
     fun home() = _state.update { Shell() }
@@ -107,7 +118,8 @@ class ShellViewModel : ViewModel() {
             it.screen == Screen.Pick -> Shell(screen = it.pickFrom)
             it.edit == EditKind.Sources -> Shell(screen = Screen.Settings)
             it.edit == EditKind.Apps -> Shell(screen = Screen.Apps, page = it.page)
-            it.screen == Screen.Keys || it.screen == Screen.Sources -> Shell(screen = Screen.Settings)
+            it.screen == Screen.Keys || it.screen == Screen.Sources || it.screen == Screen.Setup ->
+                Shell(screen = Screen.Settings)
             it.screen == Screen.Settings -> Shell(screen = Screen.Apps)
             else -> Shell()
         }

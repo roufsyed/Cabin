@@ -8,7 +8,7 @@ import android.content.pm.ApplicationInfo
 import android.content.pm.LauncherActivityInfo
 import android.content.pm.LauncherApps
 import android.content.pm.PackageManager
-import android.net.Uri
+import androidx.core.net.toUri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -115,15 +115,15 @@ class AndroidAppsSource(
     private class Classifier(private val pm: PackageManager, private val ownPackage: String) {
         private val settings = handlers(Intent(Settings.ACTION_SETTINGS))
         private val dialers = handlers(Intent(Intent.ACTION_DIAL))
-        private val maps = handlers(Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0")))
+        private val maps = handlers(Intent(Intent.ACTION_VIEW, "geo:0,0".toUri()))
         private val browsers = handlers(
-            Intent(Intent.ACTION_VIEW, Uri.parse("http://www.example.com")).addCategory(Intent.CATEGORY_BROWSABLE),
+            Intent(Intent.ACTION_VIEW, "http://www.example.com".toUri()).addCategory(Intent.CATEGORY_BROWSABLE),
         )
         private val clocks = handlers(Intent(AlarmClock.ACTION_SHOW_ALARMS))
         private val files = handlers(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_FILES))
         private val music = handlers(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_MUSIC))
         private val gallery = handlers(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_GALLERY))
-        private val weather = if (Build.VERSION.SDK_INT >= 31) {
+        private val weather = if (Build.VERSION.SDK_INT >= 33) {
             handlers(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_WEATHER))
         } else {
             emptySet()

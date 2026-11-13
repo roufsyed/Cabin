@@ -15,6 +15,7 @@ import android.os.Looper
 import android.view.KeyEvent
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.core.graphics.scale
 import com.roufsyed.cabin.notify.CabinNotificationListener
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -286,7 +287,7 @@ class AndroidMediaSource(
             } else {
                 Bitmap.createBitmap(source, (source.width - side) / 2, (source.height - side) / 2, side, side)
             }
-            val scaled = if (side > COVER_PX) Bitmap.createScaledBitmap(square, COVER_PX, COVER_PX, true) else square
+            val scaled = if (side > COVER_PX) square.scale(COVER_PX, COVER_PX) else square
             // An own copy, so the app that sent the cover can recycle its bitmap without affecting ours.
             val owned = if (scaled === source) source.copy(Bitmap.Config.ARGB_8888, false) else scaled
             return owned.asImageBitmap()

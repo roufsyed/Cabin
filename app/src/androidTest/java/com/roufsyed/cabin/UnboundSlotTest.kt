@@ -6,6 +6,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.roufsyed.cabin.apps.FixedApps
+import com.roufsyed.cabin.data.CabinSettings
 import com.roufsyed.cabin.data.InMemorySettings
 import com.roufsyed.cabin.media.FixedMedia
 import com.roufsyed.cabin.model.AppEntry
@@ -30,7 +31,11 @@ class UnboundSlotTest {
 
     @get:Rule(order = 0)
     val values = FreshDesignValues { design ->
-        design.copy(settings = InMemorySettings(), apps = unknownApps, media = FixedMedia(null))
+        design.copy(
+            settings = InMemorySettings(CabinSettings(loaded = true, setupDone = true)),
+            apps = unknownApps,
+            media = FixedMedia(null),
+        )
     }
 
     @get:Rule(order = 1)

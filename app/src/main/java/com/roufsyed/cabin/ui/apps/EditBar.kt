@@ -130,3 +130,25 @@ fun PickBar(title: String, hint: String, onAutomatic: () -> Unit, onBack: () -> 
         }
     }
 }
+
+/** A title, a hint and one primary button, in the strip's place: used by Setup. */
+@Composable
+fun TitleBar(title: String, hint: String, action: String, actionDescription: String, onAction: () -> Unit) {
+    Row(
+        modifier = Modifier.size(1036.dp, 96.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f).padding(start = 4.dp, end = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Txt(title, 38, weight = Slate.Light, lineHeight = 1f, ellipsis = true)
+            Txt(hint, 24, color = Slate.Muted, lineHeight = 1f, ellipsis = true)
+        }
+        Box(
+            Modifier
+                .size(150.dp, 96.dp)
+                .pressable(actionDescription, onClick = onAction)
+                .background(Slate.Text, ButtonShape),
+            contentAlignment = Alignment.Center,
+        ) { Txt(action, 26, weight = Slate.SemiBold, color = Slate.Ground, lineHeight = 1f) }
+    }
+}

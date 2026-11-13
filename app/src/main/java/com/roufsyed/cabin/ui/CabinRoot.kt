@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,12 +28,14 @@ import com.roufsyed.cabin.model.Slot
 import com.roufsyed.cabin.model.SourceId
 import com.roufsyed.cabin.nav.SavedPlace
 import com.roufsyed.cabin.sources.Opened
+import com.roufsyed.cabin.system.Grant
 import com.roufsyed.cabin.ui.apps.APPS_PER_PAGE
 import com.roufsyed.cabin.ui.apps.AppsGrid
 import com.roufsyed.cabin.ui.apps.AppsUi
 import com.roufsyed.cabin.ui.apps.AppsViewModel
 import com.roufsyed.cabin.ui.apps.EditBar
 import com.roufsyed.cabin.ui.apps.PickBar
+import com.roufsyed.cabin.ui.apps.TitleBar
 import com.roufsyed.cabin.ui.chrome.BottomRow
 import com.roufsyed.cabin.ui.chrome.MiniPlayer
 import com.roufsyed.cabin.ui.chrome.Rail
@@ -43,8 +46,10 @@ import com.roufsyed.cabin.ui.overlay.ScreenOffClock
 import com.roufsyed.cabin.ui.overlay.TrayOverlay
 import com.roufsyed.cabin.ui.overlay.VoiceOverlay
 import com.roufsyed.cabin.ui.overlay.VolumeHud
+import com.roufsyed.cabin.ui.settings.KeysScreen
 import com.roufsyed.cabin.ui.settings.SettingsGrid
 import com.roufsyed.cabin.ui.settings.SettingsTile
+import com.roufsyed.cabin.ui.settings.WheelActions
 import com.roufsyed.cabin.ui.shell.EditKind
 import com.roufsyed.cabin.ui.shell.Overlay
 import com.roufsyed.cabin.ui.shell.Screen
@@ -52,6 +57,8 @@ import com.roufsyed.cabin.ui.shell.Shell
 import com.roufsyed.cabin.ui.shell.ShellViewModel
 import com.roufsyed.cabin.ui.sources.SourcesGrid
 import com.roufsyed.cabin.ui.theme.DesignSurface
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 /** Things only the activity can do, handed down to the screens. */
 class HostActions(
@@ -60,6 +67,10 @@ class HostActions(
     val requestWriteSettings: () -> Unit = {},
     /** Asks for the microphone if it has not been granted, then reports whether it may be used. */
     val withMicrophone: ((Boolean) -> Unit) -> Unit = { it(true) },
+    /** Shows Android's dialog for one of the optional permissions. */
+    val requestGrant: (Grant) -> Unit = {},
+    val openBluetooth: () -> Unit = {},
+    val openWifi: () -> Unit = {},
 )
 
 @Composable
@@ -103,6 +114,23 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
         }
     }
 
+    // The wheel's voice key does what "Where to?" does.
+    LaunchedEffect(Unit) { shellModel.voiceRequests.collect { whereTo() } }
+
+    // The first time Cabin runs it opens on Setup, which walks through what it needs from the unit.
+    LaunchedEffect(Unit) {
+        if (!container.settings.settings.first { it.loaded }.setupDone) shellModel.open(Screen.Setup)
+    }
+
+    val wheel = WheelActions(
+        volumeUp = dashboard::volumeUp,
+        volumeDown = dashboard::volumeDown,
+        next = dashboard::next,
+        previous = dashboard::previous,
+        voice = whereTo,
+        mode = { container.sources.nextSource()?.let(selectSource) },
+    )
+
     // The two-finger volume drag: the level it started from, and whether its readout is up.
     var volumeDrag by remember { mutableStateOf<Int?>(null) }
     val onGesture: (Gesture) -> Unit = { gesture ->
@@ -129,6 +157,7 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
                                 shell.edit == EditKind.Apps -> AppsEditBar(shell, appsModel, shellModel)
                                 shell.edit == EditKind.Sources -> SourcesEditBar(shell, container, shellModel)
                                 shell.screen == Screen.Pick -> SlotPickBar(shell, container, shellModel)
+                                shell.screen == Screen.Setup -> SetupBar(container, shellModel)
                                 else -> Strip(dashboard, shellModel, host, showMini = shell.screen != Screen.Music)
                             }
                             Spacer(Modifier.height(16.dp))
@@ -137,6 +166,8 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
                                     Screen.Apps -> AppsContent(shell, appsModel, shellModel)
                                     Screen.Music -> MusicContent(dashboard)
                                     Screen.Settings -> SettingsContent(container, shellModel, host)
+                                    Screen.Keys -> KeysScreen(wheel, onBack = { shellModel.open(Screen.Settings) })
+                                    Screen.Setup -> SetupContent(container, shellModel, host)
                                     Screen.Sources -> SourcesContent(shell, container, shellModel)
                                     Screen.Pick -> SlotPickContent(shell, container, appsModel, shellModel)
                                     else -> Unit
@@ -372,25 +403,88 @@ private fun SlotPickContent(shell: Shell, container: AppContainer, apps: AppsVie
 
 @Composable
 private fun SettingsContent(container: AppContainer, shellModel: ShellViewModel, host: HostActions) {
-    val isHome by container.homeRole.held.collectAsStateWithLifecycle()
-    val notifications by container.media.access.collectAsStateWithLifecycle()
-    val canSetBrightness by container.brightness.canWrite.collectAsStateWithLifecycle()
+    val status by container.status.status.collectAsStateWithLifecycle()
+    val bluetooth by container.status.bluetoothOn.collectAsStateWithLifecycle()
     SettingsGrid(
         listOf(
             SettingsTile("Apps", "Choose and arrange", "Arrange apps") { shellModel.arrangeApps() },
             SettingsTile("Sources", "Choose and arrange", "Arrange sources") { shellModel.arrangeSources() },
+            SettingsTile("Steering wheel keys", "Six keys mapped", "Steering wheel keys") { shellModel.open(Screen.Keys) },
+            SettingsTile("Screen off", "Clock only, tap to wake", "Turn the screen off") {
+                shellModel.show(Overlay.ScreenOff)
+            },
+            // Android does not let an ordinary app switch these, so the tiles show the state and open
+            // the unit's own switch.
             SettingsTile(
-                "Home app", "Open Cabin with the Home button", "Make Cabin the home app",
-                value = if (isHome) "On" else "Off", on = isHome, onClick = host.requestHomeRole,
+                "Bluetooth", "Phone calls and music", "Bluetooth settings",
+                value = if (bluetooth) "On" else "Off", on = bluetooth, onClick = host.openBluetooth,
             ),
             SettingsTile(
-                "Notification access", "Shows what is playing", "Allow notification access",
-                value = if (notifications) "On" else "Off", on = notifications, onClick = host.requestNotificationAccess,
+                "Wi-Fi", "Hotspot and updates", "Wi-Fi settings",
+                value = if (status.wifi) "On" else "Off", on = status.wifi, onClick = host.openWifi,
+            ),
+            SettingsTile("Setup", "Permissions and apps", "Open setup") { shellModel.open(Screen.Setup) },
+        ),
+    )
+}
+
+@Composable
+private fun SetupBar(container: AppContainer, shellModel: ShellViewModel) {
+    val settings by container.settings.settings.collectAsStateWithLifecycle()
+    val firstRun = !settings.setupDone
+    TitleBar(
+        title = if (firstRun) "Welcome to Cabin" else "Setup",
+        hint = "Tap each one to allow it. Each can be left off.",
+        action = "Done",
+        actionDescription = "Finish setup",
+        onAction = {
+            if (firstRun) {
+                container.scope.launch { container.settings.update { it.copy(setupDone = true) } }
+                shellModel.home()
+            } else {
+                shellModel.open(Screen.Settings)
+            }
+        },
+    )
+}
+
+/** Setup: everything Cabin asks of the unit, each with its state, and the two rail apps. */
+@Composable
+private fun SetupContent(container: AppContainer, shellModel: ShellViewModel, host: HostActions) {
+    val isHome by container.homeRole.held.collectAsStateWithLifecycle()
+    val notifications by container.media.access.collectAsStateWithLifecycle()
+    val canSetBrightness by container.brightness.canWrite.collectAsStateWithLifecycle()
+    val granted by container.permissions.granted.collectAsStateWithLifecycle()
+    val sources by container.sources.state.collectAsStateWithLifecycle()
+
+    fun state(on: Boolean) = if (on) "On" else "Off"
+    fun grant(title: String, subtitle: String, grant: Grant) = SettingsTile(
+        title, subtitle, "Allow ${title.lowercase()}",
+        value = state(grant in granted), on = grant in granted, onClick = { host.requestGrant(grant) },
+    )
+    fun app(title: String, slot: Slot) = SettingsTile(
+        title, sources.bindings[slot]?.label ?: "Not chosen", "Choose the ${title.lowercase()}",
+    ) { shellModel.pickApp(slot) }
+
+    SettingsGrid(
+        listOf(
+            SettingsTile(
+                "Home app", "Opens Cabin from the Home button", "Make Cabin the home app",
+                value = state(isHome), on = isHome, onClick = host.requestHomeRole,
+            ),
+            SettingsTile(
+                "Notification access", "Now playing, navigation, tray", "Allow notification access",
+                value = state(notifications), on = notifications, onClick = host.requestNotificationAccess,
             ),
             SettingsTile(
                 "Brightness control", "Lets Cabin dim the screen", "Allow changing system settings",
-                value = if (canSetBrightness) "On" else "Off", on = canSetBrightness, onClick = host.requestWriteSettings,
+                value = state(canSetBrightness), on = canSetBrightness, onClick = host.requestWriteSettings,
             ),
+            grant("Location", "Sunrise and sunset for Auto", Grant.Location),
+            grant("Microphone", "Say a destination", Grant.Microphone),
+            grant("Nearby devices", "Shows a connected phone", Grant.NearbyDevices),
+            app("Phone app", Slot.Phone),
+            app("Phone link app", Slot.Link),
         ),
     )
 }

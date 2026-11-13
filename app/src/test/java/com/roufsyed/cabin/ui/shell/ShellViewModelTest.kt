@@ -137,4 +137,22 @@ class ShellViewModelTest {
         shell.back()
         assertEquals(Shell(), state)
     }
+
+    @Test
+    fun `back from the keys screen and from Setup returns to Settings`() {
+        shell.open(Screen.Keys)
+        shell.back()
+        assertEquals(Shell(screen = Screen.Settings), state)
+        shell.open(Screen.Setup)
+        shell.back()
+        assertEquals(Shell(screen = Screen.Settings), state)
+    }
+
+    @Test
+    fun `choosing an app from Setup returns to Setup`() {
+        shell.open(Screen.Setup)
+        shell.pickApp(com.roufsyed.cabin.model.Slot.Link)
+        shell.pickDone()
+        assertEquals(Shell(screen = Screen.Setup), state)
+    }
 }

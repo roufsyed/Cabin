@@ -105,7 +105,8 @@ fun GlyphIcon(app: AppEntry, size: Dp, color: Color = Slate.Ink) {
 @Composable
 fun Monogram(letter: String, size: Dp, color: Color = Slate.Ink) {
     val unit = size.value / 24f
-    val fontSize = (12.5f * unit).roundToInt()
+    // Never below 24 px, the smallest text the design allows, even on the tray's smaller marks.
+    val fontSize = maxOf(24, (12.5f * unit).roundToInt())
     // A tight one-line box of height fontSize has its baseline 0.85 of the way down.
     val top = 16.3f * unit - fontSize * 0.85f
     Box(Modifier.size(size)) {

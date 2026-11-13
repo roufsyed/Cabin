@@ -86,12 +86,14 @@ class SourceController(
         return if (apps.launch(app.id)) Opened.Launched else Opened.NeedsApp
     }
 
-    /** The wheel's Mode key: the next source in the row. */
-    fun selectNext(): Opened {
+    /** The source after the active one in the row, wrapping round: what the wheel's Mode key selects. */
+    fun nextSource(): SourceId? {
         val row = state.value.row
-        val next = SourceRules.next(row.map { it.id }, row.firstOrNull { it.active }?.id) ?: return Opened.NeedsApp
-        return select(next)
+        return SourceRules.next(row.map { it.id }, row.firstOrNull { it.active }?.id)
     }
+
+    /** The wheel's Mode key. */
+    fun selectNext(): Opened = nextSource()?.let(::select) ?: Opened.NeedsApp
 
     /** Opens the app behind a rail button. */
     fun open(slot: Slot): Opened {

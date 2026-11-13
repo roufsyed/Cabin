@@ -143,6 +143,25 @@ class LayoutTest {
     }
 
     @Test
+    fun settingsAndKeysMatchTheDesignGrid() {
+        cabin.onNodeWithContentDescription("All apps").performClick()
+        cabin.onNodeWithContentDescription("Settings").performClick()
+        // Two columns across 1036 with a 13 gap: 511.5 each. Rows are 112 high, 13 apart.
+        at("Arrange apps", 40f, 152f, 511.5f, 112f)
+        at("Arrange sources", 564.5f, 152f, 511.5f, 112f)
+        at("Steering wheel keys", 40f, 277f, 511.5f, 112f)
+        at("Wi-Fi settings", 564.5f, 402f, 511.5f, 112f)
+        at("Open setup", 40f, 527f, 511.5f, 112f)
+
+        cabin.onNodeWithContentDescription("Steering wheel keys").performClick()
+        // A 96-high heading row, then two rows of three 183-high tiles, 13 apart.
+        at("Back to settings", 40f, 152f, 200f, 96f)
+        at("Steering key: volume up", 40f, 261f, 336.67f, 183f)
+        at("Steering key: voice", 739.33f, 261f, 336.67f, 183f)
+        at("Steering key: mode", 739.33f, 457f, 336.67f, 183f)
+    }
+
+    @Test
     fun everyTouchTargetIsAtLeast94PixelsEachWay() {
         // The design's rule is 96 px including the 1 px borders the targets sit inside.
         val root = cabin.onRoot().fetchSemanticsNode().boundsInRoot

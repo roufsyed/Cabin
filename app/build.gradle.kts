@@ -39,6 +39,12 @@ android {
         buildConfig = true
     }
 
+    lint {
+        // Deliberate, for one particular head unit: Android 13 is what it runs, and its screen is a
+        // fixed landscape panel. The Gradle version is the one this Android plugin release needs.
+        disable += setOf("OldTargetApi", "DiscouragedApi", "NonResizeableActivity", "AndroidGradlePluginVersion")
+    }
+
     packaging {
         resources.excludes += setOf("/META-INF/{AL2.0,LGPL2.1}", "DebugProbesKt.bin")
     }

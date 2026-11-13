@@ -12,6 +12,8 @@ import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.core.graphics.createBitmap
+import androidx.core.net.toUri
 import androidx.compose.ui.graphics.asImageBitmap
 import com.roufsyed.cabin.BuildConfig
 import com.roufsyed.cabin.model.NavUi
@@ -107,7 +109,7 @@ class MapsNavigation(
                     val drawable = icon.loadDrawable(context) ?: return@withContext null
                     val width = drawable.intrinsicWidth.takeIf { it > 0 } ?: 96
                     val height = drawable.intrinsicHeight.takeIf { it > 0 } ?: 96
-                    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                    val bitmap = createBitmap(width, height)
                     drawable.setBounds(0, 0, width, height)
                     drawable.draw(Canvas(bitmap))
                     val pixels = IntArray(width * height)
@@ -159,7 +161,7 @@ class MapsNavigation(
     override fun navigateTo(destination: String): Boolean {
         val query = destination.trim()
         if (query.isEmpty()) return false
-        return start(Intent(Intent.ACTION_VIEW, Uri.parse("google.navigation:q=" + Uri.encode(query))).setPackage(MAPS_PACKAGE))
+        return start(Intent(Intent.ACTION_VIEW, ("google.navigation:q=" + Uri.encode(query)).toUri()).setPackage(MAPS_PACKAGE))
     }
 
     /**
@@ -180,7 +182,7 @@ class MapsNavigation(
             // The shortcut is missing in this Maps build, or Cabin is not the home app: try the intent.
         }
         val name = if (place == SavedPlace.Home) "home" else "work"
-        return start(Intent(Intent.ACTION_VIEW, Uri.parse("google.navigation:place=$name")).setPackage(MAPS_PACKAGE))
+        return start(Intent(Intent.ACTION_VIEW, "google.navigation:place=$name".toUri()).setPackage(MAPS_PACKAGE))
     }
 
     private fun start(intent: Intent): Boolean = try {

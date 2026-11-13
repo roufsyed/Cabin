@@ -20,13 +20,17 @@ import kotlinx.coroutines.flow.StateFlow
 interface StatusSource {
     val status: StateFlow<StatusUi>
 
+    /** Whether the unit's Bluetooth is switched on, for the Settings tile. */
+    val bluetoothOn: StateFlow<Boolean>
+
     /** Re-reads everything, for when a permission may have just been granted. */
     fun refresh() = Unit
 }
 
-class FixedStatus(value: StatusUi) : StatusSource {
+class FixedStatus(value: StatusUi, bluetooth: Boolean = true) : StatusSource {
     private val state = MutableStateFlow(value)
     override val status: StateFlow<StatusUi> = state
+    override val bluetoothOn: StateFlow<Boolean> = MutableStateFlow(bluetooth)
 
     fun set(value: StatusUi) {
         state.value = value
@@ -48,6 +52,9 @@ class AndroidStatus(private val context: Context) : StatusSource {
     private val state = MutableStateFlow(read())
     override val status: StateFlow<StatusUi> = state
 
+    private val radio = MutableStateFlow(bluetoothEnabled())
+    override val bluetoothOn: StateFlow<Boolean> = radio
+
     init {
         val filter = IntentFilter().apply {
             addAction(WifiManager.WIFI_STATE_CHANGED_ACTION)
@@ -66,6 +73,13 @@ class AndroidStatus(private val context: Context) : StatusSource {
 
     override fun refresh() {
         state.value = read()
+        radio.value = bluetoothEnabled()
+    }
+
+    private fun bluetoothEnabled(): Boolean = try {
+        bluetooth?.isEnabled == true
+    } catch (e: RuntimeException) {
+        false
     }
 
     private fun read() = StatusUi(phone = phoneConnected(), wifi = wifiOn(), gps = gpsOn())
@@ -91,7 +105,7 @@ class AndroidStatus(private val context: Context) : StatusSource {
         }
         return try {
             adapter.isEnabled && PROFILES.any {
-                adapter.getProfileConnectionState(it) == BluetoothProfile.STATE_CONNECTED
+                adapter.getProfileConnectionState(it) == BluetoothAdapter.STATE_CONNECTED
             }
         } catch (e: SecurityException) {
             false

@@ -60,7 +60,8 @@ private fun Tile(tile: SettingsTile, modifier: Modifier) {
             .pressable(tile.description, onClick = tile.onClick)
             .background(Slate.Surface, TileShape)
             .border(1.dp, Slate.Hairline, TileShape)
-            .padding(start = 28.dp, end = if (chevron) 24.dp else 28.dp),
+            // The design's 28 px (24 on the chevron side), plus the 1 px border the content sits inside.
+            .padding(start = 29.dp, end = if (chevron) 25.dp else 29.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

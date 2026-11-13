@@ -1,34 +1,35 @@
 package com.roufsyed.cabin
 
-import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.util.Log
 import android.view.KeyEvent
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.core.net.toUri
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import kotlinx.coroutines.launch
 import com.roufsyed.cabin.notify.CabinNotificationListener
+import com.roufsyed.cabin.system.Grant
 import com.roufsyed.cabin.ui.CabinRoot
 import com.roufsyed.cabin.ui.HostActions
 import com.roufsyed.cabin.ui.shell.Overlay
 import com.roufsyed.cabin.ui.shell.ShellViewModel
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
 
 /** Cabin's only activity. It is the unit's home screen, so it is never finished. */
 class MainActivity : ComponentActivity() {
@@ -41,12 +42,13 @@ class MainActivity : ComponentActivity() {
             container.homeRole.refresh()
         }
 
-    /** Who is waiting to hear whether the microphone was granted. */
-    private var microphoneAnswer: ((Boolean) -> Unit)? = null
-    private val microphoneRequest =
+    /** Who is waiting to hear how Android's permission dialog was answered. */
+    private var permissionAnswer: ((Boolean) -> Unit)? = null
+    private val permissionRequest =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            microphoneAnswer?.invoke(granted)
-            microphoneAnswer = null
+            refreshFromSystem()
+            permissionAnswer?.invoke(granted)
+            permissionAnswer = null
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -59,11 +61,37 @@ class MainActivity : ComponentActivity() {
         val host = HostActions(
             requestHomeRole = { container.homeRole.requestIntent()?.let(homeRoleRequest::launch) },
             requestNotificationAccess = ::openNotificationAccess,
-            requestWriteSettings = ::openWriteSettings,
-            withMicrophone = ::withMicrophone,
+            requestWriteSettings = {
+                open(Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, "package:$packageName".toUri()))
+            },
+            withMicrophone = { answer -> withPermission(Grant.Microphone.permission, answer) },
+            requestGrant = ::requestGrant,
+            openBluetooth = { open(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) },
+            openWifi = { open(Intent(Settings.Panel.ACTION_WIFI), Intent(Settings.ACTION_WIFI_SETTINGS)) },
         )
         setContent { CabinRoot(container, host) }
         followWindowBrightness()
+    }
+
+    /** The Home button while Cabin is already showing: go back to the Home screen. */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        if (intent.action == Intent.ACTION_MAIN && intent.hasCategory(Intent.CATEGORY_HOME)) shell.home()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // The user may be coming back from a system settings screen.
+        refreshFromSystem()
+    }
+
+    private fun refreshFromSystem() {
+        container.homeRole.refresh()
+        container.media.refreshAccess()
+        container.brightness.refresh()
+        container.volume.refresh()
+        container.permissions.refresh()
+        container.status.refresh()
     }
 
     /**
@@ -86,55 +114,67 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Volume keys, which is also how the steering wheel's volume buttons arrive, step Cabin's volume
-     * directly, so the rail's number moves and Android's own volume panel does not cover the screen.
+     * Keys, which is how the steering wheel's buttons arrive once the unit has mapped them. While Cabin
+     * is showing it acts on them itself; while another app is showing, Android sends volume keys to the
+     * system and media keys to whatever is playing, and Cabin is not involved.
      */
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (BuildConfig.DEBUG && event.repeatCount == 0) {
+            // `adb logcat -s CabinKeys` shows what each wheel button really sends.
+            Log.d(KEYS_TAG, "key ${KeyEvent.keyCodeToString(keyCode)} ($keyCode) scan ${event.scanCode}")
+        }
+        val first = event.repeatCount == 0
         when (keyCode) {
             KeyEvent.KEYCODE_VOLUME_UP -> container.volume.up()
             KeyEvent.KEYCODE_VOLUME_DOWN -> container.volume.down()
-            KeyEvent.KEYCODE_VOLUME_MUTE -> if (event.repeatCount == 0) container.volume.toggleMute()
+            KeyEvent.KEYCODE_VOLUME_MUTE -> if (first) container.volume.toggleMute()
+            KeyEvent.KEYCODE_MEDIA_NEXT -> if (first) container.media.next()
+            KeyEvent.KEYCODE_MEDIA_PREVIOUS -> if (first) container.media.previous()
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_MEDIA_PLAY, KeyEvent.KEYCODE_MEDIA_PAUSE,
+            KeyEvent.KEYCODE_HEADSETHOOK,
+            -> if (first) container.media.playPause()
+            KeyEvent.KEYCODE_VOICE_ASSIST, KeyEvent.KEYCODE_SEARCH, KeyEvent.KEYCODE_ASSIST ->
+                if (first) shell.requestVoice()
+            // Android's own "mode" key. Whether the unit sends it for the wheel's Mode button has to be
+            // seen on the unit; nothing vendor-specific is assumed.
+            KeyEvent.KEYCODE_BUTTON_MODE -> if (first) container.sources.selectNext()
             else -> return super.onKeyDown(keyCode, event)
         }
         return true
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean = when (keyCode) {
-        KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_VOLUME_MUTE -> true
+        KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_VOLUME_MUTE,
+        KeyEvent.KEYCODE_MEDIA_NEXT, KeyEvent.KEYCODE_MEDIA_PREVIOUS, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+        KeyEvent.KEYCODE_MEDIA_PLAY, KeyEvent.KEYCODE_MEDIA_PAUSE, KeyEvent.KEYCODE_HEADSETHOOK,
+        KeyEvent.KEYCODE_VOICE_ASSIST, KeyEvent.KEYCODE_SEARCH, KeyEvent.KEYCODE_ASSIST,
+        KeyEvent.KEYCODE_BUTTON_MODE,
+        -> true
         else -> super.onKeyUp(keyCode, event)
     }
 
-    private fun withMicrophone(answer: (Boolean) -> Unit) {
-        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+    /** Runs [answer] with whether [permission] is granted, asking with Android's dialog first if it is not. */
+    private fun withPermission(permission: String, answer: (Boolean) -> Unit) {
+        // "Nearby devices" does not exist before Android 12, where the phone mark needs no permission.
+        val notNeeded = permission == Grant.NearbyDevices.permission && Build.VERSION.SDK_INT < 31
+        if (notNeeded || checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED) {
             answer(true)
         } else {
-            microphoneAnswer = answer
-            microphoneRequest.launch(Manifest.permission.RECORD_AUDIO)
+            permissionAnswer = answer
+            permissionRequest.launch(permission)
         }
     }
 
-    private fun openWriteSettings() {
-        try {
-            startActivity(Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:$packageName")))
-        } catch (e: ActivityNotFoundException) {
-            // The unit's settings app has no such screen; NOTES.md gives the adb command instead.
+    /**
+     * Asks for one of the optional permissions. Once the user has refused it for good Android no longer
+     * shows a dialog, so the app's own page in the unit's settings is opened instead.
+     */
+    private fun requestGrant(grant: Grant) {
+        withPermission(grant.permission) { granted ->
+            if (!granted && !shouldShowRequestPermissionRationale(grant.permission)) {
+                open(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, "package:$packageName".toUri()))
+            }
         }
-    }
-
-    /** The Home button while Cabin is already showing: go back to the Home screen. */
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        if (intent.action == Intent.ACTION_MAIN && intent.hasCategory(Intent.CATEGORY_HOME)) shell.home()
-    }
-
-    override fun onResume() {
-        super.onResume()
-        // The user may be coming back from a system settings screen.
-        container.homeRole.refresh()
-        container.media.refreshAccess()
-        container.brightness.refresh()
-        container.volume.refresh()
-        container.status.refresh()
     }
 
     /** Opens Android's notification-access switch for Cabin, or the list of such apps if that fails. */
@@ -146,12 +186,22 @@ class MainActivity : ComponentActivity() {
         } else {
             null
         }
-        for (intent in listOfNotNull(direct, Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))) {
+        open(*listOfNotNull(direct, Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)).toTypedArray())
+    }
+
+    /**
+     * Starts the first of [intents] the unit has a screen for. Head units often ship a cut-down
+     * settings app, so a missing screen is expected; NOTES.md lists the adb command for each.
+     */
+    private fun open(vararg intents: Intent) {
+        for (intent in intents) {
             try {
                 startActivity(intent)
                 return
             } catch (e: ActivityNotFoundException) {
-                // Try the next screen; some units leave these out of their settings app.
+                // Try the next one.
+            } catch (e: SecurityException) {
+                // Likewise.
             }
         }
     }
@@ -173,5 +223,6 @@ class MainActivity : ComponentActivity() {
     companion object {
         /** `adb shell am start -n com.roufsyed.cabin/.MainActivity --ez design true` on a debug build. */
         const val EXTRA_DESIGN_VALUES = "design"
+        private const val KEYS_TAG = "CabinKeys"
     }
 }
