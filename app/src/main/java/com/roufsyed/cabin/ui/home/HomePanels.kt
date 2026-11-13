@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -27,6 +26,7 @@ import com.roufsyed.cabin.ui.components.Panel
 import com.roufsyed.cabin.ui.components.pressable
 import com.roufsyed.cabin.ui.icons.Icon
 import com.roufsyed.cabin.ui.icons.SlateIcons
+import com.roufsyed.cabin.ui.media.ProgressBlock
 import com.roufsyed.cabin.model.ClockUi
 import com.roufsyed.cabin.model.NavUi
 import com.roufsyed.cabin.model.NowPlayingUi
@@ -221,21 +221,10 @@ private fun NowPlayingPanel(
             ) {
                 Txt(nowPlaying.caption, 24, color = Slate.Muted)
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Txt(nowPlaying.title, 46, weight = Slate.SemiBold, lineHeight = 1.1f)
-                    Txt(nowPlaying.artist, 28, color = Slate.Muted)
+                    Txt(nowPlaying.title, 46, weight = Slate.SemiBold, lineHeight = 1.1f, maxLines = 3)
+                    Txt(nowPlaying.artist, 28, color = Slate.Muted, maxLines = 2)
                 }
-                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    ProgressTrack(nowPlaying.fraction)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(29.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Txt(nowPlaying.position, 24, color = Slate.Muted, tabular = true)
-                        Txt(nowPlaying.duration, 24, color = Slate.Muted, tabular = true)
-                    }
-                }
+                ProgressBlock(nowPlaying.progress, gap = 14.dp)
             }
             Row(Modifier.size(326.dp, 128.dp)) {
                 Box(
@@ -259,24 +248,5 @@ private fun NowPlayingPanel(
                 ) { Icon(SlateIcons.Next, 44.dp, Slate.Text, 1.5f) }
             }
         }
-    }
-}
-
-/** The 3 px progress line: a hairline-coloured track with the played part in the accent. */
-@Composable
-fun ProgressTrack(fraction: Float, modifier: Modifier = Modifier) {
-    val shape = RoundedCornerShape(2.dp)
-    Box(
-        modifier
-            .fillMaxWidth()
-            .height(3.dp)
-            .background(Slate.Hairline, shape),
-    ) {
-        Box(
-            Modifier
-                .fillMaxWidth(fraction.coerceIn(0f, 1f))
-                .height(3.dp)
-                .background(Slate.Accent, shape),
-        )
     }
 }

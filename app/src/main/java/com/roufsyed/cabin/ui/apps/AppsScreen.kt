@@ -70,12 +70,13 @@ fun GridTile(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     labelSize: Int = 24,
+    description: String = label,
     mark: (@Composable () -> Unit)? = null,
 ) {
     Column(
         modifier = modifier
             .alpha(if (dimmed) 0.35f else 1f)
-            .pressable(label, onClick = onClick)
+            .pressable(description, onClick = onClick)
             .background(Slate.Surface, TileShape)
             .border(1.dp, if (outlined) Slate.Accent else Slate.Hairline, TileShape),
         verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically),

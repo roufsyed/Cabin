@@ -87,6 +87,28 @@ class LayoutTest {
     }
 
     @Test
+    fun musicScreenMatchesTheDesignGrid() {
+        cabin.onNodeWithContentDescription("Open music").performClick()
+        // Left card 480 x 488 at (40, 152): three 96 px buttons, 28 apart, centred in a 112-high row at its foot.
+        at("Previous", 108f, 519f, 96f, 96f)
+        at("Play or pause", 232f, 519f, 96f, 96f)
+        at("Next", 356f, 519f, 96f, 96f)
+        // Right card 543 x 488 at (533, 152): a 72-high heading, then 96-high rows.
+        at("Play Open Road", 534f, 225f, 541f, 96f)
+        at("Play Slow Tide", 534f, 513f, 541f, 96f)
+    }
+
+    @Test
+    fun miniPlayerMatchesTheDesignGrid() {
+        cabin.onNodeWithContentDescription("All apps").performClick()
+        // The 600 x 96 mini player ends at the main column's right edge.
+        at("Open music", 477f, 41f, 310f, 94f)
+        at("Previous", 787f, 41f, 96f, 94f)
+        at("Play or pause", 883f, 41f, 96f, 94f)
+        at("Next", 979f, 41f, 96f, 94f)
+    }
+
+    @Test
     fun everyTouchTargetIsAtLeast94PixelsEachWay() {
         // The design's rule is 96 px including the 1 px borders the targets sit inside.
         val root = cabin.onRoot().fetchSemanticsNode().boundsInRoot

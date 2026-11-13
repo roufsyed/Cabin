@@ -26,14 +26,8 @@ object GlyphRules {
     )
 
     fun fromLabel(label: String): Glyph {
-        val name = label.lowercase()
-        val words = name.split(Regex("[^a-z0-9]+")).filter { it.isNotEmpty() }
         for ((glyph, keys) in rules) {
-            for (key in keys) {
-                // Short keys must be whole words ("fm", "bt", "eq"); longer ones may be part of a name.
-                val hit = if (key.length <= 4 && ' ' !in key) key in words else key in name
-                if (hit) return glyph
-            }
+            if (keys.any { Names.matches(label, it) }) return glyph
         }
         return Glyph.Letter
     }

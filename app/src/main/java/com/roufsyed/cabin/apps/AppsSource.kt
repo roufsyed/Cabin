@@ -159,7 +159,7 @@ class AndroidAppsSource(
 /** A fixed list of apps: the fifteen the design is drawn with. For the demo launch and for tests. */
 class FixedApps(
     apps: List<AppEntry> = designApps,
-    override val ownId: String = "design/settings",
+    override val ownId: String = id("Settings"),
 ) : AppsSource {
     override val installed: StateFlow<List<AppEntry>> = MutableStateFlow(apps)
     val launched = mutableListOf<String>()
@@ -175,6 +175,9 @@ class FixedApps(
             "Gallery" to Glyph.Gallery, "Maps" to Glyph.Maps, "Music" to Glyph.Music, "Phone" to Glyph.Phone,
             "Phone link" to Glyph.Link, "Radio" to Glyph.Radio, "Settings" to Glyph.Settings, "Sound" to Glyph.Sound,
             "Video" to Glyph.Video, "Voice" to Glyph.Voice, "Weather" to Glyph.Weather,
-        ).map { (label, glyph) -> AppEntry("design/${label.lowercase().replace(' ', '-')}", label, glyph) }
+        ).map { (label, glyph) -> AppEntry(id(label), label, glyph) }
+
+        /** The component id a design app is given, e.g. "design.maps/.Main". */
+        fun id(label: String): String = "design.${label.lowercase().replace(" ", "")}/.Main"
     }
 }

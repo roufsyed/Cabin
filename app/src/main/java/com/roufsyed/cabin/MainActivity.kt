@@ -1,7 +1,11 @@
 package com.roufsyed.cabin
 
+import android.content.ActivityNotFoundException
+import android.content.ComponentName
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -9,6 +13,7 @@ import androidx.activity.viewModels
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.roufsyed.cabin.notify.CabinNotificationListener
 import com.roufsyed.cabin.ui.CabinRoot
 import com.roufsyed.cabin.ui.HostActions
 import com.roufsyed.cabin.ui.shell.ShellViewModel
@@ -33,6 +38,7 @@ class MainActivity : ComponentActivity() {
         val container = container
         val host = HostActions(
             requestHomeRole = { container.homeRole.requestIntent()?.let(homeRoleRequest::launch) },
+            requestNotificationAccess = ::openNotificationAccess,
         )
         setContent { CabinRoot(container, host) }
     }
@@ -45,7 +51,28 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        // The user may be coming back from a system settings screen.
         container.homeRole.refresh()
+        container.media.refreshAccess()
+    }
+
+    /** Opens Android's notification-access switch for Cabin, or the list of such apps if that fails. */
+    private fun openNotificationAccess() {
+        val listener = ComponentName(this, CabinNotificationListener::class.java)
+        val direct = if (Build.VERSION.SDK_INT >= 30) {
+            Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS)
+                .putExtra(Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME, listener.flattenToString())
+        } else {
+            null
+        }
+        for (intent in listOfNotNull(direct, Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))) {
+            try {
+                startActivity(intent)
+                return
+            } catch (e: ActivityNotFoundException) {
+                // Try the next screen; some units leave these out of their settings app.
+            }
+        }
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {

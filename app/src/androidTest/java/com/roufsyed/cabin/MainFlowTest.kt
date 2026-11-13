@@ -62,7 +62,7 @@ class MainFlowTest {
         tap("All apps")
         tap("Maps")
         cabin.waitForIdle()
-        assertEquals(listOf("design/maps"), (values.container.apps as FixedApps).launched)
+        assertEquals(listOf(FixedApps.id("Maps")), (values.container.apps as FixedApps).launched)
     }
 
     @Test
@@ -106,7 +106,7 @@ class MainFlowTest {
         tap("Done arranging")
         cabin.waitForIdle()
         val order = values.container.settings.settings.value.appOrder
-        assertEquals(listOf("design/clock", "design/browser"), order.take(2))
+        assertEquals(listOf(FixedApps.id("Clock"), FixedApps.id("Browser")), order.take(2))
     }
 
     @Test

@@ -104,6 +104,8 @@ fun Txt(
     align: TextAlign = TextAlign.Unspecified,
     singleLine: Boolean = false,
     ellipsis: Boolean = false,
+    /** With a limit, text that does not fit ends in an ellipsis on the last line. */
+    maxLines: Int = Int.MAX_VALUE,
 ) {
     val style = remember(size, weight, color, lineHeight, tabular, letterSpacingEm, align) {
         Slate.style(size, weight, color, lineHeight, tabular, letterSpacingEm, align)
@@ -115,8 +117,8 @@ fun Txt(
         text = text,
         modifier = placed,
         style = style,
-        maxLines = if (singleLine || ellipsis) 1 else Int.MAX_VALUE,
+        maxLines = if (singleLine || ellipsis) 1 else maxLines,
         softWrap = !(singleLine || ellipsis),
-        overflow = if (ellipsis) TextOverflow.Ellipsis else TextOverflow.Visible,
+        overflow = if (ellipsis || maxLines != Int.MAX_VALUE) TextOverflow.Ellipsis else TextOverflow.Visible,
     )
 }

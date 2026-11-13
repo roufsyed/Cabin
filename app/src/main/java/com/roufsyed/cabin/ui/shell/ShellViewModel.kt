@@ -1,11 +1,12 @@
 package com.roufsyed.cabin.ui.shell
 
 import androidx.lifecycle.ViewModel
+import com.roufsyed.cabin.model.Slot
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 
-enum class Screen { Home, Apps, Music, Settings, Keys, Sources }
+enum class Screen { Home, Apps, Music, Settings, Keys, Sources, Pick }
 
 enum class EditKind { Apps, Sources }
 
@@ -21,6 +22,9 @@ data class Shell(
     /** The tile tapped while arranging. */
     val picked: String? = null,
     val overlay: Overlay = Overlay.None,
+    /** On the Pick screen: the slot an app is being chosen for, and where to go back to. */
+    val pickSlot: Slot? = null,
+    val pickFrom: Screen = Screen.Home,
 )
 
 /** Screen-to-screen movement. It holds no data of its own, only where the user is. */
@@ -50,6 +54,20 @@ class ShellViewModel : ViewModel() {
         }
     }
 
+    /** Opens the app chooser for [slot], remembering where it was opened from. */
+    fun pickApp(slot: Slot) = _state.update {
+        Shell(screen = Screen.Pick, pickSlot = slot, pickFrom = it.screen, picked = it.picked)
+    }
+
+    /** Leaves the app chooser. From arranging sources it returns there, with the same source still tapped. */
+    fun pickDone() = _state.update {
+        when {
+            it.screen != Screen.Pick -> it
+            it.pickFrom == Screen.Sources -> Shell(screen = Screen.Sources, edit = EditKind.Sources, picked = it.picked)
+            else -> Shell(screen = it.pickFrom)
+        }
+    }
+
     fun show(overlay: Overlay) = _state.update { it.copy(overlay = overlay) }
 
     fun closeOverlay() = _state.update { it.copy(overlay = Overlay.None) }
@@ -58,6 +76,9 @@ class ShellViewModel : ViewModel() {
     fun back() = _state.update {
         when {
             it.overlay != Overlay.None -> it.copy(overlay = Overlay.None)
+            it.screen == Screen.Pick && it.pickFrom == Screen.Sources ->
+                Shell(screen = Screen.Sources, edit = EditKind.Sources, picked = it.picked)
+            it.screen == Screen.Pick -> Shell(screen = it.pickFrom)
             it.edit == EditKind.Sources -> Shell(screen = Screen.Settings)
             it.edit == EditKind.Apps -> Shell(screen = Screen.Apps, page = it.page)
             it.screen == Screen.Keys || it.screen == Screen.Sources -> Shell(screen = Screen.Settings)

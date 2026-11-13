@@ -31,6 +31,8 @@ class GlyphRulesTest {
     @Test
     fun `anything else gets its initial`() {
         check(Glyph.Letter, "Dashcam", "Calendar", "Contacts", "Drive", "Gmail", "Play Store", "")
+        // A keyword inside a longer word does not count: this is not a phone app.
+        check(Glyph.Letter, "Gramophone", "Headphones")
     }
 
     @Test

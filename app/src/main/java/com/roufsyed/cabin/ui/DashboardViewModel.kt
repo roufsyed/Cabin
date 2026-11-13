@@ -1,30 +1,54 @@
 package com.roufsyed.cabin.ui
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.roufsyed.cabin.AppContainer
 import com.roufsyed.cabin.model.BrightnessUi
 import com.roufsyed.cabin.model.ClockUi
 import com.roufsyed.cabin.model.NavUi
 import com.roufsyed.cabin.model.NowPlayingUi
 import com.roufsyed.cabin.model.Samples
+import com.roufsyed.cabin.model.Slot
+import com.roufsyed.cabin.model.SourceId
 import com.roufsyed.cabin.model.SourceUi
 import com.roufsyed.cabin.model.StatusUi
 import com.roufsyed.cabin.model.VolumeUi
+import com.roufsyed.cabin.model.nowPlayingUi
+import com.roufsyed.cabin.sources.Opened
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 
 /**
  * What the Home panels, the strip, the rail and the bottom row show. Each value is its own flow, so a
  * change to one (a clock tick, a track change) redraws only the part of the screen that shows it.
  */
-class DashboardViewModel(container: AppContainer) : ViewModel() {
+class DashboardViewModel(private val container: AppContainer) : ViewModel() {
     val clock: StateFlow<ClockUi> = container.clock.clock
+
+    val nowPlaying: StateFlow<NowPlayingUi> =
+        combine(container.media.nowPlaying, container.media.access, ::nowPlayingUi).stateIn(
+            viewModelScope, SharingStarted.Eagerly,
+            nowPlayingUi(container.media.nowPlaying.value, container.media.access.value),
+        )
+
+    val sources: StateFlow<List<SourceUi>> = container.sources.state.map { it.row }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, container.sources.state.value.row)
 
     // Not wired to the unit yet: these still show the design's values.
     val status: StateFlow<StatusUi> = MutableStateFlow(Samples.status)
     val nav: StateFlow<NavUi> = MutableStateFlow(Samples.nav)
-    val nowPlaying: StateFlow<NowPlayingUi> = MutableStateFlow(Samples.nowPlaying)
     val volume: StateFlow<VolumeUi> = MutableStateFlow(Samples.volume)
     val brightness: StateFlow<BrightnessUi> = MutableStateFlow(Samples.brightness)
-    val sources: StateFlow<List<SourceUi>> = MutableStateFlow(Samples.sources)
+
+    fun playPause() = container.media.playPause()
+    fun next() = container.media.next()
+    fun previous() = container.media.previous()
+    fun playQueueItem(id: Long) = container.media.playQueueItem(id)
+
+    fun selectSource(source: SourceId): Opened = container.sources.select(source)
+    fun open(slot: Slot): Opened = container.sources.open(slot)
 }

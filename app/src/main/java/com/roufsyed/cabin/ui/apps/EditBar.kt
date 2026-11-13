@@ -35,6 +35,11 @@ fun EditBar(
     onLater: () -> Unit,
     onFlip: () -> Unit,
     onDone: () -> Unit,
+    hint: String = "Tap one, then move or hide it",
+    /** An extra action on the tapped tile, shown before Done. */
+    extraLabel: String? = null,
+    extraDescription: String = "",
+    onExtra: () -> Unit = {},
 ) {
     val dim = if (hasPick) 1f else 0.35f
     Row(
@@ -42,9 +47,9 @@ fun EditBar(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(Modifier.padding(start = 4.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.weight(1f).padding(start = 4.dp, end = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Txt(title, 38, weight = Slate.Light, lineHeight = 1f)
-            Txt("Tap one, then move or hide it", 24, color = Slate.Muted, lineHeight = 1f)
+            Txt(hint, 24, color = Slate.Muted, lineHeight = 1f, ellipsis = true)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Box(
@@ -71,6 +76,16 @@ fun EditBar(
                     .border(1.dp, Slate.Outline, ButtonShape),
                 contentAlignment = Alignment.Center,
             ) { Txt(if (hasPick && pickHidden) "Show" else "Hide", 26, lineHeight = 1f) }
+            if (extraLabel != null) {
+                Box(
+                    Modifier
+                        .size(96.dp)
+                        .alpha(dim)
+                        .pressable(extraDescription, onClick = onExtra)
+                        .border(1.dp, Slate.Outline, ButtonShape),
+                    contentAlignment = Alignment.Center,
+                ) { Txt(extraLabel, 26, lineHeight = 1f) }
+            }
             Box(
                 Modifier
                     .size(150.dp, 96.dp)
@@ -78,6 +93,40 @@ fun EditBar(
                     .background(Slate.Text, ButtonShape),
                 contentAlignment = Alignment.Center,
             ) { Txt("Done", 26, weight = Slate.SemiBold, color = Slate.Ground, lineHeight = 1f) }
+        }
+    }
+}
+
+/**
+ * The bar shown while choosing which app a slot opens: what is being chosen, a way back to guessing
+ * it from the app names, and Back.
+ */
+@Composable
+fun PickBar(title: String, hint: String, onAutomatic: () -> Unit, onBack: () -> Unit) {
+    Row(
+        modifier = Modifier.size(1036.dp, 96.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f).padding(start = 4.dp, end = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Txt(title, 38, weight = Slate.Light, lineHeight = 1f, ellipsis = true)
+            Txt(hint, 24, color = Slate.Muted, lineHeight = 1f, ellipsis = true)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(
+                Modifier
+                    .size(150.dp, 96.dp)
+                    .pressable("Choose automatically", onClick = onAutomatic)
+                    .border(1.dp, Slate.Outline, ButtonShape),
+                contentAlignment = Alignment.Center,
+            ) { Txt("Auto", 26, lineHeight = 1f) }
+            Box(
+                Modifier
+                    .size(150.dp, 96.dp)
+                    .pressable("Back", onClick = onBack)
+                    .background(Slate.Text, ButtonShape),
+                contentAlignment = Alignment.Center,
+            ) { Txt("Back", 26, weight = Slate.SemiBold, color = Slate.Ground, lineHeight = 1f) }
         }
     }
 }

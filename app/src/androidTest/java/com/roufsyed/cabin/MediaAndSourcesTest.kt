@@ -1,0 +1,159 @@
+package com.roufsyed.cabin
+
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.roufsyed.cabin.apps.FixedApps
+import com.roufsyed.cabin.media.FixedMedia
+import com.roufsyed.cabin.model.Slot
+import com.roufsyed.cabin.model.SourceId
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+
+/** Now playing, the Music screen and the source row, with the design's own track and apps. */
+@RunWith(AndroidJUnit4::class)
+class MediaAndSourcesTest {
+
+    @get:Rule(order = 0)
+    val values = FreshDesignValues()
+
+    @get:Rule(order = 1)
+    val cabin = cabinRule()
+
+    private val media get() = values.container.media as FixedMedia
+    private val apps get() = values.container.apps as FixedApps
+    private val settings get() = values.container.settings.settings.value
+
+    private fun tap(description: String) = cabin.onNodeWithContentDescription(description).performClick()
+    private fun shows(description: String) = cabin.onNodeWithContentDescription(description).assertIsDisplayed()
+    private fun gone(description: String) = cabin.onNodeWithContentDescription(description).assertDoesNotExist()
+    private fun text(text: String) = cabin.onNodeWithText(text).assertIsDisplayed()
+
+    @Test
+    fun homeTransportControlsThePlayer() {
+        tap("Next")
+        tap("Previous")
+        tap("Play or pause")
+        cabin.waitForIdle()
+        assertEquals(listOf("next", "queue:2", "previous", "queue:1", "playPause"), media.calls)
+    }
+
+    @Test
+    fun musicScreenShowsTheTrackAndItsQueue() {
+        tap("Open music")
+        text("Bluetooth audio")
+        text("Up next")
+        shows("Play Open Road")
+        shows("Play Night Signals")
+        shows("Play Paper Lanterns")
+        shows("Play Slow Tide")
+        // The mini player would repeat what the screen already shows, so it is left out here.
+        gone("Open music")
+    }
+
+    @Test
+    fun tappingAQueueItemPlaysIt() {
+        tap("Open music")
+        tap("Play Paper Lanterns")
+        cabin.waitForIdle()
+        assertEquals(listOf("queue:3"), media.calls)
+        // Now both the track card and its queue row name the artist.
+        cabin.onAllNodesWithText("June Harbor").assertCountEquals(2)
+    }
+
+    @Test
+    fun miniPlayerAppearsOnOtherScreensAndOpensMusic() {
+        tap("All apps")
+        shows("Open music")
+        tap("Next")
+        cabin.waitForIdle()
+        assertTrue("next" in media.calls)
+        tap("Open music")
+        text("Up next")
+    }
+
+    @Test
+    fun activeSourceOpensItsAppAndAnotherIsResumedInPlace() {
+        // The design's track plays in Music, which Bluetooth is set to; Bluetooth is therefore active.
+        tap("Bluetooth source")
+        cabin.waitForIdle()
+        assertEquals(listOf(FixedApps.id("Music")), apps.launched)
+
+        // USB uses the same app. It already has a session, so it is told to play and nothing opens.
+        tap("USB source")
+        cabin.waitForIdle()
+        assertEquals(listOf(FixedApps.id("Music")), apps.launched)
+        assertEquals(listOf("play:design.music"), media.calls)
+        cabin.waitUntil(2_000) { settings.activeSource == SourceId.Usb }
+    }
+
+    @Test
+    fun sourceWhoseAppHasNoSessionOpensIt() {
+        tap("Radio source")
+        cabin.waitForIdle()
+        assertEquals(listOf(FixedApps.id("Radio")), apps.launched)
+    }
+
+    @Test
+    fun railButtonsOpenTheUnitsOwnApps() {
+        tap("Phone")
+        tap("Phone link")
+        cabin.waitForIdle()
+        assertEquals(listOf(FixedApps.id("Phone"), FixedApps.id("Phone link")), apps.launched)
+    }
+
+    @Test
+    fun hidingASourceRemovesItFromTheRow() {
+        tap("All apps")
+        tap("Settings")
+        tap("Arrange sources")
+        tap("Select USB")
+        text("Opens Music")
+        tap("Hide or show")
+        tap("Done arranging")
+        tap("Home")
+        gone("USB source")
+        shows("Radio source")
+    }
+
+    @Test
+    fun showingAuxAddsItToTheRow() {
+        gone("AUX source")
+        tap("All apps")
+        tap("Settings")
+        tap("Arrange sources")
+        tap("Select AUX")
+        text("No app chosen yet")
+        tap("Hide or show")
+        tap("Done arranging")
+        tap("Home")
+        shows("AUX source")
+    }
+
+    @Test
+    fun aSourceCanBeGivenAnAppAndReturnedToAutomatic() {
+        tap("All apps")
+        tap("Settings")
+        tap("Arrange sources")
+        tap("Select Radio")
+        text("Opens Radio")
+        tap("Choose the app for this source")
+        text("Radio opens")
+        tap("Maps")
+        // Back on the arranging screen with Radio still selected.
+        text("Opens Maps")
+        assertEquals(FixedApps.id("Maps"), settings.bindings[Slot.Radio])
+
+        tap("Choose the app for this source")
+        tap("Choose automatically")
+        text("Opens Radio")
+        assertEquals(null, settings.bindings[Slot.Radio])
+    }
+}

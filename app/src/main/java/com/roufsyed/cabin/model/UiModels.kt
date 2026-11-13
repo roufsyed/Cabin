@@ -2,6 +2,9 @@ package com.roufsyed.cabin.model
 
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.ImageBitmap
+import com.roufsyed.cabin.media.NowPlaying
+import com.roufsyed.cabin.media.PlaybackProgress
+import com.roufsyed.cabin.media.QueueItem
 
 /** What the screens draw. Plain immutable values, produced off the main thread by the view models. */
 
@@ -43,12 +46,39 @@ data class NowPlayingUi(
     val caption: String,
     val title: String,
     val artist: String,
-    /** 0..1 of the track played. */
-    val fraction: Float,
-    val position: String,
-    val duration: String,
-    val playing: Boolean,
-)
+    val progress: PlaybackProgress,
+    /** The playing app's name, shown on the Music screen. */
+    val source: String = "",
+    val art: ImageBitmap? = null,
+    val queueTitle: String = "Up next",
+    val queue: List<QueueItem> = emptyList(),
+    /** True while Cabin cannot see what is playing because notification access has not been granted. */
+    val needsAccess: Boolean = false,
+) {
+    val playing: Boolean get() = progress.playing
+}
+
+/** What the Now playing panel says for each state of the unit's media. */
+fun nowPlayingUi(now: NowPlaying?, access: Boolean): NowPlayingUi = when {
+    !access -> NowPlayingUi(
+        caption = "Now playing",
+        title = "No access yet",
+        artist = "Tap to let Cabin see what is playing",
+        progress = PlaybackProgress.None,
+        needsAccess = true,
+    )
+    now == null -> NowPlayingUi("Now playing", "Nothing playing", "", PlaybackProgress.None)
+    else -> NowPlayingUi(
+        caption = "Now playing",
+        title = now.title.ifBlank { now.appLabel },
+        artist = now.artist,
+        progress = now.progress,
+        source = now.appLabel,
+        art = now.art,
+        queueTitle = now.queueTitle,
+        queue = now.queue,
+    )
+}
 
 @Immutable
 data class VolumeUi(val level: Int, val muted: Boolean)
@@ -69,3 +99,7 @@ enum class SourceId(val label: String, val baseWidth: Int) {
 
 @Immutable
 data class SourceUi(val id: SourceId, val active: Boolean)
+
+/** A source while arranging: [app] is the name of the app it opens, or null if none is set. */
+@Immutable
+data class SourceTile(val id: SourceId, val hidden: Boolean, val app: String?)
