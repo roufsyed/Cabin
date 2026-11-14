@@ -59,6 +59,11 @@ class SettingsTest {
         assertTrue(settings.appHidden.isEmpty())
         assertFalse(settings.setupDone)
         assertNull(settings.activeSource)
+        // Gestures do what the design gives them, and Auto goes by the headlights where it can.
+        assertTrue(settings.swipeDownTray)
+        assertEquals(SideSwipe.Apps, settings.sideSwipe)
+        assertEquals(TwoFingerDrag.Volume, settings.twoFingerDrag)
+        assertTrue(settings.followHeadlights)
     }
 
     @Test
@@ -74,12 +79,20 @@ class SettingsTest {
             ),
             sourceOrder = listOf(SourceId.Usb, SourceId.Radio, SourceId.Aux, SourceId.Bluetooth, SourceId.Auto),
             sourceHidden = setOf(SourceId.Radio),
-            bindings = mapOf(Slot.Radio to "com.radio/.Main", Slot.Phone to "com.phone/.Dial"),
+            bindings = mapOf(
+                Slot.Radio to "com.radio/.Main", Slot.Phone to "com.phone/.Dial",
+                Slot.Maps to "com.maps/.Main", Slot.Music to "com.music/.Main",
+            ),
             activeSource = SourceId.Usb,
+            lastPlayer = "com.music",
             brightnessMode = BrightnessMode.Night,
             dayLevel = 10,
             nightLevel = 1,
+            followHeadlights = false,
             setupDone = true,
+            swipeDownTray = false,
+            sideSwipe = SideSwipe.Tracks,
+            twoFingerDrag = TwoFingerDrag.Brightness,
             latitude = 12.97,
             longitude = 77.59,
             recentPlaces = listOf("Airport", "City Mall"),
@@ -122,9 +135,13 @@ class SettingsTest {
                 it[intPreferencesKey("brightness_day")] = 99
                 it[stringPreferencesKey("position")] = "not,numbers"
                 it[stringPreferencesKey("app_cache")] = "broken line\ncom.a/.Main\tWhat\tAlpha"
+                it[stringPreferencesKey("gesture_side")] = "Diagonal"
+                it[stringPreferencesKey("gesture_two_finger")] = ""
             }
         }
         val settings = SettingsCodec.decode(runBlocking { raw.data.first() })
+        assertEquals(SideSwipe.Apps, settings.sideSwipe)
+        assertEquals(TwoFingerDrag.Volume, settings.twoFingerDrag)
 
         // Known sources keep their saved place; the rest are appended so none can go missing.
         assertEquals(
@@ -135,5 +152,28 @@ class SettingsTest {
         assertEquals(10, settings.dayLevel)
         assertNull(settings.latitude)
         assertEquals(listOf(AppEntry("com.a/.Main", "Alpha", Glyph.Letter)), settings.appCache)
+    }
+
+    @Test
+    fun `a value left by an earlier build is ignored and dropped on the next save`() {
+        val file = File(folder.root, "older.preferences_pb")
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO).also { scopes += it }
+        val raw = PreferenceDataStoreFactory.create(scope = scope, produceFile = { file })
+        val retired = stringPreferencesKey("swipe_action")
+        runBlocking { raw.edit { it[retired] = "Pages" } }
+
+        val store = DataStoreSettings(raw, scope)
+        assertEquals(SideSwipe.Apps, store.loaded().sideSwipe)
+        runBlocking { store.update { it.copy(dayLevel = 6) } }
+        assertNull(runBlocking { raw.data.first() }[retired])
+    }
+
+    @Test
+    fun `a tap on an option's tile moves it to the next one and round again`() {
+        assertEquals(SideSwipe.Tracks, SideSwipe.Apps.next())
+        assertEquals(SideSwipe.Off, SideSwipe.Tracks.next())
+        assertEquals(SideSwipe.Apps, SideSwipe.Off.next())
+        assertEquals(TwoFingerDrag.Brightness, TwoFingerDrag.Volume.next())
+        assertEquals(TwoFingerDrag.Volume, TwoFingerDrag.Off.next())
     }
 }

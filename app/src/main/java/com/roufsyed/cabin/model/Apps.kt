@@ -30,7 +30,13 @@ enum class Slot(val label: String) {
     Bluetooth("Bluetooth"),
     Usb("USB"),
     Auto("Android Auto"),
-    Aux("AUX");
+    Aux("AUX"),
+
+    /** The app the Navigation panel opens and sends destinations to. */
+    Maps("Maps"),
+
+    /** The app that is started when play is pressed and nothing is there to resume. */
+    Music("Music");
 
     companion object {
         fun of(source: SourceId): Slot = when (source) {

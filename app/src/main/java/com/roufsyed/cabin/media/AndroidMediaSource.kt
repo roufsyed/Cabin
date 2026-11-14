@@ -3,6 +3,8 @@ package com.roufsyed.cabin.media
 import android.app.NotificationManager
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
+import android.content.ServiceConnection
 import android.graphics.Bitmap
 import android.media.AudioManager
 import android.media.MediaMetadata
@@ -11,7 +13,9 @@ import android.media.session.MediaSession
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
 import android.os.Handler
+import android.os.IBinder
 import android.os.Looper
+import android.service.media.MediaBrowserService
 import android.view.KeyEvent
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -122,6 +126,15 @@ class AndroidMediaSource(
     private var listening = false
     private val labels = HashMap<String, String>()
 
+    /** The app chosen for music in Setup, if any. */
+    private var musicPackage: String? = null
+
+    /** The session last seen playing in this run. It stays on show after it stops, so play resumes it. */
+    private var lastPlayed: Entry? = null
+
+    /** The attempt, if one is under way, to start an app playing. */
+    private var starter: Starter? = null
+
     private val onSessions = MediaSessionManager.OnActiveSessionsChangedListener { controllers ->
         update(controllers.orEmpty())
     }
@@ -148,8 +161,20 @@ class AndroidMediaSource(
             sessions.removeOnActiveSessionsChangedListener(onSessions)
             listening = false
         }
+        starter?.cancel()
         update(emptyList())
         accessState.value = readAccess()
+    }
+
+    override fun setMusicApp(packageName: String?) {
+        // Sessions are only ever touched on the main thread, and this decides which of them is shown.
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            main.post { setMusicApp(packageName) }
+            return
+        }
+        if (musicPackage == packageName) return
+        musicPackage = packageName
+        publish()
     }
 
     override fun refreshAccess() {
@@ -166,12 +191,148 @@ class AndroidMediaSource(
         return true
     }
 
-    override fun playPause() {
+    override fun playPause(): Boolean {
         val entry = primary()
         when {
-            entry == null -> mediaKey(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
+            // Nothing to resume. With a music app chosen, starting it is the caller's job; without
+            // one, a media key lets Android wake whichever app played last.
+            entry == null -> if (musicPackage == null) mediaKey(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE) else return false
             entry.playback.isActive() -> entry.controller.transportControls.pause()
             else -> entry.controller.transportControls.play()
+        }
+        return true
+    }
+
+    /**
+     * An app with a session is told to play. One that is not running is woken first, by holding a
+     * connection to the media browser service that players offer for Android Auto: the player then
+     * comes up with its session, and the session is told to prepare and play, which is how a player
+     * is asked to carry on with what it played last. A player that offers no such service can only be
+     * reached with a media key, which Android sends to the app that played last, so that is tried
+     * when [wasLastPlayer]. Whichever way it was asked, if the app is not playing a few seconds later
+     * the attempt counts as failed, so that pressing play is never without effect.
+     */
+    override fun start(packageName: String, wasLastPlayer: Boolean, onFailed: () -> Unit) {
+        // A second press while the first is still being answered changes nothing.
+        if (starter?.packageName == packageName) return
+        starter?.cancel()
+        val attempt = Starter(packageName, wasLastPlayer, onFailed)
+        starter = attempt
+        attempt.begin()
+    }
+
+    private fun browserService(packageName: String): ComponentName? = try {
+        val intent = Intent(MediaBrowserService.SERVICE_INTERFACE).setPackage(packageName)
+        context.packageManager.queryIntentServices(intent, 0).firstOrNull()?.serviceInfo
+            ?.let { ComponentName(it.packageName, it.name) }
+    } catch (e: RuntimeException) {
+        null
+    }
+
+    private fun isPlaying(packageName: String): Boolean =
+        entries.any { it.controller.packageName == packageName && it.playback.isActive() }
+
+    /** One attempt to start an app playing. Everything in it runs on the main thread. */
+    private inner class Starter(
+        val packageName: String,
+        private val wasLastPlayer: Boolean,
+        private val onFailed: () -> Unit,
+    ) : ServiceConnection {
+
+        /** True while Cabin holds a connection to the player's service, which keeps the player awake. */
+        private var bound = false
+
+        /** True once the app has been told to play, by whatever means: from then on only [check] decides. */
+        private var asked = false
+        private var over = false
+        private val noSession = Runnable { wakeFailed() }
+
+        // Without notification access the app's session cannot be seen, so it is taken to have worked.
+        private val check = Runnable { end(failed = accessState.value && !isPlaying(packageName)) }
+
+        fun begin() {
+            if (askSession()) return
+            // Waking the player only helps if its session can then be seen, which takes notification access.
+            val service = if (accessState.value) browserService(packageName) else null
+            if (service == null || !bind(service)) {
+                wakeFailed()
+                return
+            }
+            main.postDelayed(noSession, SESSION_WAIT_MS)
+        }
+
+        /** Called whenever the list of sessions changes: the player that was woken may have arrived. */
+        fun sessionsChanged() {
+            if (!over && !asked) askSession()
+        }
+
+        /** Tells the app's session, if it has one, to carry on playing. */
+        private fun askSession(): Boolean {
+            val entry = entries.firstOrNull { it.controller.packageName == packageName } ?: return false
+            asked = true
+            main.removeCallbacks(noSession)
+            val controls = entry.controller.transportControls
+            // Prepare, then play: the order Android's own media card uses to resume a player.
+            if (entry.playback?.state != PlaybackState.STATE_PAUSED) controls.prepare()
+            controls.play()
+            main.postDelayed(check, PLAY_WAIT_MS)
+            return true
+        }
+
+        private fun bind(service: ComponentName): Boolean = try {
+            bound = true
+            context.bindService(Intent(MediaBrowserService.SERVICE_INTERFACE).setComponent(service), this, Context.BIND_AUTO_CREATE)
+        } catch (e: RuntimeException) {
+            // The service is not open to other apps.
+            false
+        }
+
+        /**
+         * The player could not be woken, or woke without a session. If it was the last app to play, a
+         * media key still reaches it; otherwise it cannot be started from here.
+         */
+        private fun wakeFailed() {
+            if (over || asked) return
+            main.removeCallbacks(noSession)
+            if (wasLastPlayer) {
+                asked = true
+                mediaKey(KeyEvent.KEYCODE_MEDIA_PLAY)
+                main.postDelayed(check, PLAY_WAIT_MS)
+            } else {
+                end(failed = true)
+            }
+        }
+
+        // The connection itself is never used: holding it is what keeps the player running.
+        override fun onServiceConnected(name: ComponentName, service: IBinder) = Unit
+
+        override fun onServiceDisconnected(name: ComponentName) = Unit
+
+        /** Drops the attempt without reporting anything. */
+        fun cancel() {
+            over = true
+            release()
+        }
+
+        private fun end(failed: Boolean) {
+            if (over) return
+            over = true
+            release()
+            if (failed) onFailed()
+        }
+
+        private fun release() {
+            main.removeCallbacks(noSession)
+            main.removeCallbacks(check)
+            if (bound) {
+                bound = false
+                try {
+                    context.unbindService(this)
+                } catch (e: RuntimeException) {
+                    // Never connected, or already gone.
+                }
+            }
+            if (starter === this) starter = null
         }
     }
 
@@ -199,20 +360,42 @@ class AndroidMediaSource(
             val existing = entries.firstOrNull { it.controller.sessionToken == controller.sessionToken }
             kept += existing ?: Entry(controller).also { it.start() }
         }
-        for (old in entries) if (old !in kept) old.stop()
+        for (old in entries) {
+            if (old !in kept) {
+                old.stop()
+                if (old === lastPlayed) lastPlayed = null
+            }
+        }
         entries = kept
+        starter?.sessionsChanged()
         publish()
     }
 
     private fun remove(entry: Entry) {
         entry.stop()
+        if (entry === lastPlayed) lastPlayed = null
         entries = entries - entry
         publish()
     }
 
-    /** The session that is playing, or failing that the first one Android lists (its own priority order). */
-    private fun primary(): Entry? =
-        entries.firstOrNull { it.playback.isActive() } ?: entries.firstOrNull { it.title.isNotEmpty() } ?: entries.firstOrNull()
+    /** The session to show and control, by [MediaRules.shown]. Android lists them in its own priority order. */
+    private fun primary(): Entry? {
+        val index = MediaRules.shown(
+            sessions = entries.map {
+                SessionState(
+                    packageName = it.controller.packageName,
+                    active = it.playback.isActive(),
+                    paused = it.playback?.state == PlaybackState.STATE_PAUSED,
+                    titled = it.title.isNotEmpty(),
+                )
+            },
+            lastPlayed = lastPlayed?.let(entries::indexOf) ?: -1,
+            musicPackage = musicPackage,
+        )
+        val entry = entries.getOrNull(index)
+        if (entry != null && entry.playback.isActive()) lastPlayed = entry
+        return entry
+    }
 
     private fun publish() {
         val entry = primary()
@@ -267,6 +450,12 @@ class AndroidMediaSource(
     private companion object {
         /** The largest size cover art is drawn at is 150 design pixels; twice that covers any scale. */
         const val COVER_PX = 300
+
+        /** How long a player that has been woken may take to come up with its session. */
+        const val SESSION_WAIT_MS = 4_000L
+
+        /** How long after being told to play an app has to actually be playing. */
+        const val PLAY_WAIT_MS = 4_000L
 
         fun PlaybackState?.isActive(): Boolean =
             this != null && (state == PlaybackState.STATE_PLAYING || state == PlaybackState.STATE_BUFFERING)

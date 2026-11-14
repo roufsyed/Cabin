@@ -3,11 +3,8 @@ package com.roufsyed.cabin.nav
 import android.app.Notification
 import android.content.Context
 import android.content.Intent
-import android.content.pm.LauncherApps
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.net.Uri
-import android.os.Process
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
@@ -16,9 +13,14 @@ import androidx.core.graphics.createBitmap
 import androidx.core.net.toUri
 import androidx.compose.ui.graphics.asImageBitmap
 import com.roufsyed.cabin.BuildConfig
+import com.roufsyed.cabin.apps.AppsSource
+import com.roufsyed.cabin.data.SettingsStore
+import com.roufsyed.cabin.model.AppEntry
 import com.roufsyed.cabin.model.NavUi
+import com.roufsyed.cabin.model.Slot
 import com.roufsyed.cabin.nav.MapsNotificationParser.MAPS_PACKAGE
 import com.roufsyed.cabin.notify.ListenerClient
+import com.roufsyed.cabin.sources.SourceRules
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -28,13 +30,18 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Navigation as told by Google Maps: its ongoing notification is read through Cabin's notification
- * listener, and destinations are sent to it with its public intents and its own launcher shortcuts.
- * Google's Navigation SDK is not used, and the route line itself is not available this way.
+ * Navigation through the unit's maps app. The route is read from Google Maps' ongoing notification,
+ * through Cabin's notification listener: that is the one maps app whose route can be read, so with
+ * any other the panel stays idle. Destinations go to whichever maps app is chosen in Setup, with
+ * public intents and the app's own launcher shortcuts. Google's Navigation SDK is not used, and the
+ * route line itself is not available this way.
  */
 class MapsNavigation(
     private val context: Context,
     private val scope: CoroutineScope,
+    private val apps: AppsSource,
+    private val settings: SettingsStore,
+    private val shortcuts: ShortcutHost = LauncherShortcuts(context),
 ) : NavigationSource, ListenerClient {
 
     private val current = MutableStateFlow<NavUi>(NavUi.Idle)
@@ -153,36 +160,51 @@ class MapsNavigation(
 
     // ---- Sending destinations
 
+    /** The maps app chosen in Setup, or the one guessed while none has been chosen. */
+    private fun mapsApp(): AppEntry? = SourceRules.binding(Slot.Maps, settings.settings.value, apps.installed.value)
+
     override fun openMaps(): Boolean {
-        val intent = context.packageManager.getLaunchIntentForPackage(MAPS_PACKAGE) ?: return false
-        return start(intent)
+        // While a route is showing, the app to open is the one that is navigating.
+        val navigating = if (current.value is NavUi.Active) {
+            apps.installed.value.firstOrNull { SourceRules.packageOf(it.id) == MAPS_PACKAGE }
+        } else {
+            null
+        }
+        val app = navigating ?: mapsApp() ?: return false
+        return apps.launch(app.id)
     }
 
     override fun navigateTo(destination: String): Boolean {
-        val query = destination.trim()
-        if (query.isEmpty()) return false
-        return start(Intent(Intent.ACTION_VIEW, ("google.navigation:q=" + Uri.encode(query)).toUri()).setPackage(MAPS_PACKAGE))
+        if (destination.isBlank()) return false
+        val app = mapsApp() ?: return false
+        val packageName = SourceRules.packageOf(app.id)
+        val address = NavigationIntents.destination(packageName, destination)
+        // An app that does not take the address is at least opened, so the tap is never without effect.
+        return start(Intent(Intent.ACTION_VIEW, address.toUri()).setPackage(packageName)) || apps.launch(app.id)
     }
 
     /**
-     * Home and Work are kept in the user's Maps account, not in Cabin. Maps offers them as launcher
-     * shortcuts (the ones on a long press of its icon), which the unit's home app is allowed to start;
-     * that is the first choice. Failing that, the "place" form of the navigation intent is tried, which
-     * Google documents for Maps on Android Automotive.
+     * Home and Work are kept in the user's account with the maps app, not in Cabin. Maps apps offer
+     * them as launcher shortcuts (the ones on a long press of the icon), which the unit's home app is
+     * allowed to start; that is the first choice. For Google Maps the "place" form of its navigation
+     * intent is tried next. Failing both, the app is simply opened.
      */
     override fun navigateTo(place: SavedPlace): Boolean {
-        val shortcut = if (place == SavedPlace.Home) "manifest_home" else "manifest_work"
-        val launcher = context.getSystemService(LauncherApps::class.java)
-        try {
-            if (launcher != null && launcher.hasShortcutHostPermission()) {
-                launcher.startShortcut(MAPS_PACKAGE, shortcut, null, null, Process.myUserHandle())
-                return true
-            }
-        } catch (e: RuntimeException) {
-            // The shortcut is missing in this Maps build, or Cabin is not the home app: try the intent.
+        val app = mapsApp() ?: return false
+        // Looking up shortcuts asks the system, so it is kept off the main thread.
+        scope.launch(Dispatchers.Default) {
+            if (!startSavedPlace(SourceRules.packageOf(app.id), place)) apps.launch(app.id)
         }
-        val name = if (place == SavedPlace.Home) "home" else "work"
-        return start(Intent(Intent.ACTION_VIEW, "google.navigation:place=$name".toUri()).setPackage(MAPS_PACKAGE))
+        return true
+    }
+
+    private fun startSavedPlace(packageName: String, place: SavedPlace): Boolean {
+        val offered = shortcuts.shortcuts(packageName)
+        if (BuildConfig.DEBUG) Log.d(TAG, "$packageName shortcuts $offered")
+        val shortcut = NavigationIntents.shortcutFor(place, offered)
+        if (shortcut != null && shortcuts.start(packageName, shortcut.id)) return true
+        if (packageName != MAPS_PACKAGE) return false
+        return start(Intent(Intent.ACTION_VIEW, NavigationIntents.savedPlace(place).toUri()).setPackage(packageName))
     }
 
     private fun start(intent: Intent): Boolean = try {

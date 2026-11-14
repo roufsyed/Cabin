@@ -38,11 +38,14 @@ import com.roufsyed.cabin.system.BrightnessControl
 import com.roufsyed.cabin.system.ClockSource
 import com.roufsyed.cabin.system.FixedBrightness
 import com.roufsyed.cabin.system.FixedClock
+import com.roufsyed.cabin.system.FixedHeadlights
 import com.roufsyed.cabin.system.FixedHomeRole
 import com.roufsyed.cabin.system.FixedPermissions
 import com.roufsyed.cabin.system.FixedStatus
 import com.roufsyed.cabin.system.FixedVolume
+import com.roufsyed.cabin.system.HeadlightSignal
 import com.roufsyed.cabin.system.HomeRole
+import com.roufsyed.cabin.system.NoHeadlightSignal
 import com.roufsyed.cabin.system.PermissionsSource
 import com.roufsyed.cabin.system.StatusSource
 import com.roufsyed.cabin.system.VolumeControl
@@ -70,6 +73,8 @@ class AppContainer(
     val tray: TraySource,
     val status: StatusSource,
     val permissions: PermissionsSource,
+    /** The car's headlights, where the unit reports them. Auto brightness follows it. */
+    val headlights: HeadlightSignal = NoHeadlightSignal,
     val listenerHub: ListenerHub = ListenerHub(),
 ) {
     val sources = SourceController(settings, apps, media, scope)
@@ -87,9 +92,10 @@ class AppContainer(
         status: StatusSource = this.status,
         homeRole: HomeRole = this.homeRole,
         permissions: PermissionsSource = this.permissions,
+        headlights: HeadlightSignal = this.headlights,
     ): AppContainer = AppContainer(
         scope, settings, apps, clock, homeRole, media, volume, brightness, navigation, voice, tray, status,
-        permissions, listenerHub,
+        permissions, headlights, listenerHub,
     )
 
     companion object {
@@ -102,22 +108,27 @@ class AppContainer(
             val settings = DataStoreSettings(store, scope)
             val media = AndroidMediaSource(app, scope)
             val clock = AndroidClock(app)
-            val navigation = MapsNavigation(app, scope)
+            val apps = AndroidAppsSource(app, settings, scope)
+            val navigation = MapsNavigation(app, scope, apps, settings)
             val tray = AndroidTray(app)
+            // How this unit tells apps about its headlights is not known yet, so nothing is read:
+            // Auto goes by sunrise and sunset until a reader for the real signal takes this place.
+            val headlights = NoHeadlightSignal
             return AppContainer(
                 scope = scope,
                 settings = settings,
-                apps = AndroidAppsSource(app, settings, scope),
+                apps = apps,
                 clock = clock,
                 homeRole = AndroidHomeRole(app),
                 media = media,
                 volume = AndroidVolume(app),
-                brightness = AndroidBrightness(app, settings, scope, clock),
+                brightness = AndroidBrightness(app, settings, scope, clock, headlights),
                 navigation = navigation,
                 voice = AndroidVoiceInput(app),
                 tray = tray,
                 status = AndroidStatus(app),
                 permissions = AndroidPermissions(app),
+                headlights = headlights,
                 listenerHub = ListenerHub(
                     listOf(
                         navigation,
@@ -132,9 +143,9 @@ class AppContainer(
         }
 
         /** The design's own values, so a screenshot can be laid over the design. */
-        fun design(): AppContainer = AppContainer(
-            scope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
-            settings = InMemorySettings(
+        fun design(): AppContainer {
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            val settings = InMemorySettings(
                 CabinSettings(
                     loaded = true,
                     setupDone = true,
@@ -143,18 +154,27 @@ class AppContainer(
                     bindings = mapOf(Slot.Bluetooth to FixedApps.id("Music")),
                     recentPlaces = listOf("Airport", "City Mall"),
                 ),
-            ),
-            apps = FixedApps(),
-            clock = FixedClock(Samples.clock),
-            homeRole = FixedHomeRole(),
-            media = FixedMedia(Samples.playing),
-            volume = FixedVolume(),
-            brightness = FixedBrightness(),
-            navigation = FixedNavigation(Samples.nav),
-            voice = FixedVoice(),
-            tray = FixedTray(Samples.notifications),
-            status = FixedStatus(Samples.status),
-            permissions = FixedPermissions(),
-        )
+            )
+            // The design is drawn with the headlights off; its Settings has a switch to try them on.
+            val headlights = FixedHeadlights(false)
+            return AppContainer(
+                scope = scope,
+                settings = settings,
+                apps = FixedApps(),
+                clock = FixedClock(Samples.clock),
+                homeRole = FixedHomeRole(),
+                media = FixedMedia(Samples.playing),
+                volume = FixedVolume(),
+                // On its own unconfined scope, so a tap on the stepper has changed the level by the time
+                // the tap returns, as it has on the unit's screen a frame later.
+                brightness = FixedBrightness(settings, headlights = headlights),
+                navigation = FixedNavigation(Samples.nav),
+                voice = FixedVoice(),
+                tray = FixedTray(Samples.notifications),
+                status = FixedStatus(Samples.status),
+                permissions = FixedPermissions(),
+                headlights = headlights,
+            )
+        }
     }
 }

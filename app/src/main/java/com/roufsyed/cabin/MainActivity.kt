@@ -132,7 +132,7 @@ class MainActivity : ComponentActivity() {
             KeyEvent.KEYCODE_MEDIA_PREVIOUS -> if (first) container.media.previous()
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_MEDIA_PLAY, KeyEvent.KEYCODE_MEDIA_PAUSE,
             KeyEvent.KEYCODE_HEADSETHOOK,
-            -> if (first) container.media.playPause()
+            -> if (first) container.sources.playPause()
             KeyEvent.KEYCODE_VOICE_ASSIST, KeyEvent.KEYCODE_SEARCH, KeyEvent.KEYCODE_ASSIST ->
                 if (first) shell.requestVoice()
             // Android's own "mode" key. Whether the unit sends it for the wheel's Mode button has to be

@@ -11,10 +11,13 @@ sealed interface Gesture {
     data object SwipeLeft : Gesture
     data object SwipeRight : Gesture
 
-    /** Two fingers started dragging: the volume readout should appear. */
+    /**
+     * Two fingers started dragging: the readout should appear. The drag changes the volume unless
+     * Settings > Gestures gives it something else to change, hence the names.
+     */
     data object VolumeBegin : Gesture
 
-    /** Two fingers have moved [steps] volume steps from where the drag began; up is positive. */
+    /** Two fingers have moved [steps] steps from where the drag began; up is positive. */
     data class Volume(val steps: Int) : Gesture
 
     /** The fingers lifted: the readout should go. */
@@ -23,7 +26,7 @@ sealed interface Gesture {
 
 /**
  * Turns raw touches into [Gesture]s, with the design's distances: a touch counts as a drag after 12
- * pixels, a swipe fires at 70, and two fingers change the volume one step every 24.
+ * pixels, a swipe fires at 70, and two fingers move one step every 24.
  *
  * It has no Android in it. Distances are in whatever unit the caller's coordinates use, so the caller
  * passes thresholds scaled to the screen.
@@ -68,7 +71,7 @@ class GestureRecognizer(
         }
         current.pointers.add(pointer)
         if (!current.twoFingers && !current.fired) {
-            // A second finger turns the touch into a volume drag, measured from where the first one is now.
+            // A second finger turns the touch into a two-finger drag, measured from where the first one is now.
             current.twoFingers = true
             current.volumeFromY = current.y
         }

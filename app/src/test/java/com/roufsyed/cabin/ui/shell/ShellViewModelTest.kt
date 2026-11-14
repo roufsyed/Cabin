@@ -139,13 +139,12 @@ class ShellViewModelTest {
     }
 
     @Test
-    fun `back from the keys screen and from Setup returns to Settings`() {
-        shell.open(Screen.Keys)
-        shell.back()
-        assertEquals(Shell(screen = Screen.Settings), state)
-        shell.open(Screen.Setup)
-        shell.back()
-        assertEquals(Shell(screen = Screen.Settings), state)
+    fun `back from the keys screen, from Gestures and from Setup returns to Settings`() {
+        for (screen in listOf(Screen.Keys, Screen.Gestures, Screen.Setup)) {
+            shell.open(screen)
+            shell.back()
+            assertEquals(Shell(screen = Screen.Settings), state)
+        }
     }
 
     @Test
@@ -154,5 +153,67 @@ class ShellViewModelTest {
         shell.pickApp(com.roufsyed.cabin.model.Slot.Link)
         shell.pickDone()
         assertEquals(Shell(screen = Screen.Setup), state)
+    }
+
+    @Test
+    fun `Setup has two pages, turned by its button or a swipe`() {
+        shell.open(Screen.Setup)
+        shell.setupPage(1)
+        assertEquals(Shell(screen = Screen.Setup, page = 1), state)
+        shell.setupPage(7)
+        assertEquals(1, state.page)
+        shell.setupPage(0)
+        assertEquals(0, state.page)
+
+        shell.swipeLeft(pages = SETUP_PAGES)
+        assertEquals(1, state.page)
+        shell.swipeLeft(pages = SETUP_PAGES)
+        assertEquals(1, state.page)
+        shell.swipeRight()
+        assertEquals(Shell(screen = Screen.Setup, page = 0), state)
+        // On its first page a swipe right changes nothing: Setup is left with Done.
+        shell.swipeRight()
+        assertEquals(Shell(screen = Screen.Setup, page = 0), state)
+    }
+
+    @Test
+    fun `turning Setup's page only works on Setup`() {
+        shell.open(Screen.Settings)
+        shell.setupPage(1)
+        assertEquals(Shell(screen = Screen.Settings), state)
+    }
+
+    @Test
+    fun `back on Setup's second page goes to its first, then to Settings`() {
+        shell.open(Screen.Setup)
+        shell.setupPage(1)
+        shell.back()
+        assertEquals(Shell(screen = Screen.Setup, page = 0), state)
+        shell.back()
+        assertEquals(Shell(screen = Screen.Settings), state)
+    }
+
+    @Test
+    fun `choosing an app from Setup's second page returns to that page`() {
+        shell.open(Screen.Setup)
+        shell.setupPage(1)
+        shell.pickApp(com.roufsyed.cabin.model.Slot.Maps)
+        assertEquals(Screen.Pick, state.screen)
+        // The chooser has pages of its own, which must not be mistaken for Setup's.
+        shell.swipeLeft(pages = 3)
+        shell.swipeLeft(pages = 3)
+        shell.pickDone()
+        assertEquals(Shell(screen = Screen.Setup, page = 1), state)
+
+        shell.pickApp(com.roufsyed.cabin.model.Slot.Music)
+        shell.back()
+        assertEquals(Shell(screen = Screen.Setup, page = 1), state)
+    }
+
+    @Test
+    fun `a swipe right leaves Gestures for Home like any other settings screen`() {
+        shell.open(Screen.Gestures)
+        shell.swipeRight()
+        assertEquals(Shell(), state)
     }
 }

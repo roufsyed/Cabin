@@ -151,7 +151,8 @@ class LayoutTest {
         at("Arrange sources", 564.5f, 152f, 511.5f, 112f)
         at("Steering wheel keys", 40f, 277f, 511.5f, 112f)
         at("Wi-Fi settings", 564.5f, 402f, 511.5f, 112f)
-        at("Open setup", 40f, 527f, 511.5f, 112f)
+        at("Gesture settings", 40f, 527f, 511.5f, 112f)
+        at("Open setup", 564.5f, 527f, 511.5f, 112f)
 
         cabin.onNodeWithContentDescription("Steering wheel keys").performClick()
         // A 96-high heading row, then two rows of three 183-high tiles, 13 apart.
@@ -159,6 +160,35 @@ class LayoutTest {
         at("Steering key: volume up", 40f, 261f, 336.67f, 183f)
         at("Steering key: voice", 739.33f, 261f, 336.67f, 183f)
         at("Steering key: mode", 739.33f, 457f, 336.67f, 183f)
+    }
+
+    @Test
+    fun setupAndGesturesUseTheSettingsGridUnderATitleBar() {
+        cabin.onNodeWithContentDescription("All apps").performClick()
+        cabin.onNodeWithContentDescription("Settings").performClick()
+        cabin.onNodeWithContentDescription("Open setup").performClick()
+        // The bar is 96 high at the top of the main column: a 96 x 96 page button, 12 from a 150-wide Done.
+        at("Next setup page", 818f, 40f, 96f, 96f)
+        at("Finish setup", 926f, 40f, 150f, 96f)
+        at("Make Cabin the home app", 40f, 152f, 511.5f, 112f)
+        at("Dim with the headlights", 564.5f, 277f, 511.5f, 112f)
+        at("Allow nearby devices", 40f, 527f, 511.5f, 112f)
+
+        cabin.onNodeWithContentDescription("Next setup page").performClick()
+        at("Previous setup page", 818f, 40f, 96f, 96f)
+        at("Choose the phone app", 40f, 152f, 511.5f, 112f)
+        at("Choose the maps app", 40f, 277f, 511.5f, 112f)
+        at("Choose the music app", 564.5f, 277f, 511.5f, 112f)
+
+        cabin.onNodeWithContentDescription("Finish setup").performClick()
+        cabin.onNodeWithContentDescription("Gesture settings").performClick()
+        at("Back to settings", 926f, 40f, 150f, 96f)
+        at("Swipe down: tray or off", 40f, 152f, 511.5f, 112f)
+        at("Swipe sideways: apps, tracks or off", 564.5f, 152f, 511.5f, 112f)
+        at("Two-finger drag: volume, brightness or off", 40f, 277f, 511.5f, 112f)
+        // The rail and bottom row do not move.
+        at("Home", 1109f, 313f, 130f, 136f)
+        at("Radio source", 395f, 665f, 138f, 94f)
     }
 
     @Test

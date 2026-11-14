@@ -8,7 +8,9 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.roufsyed.cabin.apps.FixedApps
 import com.roufsyed.cabin.model.NavUi
+import com.roufsyed.cabin.model.Slot
 import com.roufsyed.cabin.nav.FixedNavigation
 import com.roufsyed.cabin.nav.FixedVoice
 import org.junit.Assert.assertEquals
@@ -157,5 +159,34 @@ class NavigationWithoutSpeechTest {
         cabin.waitForIdle()
         assertEquals(listOf("open"), (values.container.navigation as FixedNavigation).calls)
         cabin.onNodeWithText("Listening…").assertDoesNotExist()
+    }
+}
+
+/** A unit on which Cabin can find no maps app: the Navigation panel leads to the chooser instead. */
+@RunWith(AndroidJUnit4::class)
+class NavigationWithoutMapsAppTest {
+
+    @get:Rule(order = 0)
+    val values = FreshDesignValues {
+        it.copy(navigation = FixedNavigation(NavUi.Idle, hasMapsApp = false), voice = FixedVoice(available = false))
+    }
+
+    @get:Rule(order = 1)
+    val cabin = cabinRule()
+
+    private val settings get() = values.container.settings.settings.value
+
+    @Test
+    fun aSavedPlaceAndWhereToBothLeadToTheChooser() {
+        cabin.onNodeWithContentDescription("Navigate home").performClick()
+        cabin.onNodeWithText("Maps opens").assertIsDisplayed()
+        cabin.onNodeWithContentDescription("Browser").performClick()
+        cabin.waitUntil(2_000) { settings.bindings[Slot.Maps] == FixedApps.id("Browser") }
+
+        // Back on Home. With no speech recogniser "Where to?" opens the maps app, so it asks too.
+        cabin.onNodeWithContentDescription("Where to?").performClick()
+        cabin.onNodeWithText("Maps opens").assertIsDisplayed()
+        cabin.onNodeWithContentDescription("Back").performClick()
+        cabin.onNodeWithContentDescription("Where to?").assertIsDisplayed()
     }
 }

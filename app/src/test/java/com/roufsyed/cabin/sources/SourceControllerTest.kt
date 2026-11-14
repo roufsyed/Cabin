@@ -17,6 +17,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -41,6 +42,98 @@ class SourceControllerTest {
         runBlocking { withTimeout(5_000) { state.first(condition) } }
 
     private fun SourceController.active(): SourceId? = state.value.row.firstOrNull { it.active }?.id
+
+    /** Chooses the design's Music app for music and waits until the media source has been told. */
+    private fun SourceController.chooseMusic(media: FixedMedia) {
+        bind(Slot.Music, FixedApps.id("Music"))
+        await { it.bindings[Slot.Music]?.label == "Music" }
+        val deadline = System.nanoTime() + 5_000_000_000L
+        while (media.musicApp != "design.music") {
+            check(System.nanoTime() < deadline) { "the media source was not told about the music app" }
+            Thread.sleep(5)
+        }
+    }
+
+    @Test
+    fun `with no music app chosen, play is left to the media source`() {
+        val media = FixedMedia(null)
+        val sources = controller(media)
+        sources.await { it.row.isNotEmpty() }
+        assertNull(sources.state.value.bindings[Slot.Music])
+
+        sources.playPause()
+        assertEquals(listOf("playPause"), media.calls)
+        assertEquals(emptyList<String>(), apps.launched)
+    }
+
+    @Test
+    fun `with nothing to resume, play starts the chosen music app and opens it if that fails`() {
+        val media = FixedMedia(null)
+        val sources = controller(media)
+        sources.chooseMusic(media)
+
+        sources.playPause()
+        assertEquals(listOf("playPause", "start:design.music"), media.calls)
+        assertEquals(listOf(FixedApps.id("Music")), apps.launched)
+    }
+
+    @Test
+    fun `the app that plays is remembered as the last player`() {
+        controller(FixedMedia(track("design.radio", playing = true)))
+        runBlocking { withTimeout(5_000) { settings.settings.first { it.lastPlayer == "design.radio" } } }
+    }
+
+    @Test
+    fun `a paused app does not become the last player`() {
+        runBlocking { settings.update { it.copy(lastPlayer = "design.radio") } }
+        val sources = controller(FixedMedia(track("design.music", playing = false)))
+        sources.await { it.row.isNotEmpty() }
+        // Give a wrongly made change the chance to show up before checking it did not happen.
+        sources.move(SourceId.Usb, -1)
+        sources.await { it.row[1].id == SourceId.Usb }
+        assertEquals("design.radio", settings.settings.value.lastPlayer)
+    }
+
+    @Test
+    fun `a music app that was the last to play is started with that said`() {
+        runBlocking { settings.update { it.copy(lastPlayer = "design.music") } }
+        val media = FixedMedia(null)
+        val sources = controller(media)
+        sources.chooseMusic(media)
+
+        sources.playPause()
+        assertEquals(listOf("playPause", "start:design.music:last"), media.calls)
+    }
+
+    @Test
+    fun `a music app that can be started from outside is not opened`() {
+        val media = FixedMedia(null, startable = setOf("design.music"))
+        val sources = controller(media)
+        sources.chooseMusic(media)
+
+        sources.playPause()
+        assertEquals(listOf("playPause", "start:design.music"), media.calls)
+        assertEquals(emptyList<String>(), apps.launched)
+    }
+
+    @Test
+    fun `whatever is playing is paused, whichever app was chosen for music`() {
+        val media = FixedMedia(track("design.radio", playing = true))
+        val sources = controller(media)
+        sources.chooseMusic(media)
+
+        sources.playPause()
+        assertEquals(listOf("playPause"), media.calls)
+        assertFalse(media.nowPlaying.value!!.playing)
+        assertEquals(emptyList<String>(), apps.launched)
+    }
+
+    @Test
+    fun `the maps app is found without being chosen`() {
+        val sources = controller(FixedMedia(null))
+        val state = sources.await { it.bindings[Slot.Maps] != null }
+        assertEquals("Maps", state.bindings[Slot.Maps]?.label)
+    }
 
     @Test
     fun `the row shows the visible sources in order`() {

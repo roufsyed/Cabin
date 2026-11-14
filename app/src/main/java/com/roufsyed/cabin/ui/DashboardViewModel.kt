@@ -44,7 +44,8 @@ class DashboardViewModel(private val container: AppContainer) : ViewModel() {
 
     val status: StateFlow<StatusUi> = container.status.status
 
-    fun playPause() = container.media.playPause()
+    /** Play or pause; with nothing to resume, the music app chosen in Setup is started. */
+    fun playPause() = container.sources.playPause()
     fun next() = container.media.next()
     fun previous() = container.media.previous()
     fun playQueueItem(id: Long) = container.media.playQueueItem(id)
@@ -56,6 +57,7 @@ class DashboardViewModel(private val container: AppContainer) : ViewModel() {
 
     fun brightnessUp() = container.brightness.up()
     fun brightnessDown() = container.brightness.down()
+    fun stepBrightness(delta: Int) = container.brightness.step(delta)
     fun cycleBrightnessMode() = container.brightness.cycleMode()
 
     fun openMaps() = container.navigation.openMaps()

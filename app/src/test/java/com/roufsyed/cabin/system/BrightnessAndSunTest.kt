@@ -1,6 +1,7 @@
 package com.roufsyed.cabin.system
 
 import com.roufsyed.cabin.data.CabinSettings
+import com.roufsyed.cabin.data.InMemorySettings
 import com.roufsyed.cabin.model.BrightnessMode
 import com.roufsyed.cabin.model.BrightnessUi
 import com.roufsyed.cabin.model.VolumeUi
@@ -78,19 +79,37 @@ class BrightnessAndSunTest {
     }
 
     @Test
-    fun `Auto follows the sun, Day and Night ignore it`() {
-        assertEquals(BrightnessUi(8, night = false, mode = BrightnessMode.Auto), BrightnessRules.ui(settings, sunIsDown = false))
-        assertEquals(BrightnessUi(3, night = true, mode = BrightnessMode.Auto), BrightnessRules.ui(settings, sunIsDown = true))
+    fun `Auto follows whether it is dark, Day and Night ignore it`() {
+        assertEquals(BrightnessUi(8, night = false, mode = BrightnessMode.Auto), BrightnessRules.ui(settings, dark = false))
+        assertEquals(BrightnessUi(3, night = true, mode = BrightnessMode.Auto), BrightnessRules.ui(settings, dark = true))
         val day = settings.copy(brightnessMode = BrightnessMode.Day)
-        assertEquals(BrightnessUi(8, night = false, mode = BrightnessMode.Day), BrightnessRules.ui(day, sunIsDown = true))
+        assertEquals(BrightnessUi(8, night = false, mode = BrightnessMode.Day), BrightnessRules.ui(day, dark = true))
         val night = settings.copy(brightnessMode = BrightnessMode.Night)
-        assertEquals(BrightnessUi(3, night = true, mode = BrightnessMode.Night), BrightnessRules.ui(night, sunIsDown = false))
+        assertEquals(BrightnessUi(3, night = true, mode = BrightnessMode.Night), BrightnessRules.ui(night, dark = false))
+    }
+
+    @Test
+    fun `the headlights decide what is dark while the unit reports them`() {
+        // As in the design: lights on is night, lights off is day, whatever the hour.
+        assertTrue(BrightnessRules.dark(settings, headlights = true, sunIsDown = false))
+        assertFalse(BrightnessRules.dark(settings, headlights = false, sunIsDown = true))
+    }
+
+    @Test
+    fun `with no headlight signal, or with it switched off, the sun decides`() {
+        assertTrue(BrightnessRules.dark(settings, headlights = null, sunIsDown = true))
+        assertFalse(BrightnessRules.dark(settings, headlights = null, sunIsDown = false))
+        val bySun = settings.copy(followHeadlights = false)
+        assertFalse(BrightnessRules.dark(bySun, headlights = true, sunIsDown = false))
+        assertTrue(BrightnessRules.dark(bySun, headlights = false, sunIsDown = true))
     }
 
     @Test
     fun `a step changes the level in use and leaves the other alone`() {
-        assertEquals(settings.copy(dayLevel = 9), BrightnessRules.step(settings, sunIsDown = false, delta = 1))
-        assertEquals(settings.copy(nightLevel = 2), BrightnessRules.step(settings, sunIsDown = true, delta = -1))
+        assertEquals(settings.copy(dayLevel = 9), BrightnessRules.step(settings, dark = false, delta = 1))
+        assertEquals(settings.copy(nightLevel = 2), BrightnessRules.step(settings, dark = true, delta = -1))
+        // Several steps at once, as a two-finger drag makes them.
+        assertEquals(settings.copy(dayLevel = 5), BrightnessRules.step(settings, dark = false, delta = -3))
     }
 
     @Test
@@ -108,8 +127,33 @@ class BrightnessAndSunTest {
     }
 
     @Test
+    fun `switching the headlights on moves Auto to the night level at once`() {
+        val headlights = FixedHeadlights(false)
+        val store = InMemorySettings(settings.copy(loaded = true))
+        val brightness = FixedBrightness(store, headlights = headlights)
+        assertEquals(BrightnessUi(8, night = false, mode = BrightnessMode.Auto), brightness.state.value)
+
+        headlights.set(true)
+        assertEquals(BrightnessUi(3, night = true, mode = BrightnessMode.Auto), brightness.state.value)
+        // A step now changes the night level only.
+        brightness.up()
+        assertEquals(4, brightness.state.value.level)
+        assertEquals(8, store.settings.value.dayLevel)
+
+        // Told not to follow them, Auto goes back to the sun, which is up here.
+        kotlinx.coroutines.runBlocking { store.update { it.copy(followHeadlights = false) } }
+        assertEquals(BrightnessUi(8, night = false, mode = BrightnessMode.Auto), brightness.state.value)
+
+        // A unit that stops reporting them is treated the same way.
+        kotlinx.coroutines.runBlocking { store.update { it.copy(followHeadlights = true) } }
+        assertTrue(brightness.state.value.night)
+        headlights.set(null)
+        assertFalse(brightness.state.value.night)
+    }
+
+    @Test
     fun `the in-memory brightness behaves like the real one`() {
-        val brightness = FixedBrightness(settings)
+        val brightness = FixedBrightness(InMemorySettings(settings.copy(loaded = true)))
         brightness.up()
         assertEquals(9, brightness.state.value.level)
         brightness.cycleMode()

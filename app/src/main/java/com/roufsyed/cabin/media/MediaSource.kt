@@ -14,7 +14,11 @@ interface MediaSource {
     /** Packages that currently hold a media session, so a source can be started without opening its app. */
     fun hasSession(packageName: String): Boolean
 
-    fun playPause()
+    /**
+     * Pauses what is playing, or resumes what is on show. False when a music app has been chosen and
+     * there is nothing to resume: the caller then starts that app with [start].
+     */
+    fun playPause(): Boolean
     fun next()
     fun previous()
     fun playQueueItem(id: Long)
@@ -22,21 +26,43 @@ interface MediaSource {
     /** Starts playback in [packageName]'s session. False if it has none. */
     fun play(packageName: String): Boolean
 
+    /**
+     * Starts playback in an app whether or not it holds a session. [wasLastPlayer] says the app was the
+     * last one seen playing, which makes a media key worth trying. [onFailed] is called if playback
+     * cannot be started from outside the app, at once or a few seconds later; the app should then be
+     * opened.
+     */
+    fun start(packageName: String, wasLastPlayer: Boolean, onFailed: () -> Unit)
+
+    /** The app chosen for music in Setup, or null. It decides what is shown while nothing is playing. */
+    fun setMusicApp(packageName: String?)
+
     fun refreshAccess()
 }
 
 /** A fixed track with working buttons: for the demo launch and for tests. */
-class FixedMedia(initial: NowPlaying?, hasAccess: Boolean = true) : MediaSource {
+class FixedMedia(
+    initial: NowPlaying?,
+    hasAccess: Boolean = true,
+    /** Packages that [start] can set playing without their app being opened. */
+    private val startable: Set<String> = emptySet(),
+) : MediaSource {
     private val state = MutableStateFlow(initial)
     override val nowPlaying: StateFlow<NowPlaying?> = state
     override val access: StateFlow<Boolean> = MutableStateFlow(hasAccess)
     val calls = mutableListOf<String>()
 
+    @Volatile
+    var musicApp: String? = null
+        private set
+
     override fun hasSession(packageName: String): Boolean = state.value?.packageName == packageName
 
-    override fun playPause() {
+    override fun playPause(): Boolean {
         calls += "playPause"
-        state.value = state.value?.let { it.copy(progress = it.progress.copy(playing = !it.progress.playing)) }
+        val now = state.value ?: return musicApp == null
+        state.value = now.copy(progress = now.progress.copy(playing = !now.progress.playing))
+        return true
     }
 
     override fun next() {
@@ -62,6 +88,15 @@ class FixedMedia(initial: NowPlaying?, hasAccess: Boolean = true) : MediaSource 
     override fun play(packageName: String): Boolean {
         calls += "play:$packageName"
         return hasSession(packageName)
+    }
+
+    override fun start(packageName: String, wasLastPlayer: Boolean, onFailed: () -> Unit) {
+        calls += "start:$packageName" + if (wasLastPlayer) ":last" else ""
+        if (packageName !in startable) onFailed()
+    }
+
+    override fun setMusicApp(packageName: String?) {
+        musicApp = packageName
     }
 
     override fun refreshAccess() = Unit

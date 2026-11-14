@@ -23,8 +23,24 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 
-/** What one finger swiping left or right does. Only one action exists so far; the setting is the hook for more. */
-enum class SwipeAction { Pages }
+/** What one finger swiping left or right on the Home screen does. */
+enum class SideSwipe(val label: String) {
+    /** Left opens the Apps grid, as the design has it. */
+    Apps("Apps"),
+
+    /** Left is the next track, right the previous one. */
+    Tracks("Tracks"),
+    Off("Off"),
+}
+
+/** What two fingers dragged up or down change. */
+enum class TwoFingerDrag(val label: String) { Volume("Volume"), Brightness("Brightness"), Off("Off") }
+
+/** The option after this one, wrapping round: what a tap on its settings tile selects. */
+inline fun <reified E : Enum<E>> E.next(): E {
+    val all = enumValues<E>()
+    return all[(ordinal + 1) % all.size]
+}
 
 /** Everything Cabin remembers between runs. */
 data class CabinSettings(
@@ -39,11 +55,24 @@ data class CabinSettings(
     /** Which installed app each slot opens, by component id. */
     val bindings: Map<Slot, String> = emptyMap(),
     val activeSource: SourceId? = null,
+    /**
+     * The package of the app Cabin last saw playing. Android sends a media key to the app that played
+     * last, so this says whether a key would reach the app chosen for music.
+     */
+    val lastPlayer: String? = null,
     val brightnessMode: BrightnessMode = BrightnessMode.Auto,
     val dayLevel: Int = 8,
     val nightLevel: Int = 3,
+    /**
+     * Whether Auto goes by the car's headlights when the unit reports them. Without that signal, and
+     * when this is off, Auto goes by sunrise and sunset.
+     */
+    val followHeadlights: Boolean = true,
     val setupDone: Boolean = false,
-    val swipe: SwipeAction = SwipeAction.Pages,
+    /** One finger swiped down opens the notification tray. */
+    val swipeDownTray: Boolean = true,
+    val sideSwipe: SideSwipe = SideSwipe.Apps,
+    val twoFingerDrag: TwoFingerDrag = TwoFingerDrag.Volume,
     /** Last known position, kept so sunrise and sunset can be worked out without waiting for a fix. */
     val latitude: Double? = null,
     val longitude: Double? = null,
@@ -86,11 +115,18 @@ object SettingsCodec {
     private val sourceOrder = stringPreferencesKey("source_order")
     private val sourceHidden = stringSetPreferencesKey("source_hidden")
     private val activeSource = stringPreferencesKey("active_source")
+    private val lastPlayer = stringPreferencesKey("last_player")
     private val brightnessMode = stringPreferencesKey("brightness_mode")
     private val dayLevel = intPreferencesKey("brightness_day")
     private val nightLevel = intPreferencesKey("brightness_night")
+    private val followHeadlights = booleanPreferencesKey("brightness_headlights")
     private val setupDone = booleanPreferencesKey("setup_done")
-    private val swipe = stringPreferencesKey("swipe_action")
+    private val swipeDownTray = booleanPreferencesKey("gesture_down")
+    private val sideSwipe = stringPreferencesKey("gesture_side")
+    private val twoFingerDrag = stringPreferencesKey("gesture_two_finger")
+
+    /** Written by earlier builds, when sideways swipes had a single fixed meaning. No longer read. */
+    private val retiredSwipe = stringPreferencesKey("swipe_action")
     private val position = stringPreferencesKey("position")
     private val recentPlaces = stringPreferencesKey("recent_places")
     private fun binding(slot: Slot) = stringPreferencesKey("bind_${slot.name.lowercase()}")
@@ -110,11 +146,15 @@ object SettingsCodec {
                 ?: defaults.sourceHidden,
             bindings = Slot.entries.mapNotNull { slot -> prefs[binding(slot)]?.let { slot to it } }.toMap(),
             activeSource = prefs[activeSource]?.let { enumOrNull<SourceId>(it) },
+            lastPlayer = prefs[lastPlayer]?.takeIf { it.isNotEmpty() },
             brightnessMode = prefs[brightnessMode]?.let { enumOrNull<BrightnessMode>(it) } ?: defaults.brightnessMode,
             dayLevel = (prefs[dayLevel] ?: defaults.dayLevel).coerceIn(1, 10),
             nightLevel = (prefs[nightLevel] ?: defaults.nightLevel).coerceIn(1, 10),
+            followHeadlights = prefs[followHeadlights] ?: defaults.followHeadlights,
             setupDone = prefs[setupDone] ?: false,
-            swipe = prefs[swipe]?.let { enumOrNull<SwipeAction>(it) } ?: defaults.swipe,
+            swipeDownTray = prefs[swipeDownTray] ?: defaults.swipeDownTray,
+            sideSwipe = prefs[sideSwipe]?.let { enumOrNull<SideSwipe>(it) } ?: defaults.sideSwipe,
+            twoFingerDrag = prefs[twoFingerDrag]?.let { enumOrNull<TwoFingerDrag>(it) } ?: defaults.twoFingerDrag,
             latitude = coordinates?.getOrNull(0)?.takeIf { coordinates.size == 2 },
             longitude = coordinates?.getOrNull(1)?.takeIf { coordinates.size == 2 },
             recentPlaces = prefs[recentPlaces]?.lines()?.filter { it.isNotEmpty() }.orEmpty(),
@@ -132,11 +172,16 @@ object SettingsCodec {
             if (id == null) prefs.remove(binding(slot)) else prefs[binding(slot)] = id
         }
         if (settings.activeSource == null) prefs.remove(activeSource) else prefs[activeSource] = settings.activeSource.name
+        if (settings.lastPlayer == null) prefs.remove(lastPlayer) else prefs[lastPlayer] = settings.lastPlayer
         prefs[brightnessMode] = settings.brightnessMode.name
         prefs[dayLevel] = settings.dayLevel
         prefs[nightLevel] = settings.nightLevel
+        prefs[followHeadlights] = settings.followHeadlights
         prefs[setupDone] = settings.setupDone
-        prefs[swipe] = settings.swipe.name
+        prefs[swipeDownTray] = settings.swipeDownTray
+        prefs[sideSwipe] = settings.sideSwipe.name
+        prefs[twoFingerDrag] = settings.twoFingerDrag.name
+        prefs.remove(retiredSwipe)
         if (settings.latitude != null && settings.longitude != null) {
             prefs[position] = "${settings.latitude},${settings.longitude}"
         } else {

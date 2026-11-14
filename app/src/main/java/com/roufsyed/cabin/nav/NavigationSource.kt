@@ -15,18 +15,18 @@ enum class SavedPlace { Home, Work }
 interface NavigationSource {
     val state: StateFlow<NavUi>
 
-    /** Brings the maps app to the front. */
+    /** Brings the maps app to the front. False when the unit has no maps app Cabin knows of. */
     fun openMaps(): Boolean
 
-    /** Starts turn-by-turn navigation to a spoken or typed destination. */
+    /** Starts turn-by-turn navigation to a spoken or typed destination. False as for [openMaps]. */
     fun navigateTo(destination: String): Boolean
 
-    /** Starts navigation to the Home or Work place saved in the maps app. */
+    /** Starts navigation to the Home or Work place saved in the maps app. False as for [openMaps]. */
     fun navigateTo(place: SavedPlace): Boolean
 }
 
 /** A fixed route with recorded requests: for the demo launch and for tests. */
-class FixedNavigation(initial: NavUi) : NavigationSource {
+class FixedNavigation(initial: NavUi, private val hasMapsApp: Boolean = true) : NavigationSource {
     private val current = MutableStateFlow(initial)
     override val state: StateFlow<NavUi> = current
     val calls = mutableListOf<String>()
@@ -37,17 +37,17 @@ class FixedNavigation(initial: NavUi) : NavigationSource {
 
     override fun openMaps(): Boolean {
         calls += "open"
-        return true
+        return hasMapsApp
     }
 
     override fun navigateTo(destination: String): Boolean {
         calls += "to:$destination"
-        return true
+        return hasMapsApp
     }
 
     override fun navigateTo(place: SavedPlace): Boolean {
         calls += "saved:$place"
-        return true
+        return hasMapsApp
     }
 }
 

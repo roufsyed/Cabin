@@ -33,7 +33,10 @@ enum class Opened {
     NeedsApp,
 }
 
-/** The source row, the apps behind it and behind the rail's Phone and Link buttons. */
+/**
+ * The source row, and the apps behind it, behind the rail's Phone and Link buttons, behind the
+ * Navigation panel and behind the play button.
+ */
 class SourceController(
     private val settings: SettingsStore,
     private val apps: AppsSource,
@@ -58,6 +61,24 @@ class SourceController(
             scope, SharingStarted.Eagerly,
             build(settings.settings.value, apps.installed.value, media.nowPlaying.value?.let { it.packageName.takeIf { _ -> it.playing } }),
         )
+
+    init {
+        // The media source needs to know which app was chosen for music: it decides what is on show
+        // while nothing is playing.
+        scope.launch {
+            state.map { it.bindings[Slot.Music]?.let { app -> SourceRules.packageOf(app.id) } }
+                .distinctUntilChanged()
+                .collect { media.setMusicApp(it) }
+        }
+        // Which app played last is kept across restarts: see [CabinSettings.lastPlayer].
+        scope.launch {
+            playingPackage.collect { playing ->
+                if (playing != null && playing != settings.settings.value.lastPlayer) {
+                    settings.update { it.copy(lastPlayer = playing) }
+                }
+            }
+        }
+    }
 
     private fun build(settings: CabinSettings, installed: List<AppEntry>, playing: String?): State {
         val bindings = SourceRules.bindings(settings, installed)
@@ -94,6 +115,19 @@ class SourceController(
 
     /** The wheel's Mode key. */
     fun selectNext(): Opened = nextSource()?.let(::select) ?: Opened.NeedsApp
+
+    /**
+     * Play or pause, from the screen or the wheel. With nothing to resume and a music app chosen, that
+     * app is started; if it cannot be started from outside, it is opened instead.
+     */
+    fun playPause() {
+        if (media.playPause()) return
+        val app = state.value.bindings[Slot.Music] ?: return
+        val packageName = SourceRules.packageOf(app.id)
+        media.start(packageName, wasLastPlayer = settings.settings.value.lastPlayer == packageName) {
+            apps.launch(app.id)
+        }
+    }
 
     /** Opens the app behind a rail button. */
     fun open(slot: Slot): Opened {

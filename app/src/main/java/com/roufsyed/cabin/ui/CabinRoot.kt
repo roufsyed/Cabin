@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -21,6 +22,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.roufsyed.cabin.AppContainer
+import com.roufsyed.cabin.data.CabinSettings
+import com.roufsyed.cabin.data.SideSwipe
+import com.roufsyed.cabin.data.TwoFingerDrag
+import com.roufsyed.cabin.data.next
 import com.roufsyed.cabin.gesture.Gesture
 import com.roufsyed.cabin.gesture.cabinGestures
 import com.roufsyed.cabin.model.AppTile
@@ -28,6 +33,7 @@ import com.roufsyed.cabin.model.Slot
 import com.roufsyed.cabin.model.SourceId
 import com.roufsyed.cabin.nav.SavedPlace
 import com.roufsyed.cabin.sources.Opened
+import com.roufsyed.cabin.system.BrightnessRules
 import com.roufsyed.cabin.system.Grant
 import com.roufsyed.cabin.ui.apps.APPS_PER_PAGE
 import com.roufsyed.cabin.ui.apps.AppsGrid
@@ -41,7 +47,9 @@ import com.roufsyed.cabin.ui.chrome.MiniPlayer
 import com.roufsyed.cabin.ui.chrome.Rail
 import com.roufsyed.cabin.ui.chrome.TopStrip
 import com.roufsyed.cabin.ui.home.HomePanels
+import com.roufsyed.cabin.ui.icons.SlateIcons
 import com.roufsyed.cabin.ui.music.MusicScreen
+import com.roufsyed.cabin.ui.overlay.BrightnessHud
 import com.roufsyed.cabin.ui.overlay.ScreenOffClock
 import com.roufsyed.cabin.ui.overlay.TrayOverlay
 import com.roufsyed.cabin.ui.overlay.VoiceOverlay
@@ -52,6 +60,7 @@ import com.roufsyed.cabin.ui.settings.SettingsTile
 import com.roufsyed.cabin.ui.settings.WheelActions
 import com.roufsyed.cabin.ui.shell.EditKind
 import com.roufsyed.cabin.ui.shell.Overlay
+import com.roufsyed.cabin.ui.shell.SETUP_PAGES
 import com.roufsyed.cabin.ui.shell.Screen
 import com.roufsyed.cabin.ui.shell.Shell
 import com.roufsyed.cabin.ui.shell.ShellViewModel
@@ -97,18 +106,25 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
         if (dashboard.open(slot) == Opened.NeedsApp) shellModel.pickApp(slot)
     }
 
+    // The Navigation panel works through the maps app chosen in Setup. With none on the unit that
+    // Cabin can find, it leads to the chooser like any other slot.
+    val openMaps: () -> Unit = { if (!dashboard.openMaps()) shellModel.pickApp(Slot.Maps) }
+    val navigateTo: (SavedPlace) -> Unit = { place ->
+        if (!dashboard.navigateTo(place)) shellModel.pickApp(Slot.Maps)
+    }
+
     // "Where to?" listens for a destination. With no recogniser on the unit, or no microphone
     // permission, it opens the maps app instead, which has its own search.
     val whereTo: () -> Unit = {
         if (!container.voice.available) {
-            dashboard.openMaps()
+            openMaps()
         } else {
             host.withMicrophone { granted ->
                 if (granted) {
                     shellModel.show(Overlay.Voice)
                     voiceModel.listen(onDone = shellModel::closeOverlay)
                 } else {
-                    dashboard.openMaps()
+                    openMaps()
                 }
             }
         }
@@ -131,17 +147,54 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
         mode = { container.sources.nextSource()?.let(selectSource) },
     )
 
-    // The two-finger volume drag: the level it started from, and whether its readout is up.
-    var volumeDrag by remember { mutableStateOf<Int?>(null) }
+    // The two-finger drag: which readout is up, if any, the level the drag began at, and, for
+    // brightness, the level it has been moved to so far.
+    var drag by remember { mutableStateOf<TwoFingerDrag?>(null) }
+    var dragFrom by remember { mutableIntStateOf(0) }
+    var dragAt by remember { mutableIntStateOf(0) }
     val onGesture: (Gesture) -> Unit = { gesture ->
+        // What each gesture does is the user's choice, in Settings > Gestures; read as it is now.
+        val chosen = container.settings.settings.value
+        val onHome = shell.screen == Screen.Home && shell.overlay == Overlay.None
         when (gesture) {
-            Gesture.SwipeLeft -> shellModel.swipeLeft(pageCount(shell, appsModel))
-            Gesture.SwipeRight -> shellModel.swipeRight()
-            Gesture.SwipeDown -> if (shell.overlay == Overlay.None) shellModel.show(Overlay.Tray)
+            // On Home a sideways swipe does what was chosen. Everywhere else it turns pages and
+            // leads back to Home, which the grids rely on to reach their further pages.
+            Gesture.SwipeLeft -> when {
+                !onHome || chosen.sideSwipe == SideSwipe.Apps -> shellModel.swipeLeft(pageCount(shell, appsModel))
+                chosen.sideSwipe == SideSwipe.Tracks -> dashboard.next()
+                else -> Unit
+            }
+            Gesture.SwipeRight -> when {
+                !onHome -> shellModel.swipeRight()
+                chosen.sideSwipe == SideSwipe.Tracks -> dashboard.previous()
+                else -> Unit
+            }
+            Gesture.SwipeDown -> if (chosen.swipeDownTray && shell.overlay == Overlay.None) shellModel.show(Overlay.Tray)
             Gesture.SwipeUp -> if (shell.overlay == Overlay.Tray) shellModel.closeOverlay()
-            Gesture.VolumeBegin -> volumeDrag = dashboard.volume.value.level
-            is Gesture.Volume -> volumeDrag?.let { start -> dashboard.setVolume(start + gesture.steps) }
-            Gesture.VolumeEnd -> volumeDrag = null
+            Gesture.VolumeBegin -> when (chosen.twoFingerDrag) {
+                TwoFingerDrag.Volume -> {
+                    dragFrom = dashboard.volume.value.level
+                    drag = TwoFingerDrag.Volume
+                }
+                TwoFingerDrag.Brightness -> {
+                    dragFrom = dashboard.brightness.value.level
+                    dragAt = dragFrom
+                    drag = TwoFingerDrag.Brightness
+                }
+                TwoFingerDrag.Off -> Unit
+            }
+            is Gesture.Volume -> when (drag) {
+                TwoFingerDrag.Volume -> dashboard.setVolume(dragFrom + gesture.steps)
+                TwoFingerDrag.Brightness -> {
+                    // Brightness is saved in steps, so the drag asks for the difference from where it
+                    // has already been taken; that keeps it where the fingers are even past either end.
+                    val target = (dragFrom + gesture.steps).coerceIn(BrightnessRules.MIN_LEVEL, BrightnessRules.MAX_LEVEL)
+                    if (target != dragAt) dashboard.stepBrightness(target - dragAt)
+                    dragAt = target
+                }
+                else -> Unit
+            }
+            Gesture.VolumeEnd -> drag = null
         }
     }
 
@@ -150,14 +203,15 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
             CabinFrame(
                 content = {
                     if (shell.screen == Screen.Home) {
-                        HomeContent(dashboard, shellModel, host, whereTo)
+                        HomeContent(dashboard, shellModel, host, whereTo, openMaps, navigateTo)
                     } else {
                         Column {
                             when {
                                 shell.edit == EditKind.Apps -> AppsEditBar(shell, appsModel, shellModel)
                                 shell.edit == EditKind.Sources -> SourcesEditBar(shell, container, shellModel)
                                 shell.screen == Screen.Pick -> SlotPickBar(shell, container, shellModel)
-                                shell.screen == Screen.Setup -> SetupBar(container, shellModel)
+                                shell.screen == Screen.Setup -> SetupBar(shell, container, shellModel)
+                                shell.screen == Screen.Gestures -> GesturesBar(shellModel)
                                 else -> Strip(dashboard, shellModel, host, showMini = shell.screen != Screen.Music)
                             }
                             Spacer(Modifier.height(16.dp))
@@ -167,7 +221,8 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
                                     Screen.Music -> MusicContent(dashboard)
                                     Screen.Settings -> SettingsContent(container, shellModel, host)
                                     Screen.Keys -> KeysScreen(wheel, onBack = { shellModel.open(Screen.Settings) })
-                                    Screen.Setup -> SetupContent(container, shellModel, host)
+                                    Screen.Gestures -> GesturesContent(container)
+                                    Screen.Setup -> SetupContent(shell, container, shellModel, host)
                                     Screen.Sources -> SourcesContent(shell, container, shellModel)
                                     Screen.Pick -> SlotPickContent(shell, container, appsModel, shellModel)
                                     else -> Unit
@@ -199,7 +254,11 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
                 val clock by dashboard.clock.collectAsStateWithLifecycle()
                 ScreenOffClock(clock, onWake = shellModel::closeOverlay)
             }
-            if (volumeDrag != null) VolumeReadout(dashboard)
+            when (drag) {
+                TwoFingerDrag.Volume -> VolumeReadout(dashboard)
+                TwoFingerDrag.Brightness -> BrightnessReadout(dashboard)
+                else -> Unit
+            }
         }
     }
 }
@@ -229,6 +288,7 @@ private fun TrayContent(container: AppContainer, shellModel: ShellViewModel, hos
 private fun pageCount(shell: Shell, apps: AppsViewModel): Int {
     val ui = apps.ui.value
     return when {
+        shell.screen == Screen.Setup -> SETUP_PAGES
         shell.screen == Screen.Pick -> AppsUi.pagesFor(ui.all.count { it.app.id != apps.ownId })
         else -> ui.pageCount(editing = shell.edit == EditKind.Apps)
     }
@@ -241,11 +301,19 @@ private fun VolumeReadout(dashboard: DashboardViewModel) {
 }
 
 @Composable
+private fun BrightnessReadout(dashboard: DashboardViewModel) {
+    val brightness by dashboard.brightness.collectAsStateWithLifecycle()
+    BrightnessHud(brightness.level, brightness.night)
+}
+
+@Composable
 private fun HomeContent(
     dashboard: DashboardViewModel,
     shell: ShellViewModel,
     host: HostActions,
     onWhereTo: () -> Unit,
+    onOpenMaps: () -> Unit,
+    onNavigateTo: (SavedPlace) -> Unit,
 ) {
     val clock by dashboard.clock.collectAsStateWithLifecycle()
     val status by dashboard.status.collectAsStateWithLifecycle()
@@ -256,10 +324,10 @@ private fun HomeContent(
         status = status,
         nav = nav,
         nowPlaying = nowPlaying,
-        onOpenMaps = { dashboard.openMaps() },
+        onOpenMaps = onOpenMaps,
         onWhereTo = onWhereTo,
-        onNavigateHome = { dashboard.navigateTo(SavedPlace.Home) },
-        onNavigateOffice = { dashboard.navigateTo(SavedPlace.Work) },
+        onNavigateHome = { onNavigateTo(SavedPlace.Home) },
+        onNavigateOffice = { onNavigateTo(SavedPlace.Work) },
         onOpenNowPlaying = { if (nowPlaying.needsAccess) host.requestNotificationAccess() else shell.open(Screen.Music) },
         onPrevious = dashboard::previous,
         onPlayPause = dashboard::playPause,
@@ -423,18 +491,59 @@ private fun SettingsContent(container: AppContainer, shellModel: ShellViewModel,
                 "Wi-Fi", "Hotspot and updates", "Wi-Fi settings",
                 value = if (status.wifi) "On" else "Off", on = status.wifi, onClick = host.openWifi,
             ),
+            SettingsTile("Gestures", "Swipes and two fingers", "Gesture settings") { shellModel.open(Screen.Gestures) },
             SettingsTile("Setup", "Permissions and apps", "Open setup") { shellModel.open(Screen.Setup) },
         ),
     )
 }
 
 @Composable
-private fun SetupBar(container: AppContainer, shellModel: ShellViewModel) {
+private fun GesturesBar(shellModel: ShellViewModel) {
+    TitleBar(
+        title = "Gestures",
+        hint = "Tap one to change what it does",
+        action = "Done",
+        actionDescription = "Back to settings",
+        onAction = { shellModel.open(Screen.Settings) },
+    )
+}
+
+/** Gestures: what each of Cabin's three finger movements does. A tap on a tile moves it to its next option. */
+@Composable
+private fun GesturesContent(container: AppContainer) {
+    val settings by container.settings.settings.collectAsStateWithLifecycle()
+    fun change(transform: (CabinSettings) -> CabinSettings) {
+        container.scope.launch { container.settings.update(transform) }
+    }
+    SettingsGrid(
+        listOf(
+            SettingsTile(
+                "Swipe down", "One finger", "Swipe down: tray or off",
+                value = if (settings.swipeDownTray) "Tray" else "Off", on = settings.swipeDownTray,
+                onClick = { change { it.copy(swipeDownTray = !it.swipeDownTray) } },
+            ),
+            SettingsTile(
+                "Swipe sideways", "One finger, on Home", "Swipe sideways: apps, tracks or off",
+                value = settings.sideSwipe.label, on = settings.sideSwipe != SideSwipe.Off,
+                onClick = { change { it.copy(sideSwipe = it.sideSwipe.next()) } },
+            ),
+            SettingsTile(
+                "Two-finger drag", "Up or down", "Two-finger drag: volume, brightness or off",
+                value = settings.twoFingerDrag.label, on = settings.twoFingerDrag != TwoFingerDrag.Off,
+                onClick = { change { it.copy(twoFingerDrag = it.twoFingerDrag.next()) } },
+            ),
+        ),
+    )
+}
+
+@Composable
+private fun SetupBar(shell: Shell, container: AppContainer, shellModel: ShellViewModel) {
     val settings by container.settings.settings.collectAsStateWithLifecycle()
     val firstRun = !settings.setupDone
+    val onApps = shell.page > 0
     TitleBar(
         title = if (firstRun) "Welcome to Cabin" else "Setup",
-        hint = "Tap each one to allow it. Each can be left off.",
+        hint = if (onApps) "The apps Cabin opens. Tap one to change it." else "Tap each one to allow it. Each can be left off.",
         action = "Done",
         actionDescription = "Finish setup",
         onAction = {
@@ -445,26 +554,37 @@ private fun SetupBar(container: AppContainer, shellModel: ShellViewModel) {
                 shellModel.open(Screen.Settings)
             }
         },
+        // Setup has two pages; a swipe turns them as well.
+        pageIcon = if (onApps) SlateIcons.ChevronLeft else SlateIcons.ChevronRight,
+        pageDescription = if (onApps) "Previous setup page" else "Next setup page",
+        onPage = { shellModel.setupPage(if (onApps) 0 else 1) },
     )
 }
 
-/** Setup: everything Cabin asks of the unit, each with its state, and the two rail apps. */
+/**
+ * Setup, in two pages: first everything Cabin asks of the unit, each with its state, then the apps it
+ * opens for the things it does not do itself.
+ */
 @Composable
-private fun SetupContent(container: AppContainer, shellModel: ShellViewModel, host: HostActions) {
+private fun SetupContent(shell: Shell, container: AppContainer, shellModel: ShellViewModel, host: HostActions) {
+    if (shell.page > 0) SetupApps(container, shellModel) else SetupPermissions(container, host)
+}
+
+@Composable
+private fun SetupPermissions(container: AppContainer, host: HostActions) {
     val isHome by container.homeRole.held.collectAsStateWithLifecycle()
     val notifications by container.media.access.collectAsStateWithLifecycle()
     val canSetBrightness by container.brightness.canWrite.collectAsStateWithLifecycle()
     val granted by container.permissions.granted.collectAsStateWithLifecycle()
-    val sources by container.sources.state.collectAsStateWithLifecycle()
+    val headlights by container.headlights.on.collectAsStateWithLifecycle()
+    val settings by container.settings.settings.collectAsStateWithLifecycle()
+    val follow = settings.followHeadlights
 
     fun state(on: Boolean) = if (on) "On" else "Off"
     fun grant(title: String, subtitle: String, grant: Grant) = SettingsTile(
         title, subtitle, "Allow ${title.lowercase()}",
         value = state(grant in granted), on = grant in granted, onClick = { host.requestGrant(grant) },
     )
-    fun app(title: String, slot: Slot) = SettingsTile(
-        title, sources.bindings[slot]?.label ?: "Not chosen", "Choose the ${title.lowercase()}",
-    ) { shellModel.pickApp(slot) }
 
     SettingsGrid(
         listOf(
@@ -480,11 +600,41 @@ private fun SetupContent(container: AppContainer, shellModel: ShellViewModel, ho
                 "Brightness control", "Lets Cabin dim the screen", "Allow changing system settings",
                 value = state(canSetBrightness), on = canSetBrightness, onClick = host.requestWriteSettings,
             ),
+            // Whether Auto goes by the headlights. It only shows as on once the unit really reports them.
+            SettingsTile(
+                "Headlights",
+                when {
+                    !follow -> "Auto goes by the sun"
+                    headlights == null -> "No signal from the unit yet"
+                    else -> "Auto dims with them"
+                },
+                "Dim with the headlights",
+                value = state(follow), on = follow && headlights != null,
+                onClick = {
+                    container.scope.launch { container.settings.update { it.copy(followHeadlights = !it.followHeadlights) } }
+                },
+            ),
             grant("Location", "Sunrise and sunset for Auto", Grant.Location),
             grant("Microphone", "Say a destination", Grant.Microphone),
             grant("Nearby devices", "Shows a connected phone", Grant.NearbyDevices),
+        ),
+    )
+}
+
+@Composable
+private fun SetupApps(container: AppContainer, shellModel: ShellViewModel) {
+    val sources by container.sources.state.collectAsStateWithLifecycle()
+    fun app(title: String, slot: Slot, none: String = "Not chosen") = SettingsTile(
+        title, sources.bindings[slot]?.label ?: none, "Choose the ${title.lowercase()}",
+    ) { shellModel.pickApp(slot) }
+
+    SettingsGrid(
+        listOf(
             app("Phone app", Slot.Phone),
             app("Phone link app", Slot.Link),
+            app("Maps app", Slot.Maps),
+            // With none chosen, play wakes whichever app played last.
+            app("Music app", Slot.Music, none = "Last one that played"),
         ),
     )
 }

@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.location.LocationManager
 import android.provider.Settings
 import com.roufsyed.cabin.data.CabinSettings
+import com.roufsyed.cabin.data.InMemorySettings
 import com.roufsyed.cabin.data.SettingsStore
 import com.roufsyed.cabin.model.BrightnessMode
 import com.roufsyed.cabin.model.BrightnessUi
@@ -36,8 +37,10 @@ interface BrightnessControl {
      */
     val windowBrightness: StateFlow<Float?>
 
-    fun up()
-    fun down()
+    /** Moves the level that is showing, day's or night's, by [delta] steps. */
+    fun step(delta: Int)
+    fun up() = step(1)
+    fun down() = step(-1)
 
     /** Auto, then Day, then Night, then Auto again. */
     fun cycleMode()
@@ -57,15 +60,22 @@ object BrightnessRules {
         BrightnessMode.Night -> BrightnessMode.Auto
     }
 
-    /** Whether the night level applies: forced by Day or Night, otherwise by [sunIsDown]. */
-    fun night(mode: BrightnessMode, sunIsDown: Boolean): Boolean = when (mode) {
-        BrightnessMode.Auto -> sunIsDown
+    /**
+     * Whether Auto should treat it as dark outside. The headlights decide while the unit reports them
+     * and the user has left that on, as in the design; otherwise sunrise and sunset do.
+     */
+    fun dark(settings: CabinSettings, headlights: Boolean?, sunIsDown: Boolean): Boolean =
+        if (settings.followHeadlights && headlights != null) headlights else sunIsDown
+
+    /** Whether the night level applies: forced by Day or Night, otherwise by whether it is [dark]. */
+    fun night(mode: BrightnessMode, dark: Boolean): Boolean = when (mode) {
+        BrightnessMode.Auto -> dark
         BrightnessMode.Day -> false
         BrightnessMode.Night -> true
     }
 
-    fun ui(settings: CabinSettings, sunIsDown: Boolean): BrightnessUi {
-        val night = night(settings.brightnessMode, sunIsDown)
+    fun ui(settings: CabinSettings, dark: Boolean): BrightnessUi {
+        val night = night(settings.brightnessMode, dark)
         return BrightnessUi(
             level = if (night) settings.nightLevel else settings.dayLevel,
             night = night,
@@ -74,8 +84,8 @@ object BrightnessRules {
     }
 
     /** Changes the level of whichever of day and night is showing, leaving the other alone. */
-    fun step(settings: CabinSettings, sunIsDown: Boolean, delta: Int): CabinSettings =
-        if (night(settings.brightnessMode, sunIsDown)) {
+    fun step(settings: CabinSettings, dark: Boolean, delta: Int): CabinSettings =
+        if (night(settings.brightnessMode, dark)) {
             settings.copy(nightLevel = (settings.nightLevel + delta).coerceIn(MIN_LEVEL, MAX_LEVEL))
         } else {
             settings.copy(dayLevel = (settings.dayLevel + delta).coerceIn(MIN_LEVEL, MAX_LEVEL))
@@ -94,44 +104,68 @@ object BrightnessRules {
     fun windowValue(level: Int): Float = systemValue(level) / 255f
 }
 
-/** Brightness that only exists in memory: for the demo launch and for tests. */
-class FixedBrightness(
-    private var settings: CabinSettings = CabinSettings(),
-    private val sunIsDown: Boolean = false,
-) : BrightnessControl {
-    private val ui = MutableStateFlow(BrightnessRules.ui(settings, sunIsDown))
-    override val state: StateFlow<BrightnessUi> = ui
-    override val canWrite: StateFlow<Boolean> = MutableStateFlow(true)
-    override val windowBrightness: StateFlow<Float?> = MutableStateFlow(null)
+/**
+ * The rules applied to the saved settings, the headlights and the sun. It is the whole of brightness
+ * apart from actually setting the screen, and is shared by the unit's control and the in-memory one.
+ */
+private class BrightnessCore(
+    private val settings: SettingsStore,
+    private val scope: CoroutineScope,
+    private val headlights: HeadlightSignal,
+    private val sunIsDown: StateFlow<Boolean>,
+) {
+    private fun dark(settings: CabinSettings): Boolean =
+        BrightnessRules.dark(settings, headlights.on.value, sunIsDown.value)
 
-    override fun up() = change { BrightnessRules.step(it, sunIsDown, 1) }
-    override fun down() = change { BrightnessRules.step(it, sunIsDown, -1) }
-    override fun cycleMode() = change { it.copy(brightnessMode = BrightnessRules.nextMode(it.brightnessMode)) }
+    val state: StateFlow<BrightnessUi> =
+        combine(settings.settings, headlights.on, sunIsDown) { saved, lights, sun ->
+            BrightnessRules.ui(saved, BrightnessRules.dark(saved, lights, sun))
+        }.stateIn(scope, SharingStarted.Eagerly, settings.settings.value.let { BrightnessRules.ui(it, dark(it)) })
+
+    fun step(delta: Int) = change { BrightnessRules.step(it, dark(it), delta) }
+
+    fun cycleMode() = change { it.copy(brightnessMode = BrightnessRules.nextMode(it.brightnessMode)) }
 
     private fun change(transform: (CabinSettings) -> CabinSettings) {
-        settings = transform(settings)
-        ui.value = BrightnessRules.ui(settings, sunIsDown)
+        scope.launch { settings.update(transform) }
     }
 }
 
+/** Brightness that sets no real screen: for the demo launch and for tests. */
+class FixedBrightness(
+    settings: SettingsStore = InMemorySettings(),
+    scope: CoroutineScope = CoroutineScope(Dispatchers.Unconfined),
+    headlights: HeadlightSignal = NoHeadlightSignal,
+    sunIsDown: Boolean = false,
+) : BrightnessControl {
+    private val core = BrightnessCore(settings, scope, headlights, MutableStateFlow(sunIsDown))
+    override val state: StateFlow<BrightnessUi> = core.state
+    override val canWrite: StateFlow<Boolean> = MutableStateFlow(true)
+    override val windowBrightness: StateFlow<Float?> = MutableStateFlow(null)
+
+    override fun step(delta: Int) = core.step(delta)
+    override fun cycleMode() = core.cycleMode()
+}
+
 /**
- * Sets Android's brightness setting, which needs the "modify system settings" permission. Auto follows
- * sunrise and sunset at the unit's last known position: the headlight signal is specific to each
- * vendor and is not something an ordinary app can read.
+ * Sets Android's brightness setting, which needs the "modify system settings" permission. Auto goes
+ * by the car's headlights when [headlights] reports them, and otherwise by sunrise and sunset at the
+ * unit's last known position.
  */
 class AndroidBrightness(
     private val context: Context,
     private val settings: SettingsStore,
     private val scope: CoroutineScope,
     clock: ClockSource,
+    headlights: HeadlightSignal,
 ) : BrightnessControl {
 
     private val sunIsDown = MutableStateFlow(readSunIsDown(settings.settings.value))
+    private val core = BrightnessCore(settings, scope, headlights, sunIsDown)
     private val writable = MutableStateFlow(Settings.System.canWrite(context))
     override val canWrite: StateFlow<Boolean> = writable
 
-    override val state: StateFlow<BrightnessUi> = combine(settings.settings, sunIsDown, BrightnessRules::ui)
-        .stateIn(scope, SharingStarted.Eagerly, BrightnessRules.ui(settings.settings.value, sunIsDown.value))
+    override val state: StateFlow<BrightnessUi> = core.state
 
     override val windowBrightness: StateFlow<Float?> = combine(state, writable) { ui, canWrite ->
         if (canWrite) null else BrightnessRules.windowValue(ui.level)
@@ -149,18 +183,13 @@ class AndroidBrightness(
         scope.launch { rememberPosition() }
     }
 
-    override fun up() = change { BrightnessRules.step(it, sunIsDown.value, 1) }
-    override fun down() = change { BrightnessRules.step(it, sunIsDown.value, -1) }
-    override fun cycleMode() = change { it.copy(brightnessMode = BrightnessRules.nextMode(it.brightnessMode)) }
+    override fun step(delta: Int) = core.step(delta)
+    override fun cycleMode() = core.cycleMode()
 
     override fun refresh() {
         writable.value = Settings.System.canWrite(context)
         refreshSun()
         scope.launch { rememberPosition() }
-    }
-
-    private fun change(transform: (CabinSettings) -> CabinSettings) {
-        scope.launch { settings.update(transform) }
     }
 
     private fun refreshSun() {

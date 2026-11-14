@@ -57,6 +57,38 @@ class SourceRulesTest {
     }
 
     @Test
+    fun `Google Maps is the maps app when it is installed, whatever else handles maps`() {
+        val google = AppEntry("com.google.android.apps.maps/com.google.android.maps.MapsActivity", "Maps", Glyph.Maps)
+        val among = listOf(app("Atlas", Glyph.Maps), google, app("Waze", Glyph.Maps))
+        assertEquals(google, SourceRules.guess(Slot.Maps, among))
+    }
+
+    @Test
+    fun `without Google Maps the first maps app is used, and with none the slot stays empty`() {
+        assertEquals("Atlas", label(Slot.Maps, listOf(app("Calendar"), app("Atlas", Glyph.Maps), app("Waze", Glyph.Maps))))
+        assertNull(label(Slot.Maps, listOf(app("Calendar"), app("Phone", Glyph.Phone))))
+    }
+
+    @Test
+    fun `the music app is never guessed, only chosen`() {
+        assertNull(label(Slot.Music))
+        val gramophone = apps.first { it.label == "Gramophone" }
+        val chosen = CabinSettings(bindings = mapOf(Slot.Music to gramophone.id))
+        assertEquals(gramophone, SourceRules.bindings(chosen, apps)[Slot.Music])
+        assertEquals(gramophone, SourceRules.binding(Slot.Music, chosen, apps))
+        // Once the chosen app is uninstalled there is no music app again.
+        assertNull(SourceRules.binding(Slot.Music, chosen, apps - gramophone))
+    }
+
+    @Test
+    fun `one slot's app is the same as in the full set`() {
+        val settings = CabinSettings(bindings = mapOf(Slot.Maps to apps.first { it.label == "Chrome" }.id))
+        for (slot in Slot.entries) {
+            assertEquals(SourceRules.bindings(settings, apps)[slot], SourceRules.binding(slot, settings, apps))
+        }
+    }
+
+    @Test
     fun `with no name match a slot falls back to the kind of app`() {
         val only = listOf(app("Tuner", Glyph.Radio), app("Tunes", Glyph.Music))
         assertEquals("Tuner", label(Slot.Radio, only))

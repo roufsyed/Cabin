@@ -12,7 +12,7 @@ import androidx.compose.ui.unit.dp
 
 /**
  * Watches every touch on Cabin's screens before the buttons do. Touches pass through untouched until
- * the recogniser claims one as a swipe or a volume drag; from then on they are consumed, which makes
+ * the recogniser claims one as a swipe or a two-finger drag; from then on they are consumed, which makes
  * any button that had been pressed let go without firing.
  */
 @Composable

@@ -1,19 +1,26 @@
 package com.roufsyed.cabin
 
 import android.view.KeyEvent
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipe
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.roufsyed.cabin.apps.FixedApps
 import com.roufsyed.cabin.data.CabinSettings
 import com.roufsyed.cabin.data.InMemorySettings
+import com.roufsyed.cabin.data.SideSwipe
+import com.roufsyed.cabin.data.TwoFingerDrag
 import com.roufsyed.cabin.media.FixedMedia
 import com.roufsyed.cabin.model.Slot
 import com.roufsyed.cabin.model.SourceId
+import com.roufsyed.cabin.system.FixedHeadlights
 import com.roufsyed.cabin.system.FixedPermissions
 import com.roufsyed.cabin.system.Grant
 import org.junit.Assert.assertEquals
@@ -43,6 +50,16 @@ class SettingsAndKeysTest {
         tap("Settings")
     }
 
+    /**
+     * Waits for [text] to be on screen. Settings are saved off the main thread, so what a tap changes
+     * reaches the screen a moment after the tap returns.
+     */
+    private fun awaitText(text: String, count: Int = 1) {
+        cabin.waitUntil(2_000) { cabin.onAllNodesWithText(text).fetchSemanticsNodes().size == count }
+    }
+
+    private fun awaitNoText(text: String) = awaitText(text, count = 0)
+
     /** Presses a key the way the unit delivers a steering wheel button to the app on screen. */
     private fun press(keyCode: Int) = cabin.runOnUiThread {
         cabin.activity.onKeyDown(keyCode, KeyEvent(KeyEvent.ACTION_DOWN, keyCode))
@@ -50,11 +67,11 @@ class SettingsAndKeysTest {
     }
 
     @Test
-    fun settingsHasTheDesignsSixTilesAndSetup() {
+    fun settingsHasTheDesignsSixTilesThenGesturesAndSetup() {
         openSettings()
         for (tile in listOf(
             "Arrange apps", "Arrange sources", "Steering wheel keys", "Turn the screen off",
-            "Bluetooth settings", "Wi-Fi settings", "Open setup",
+            "Bluetooth settings", "Wi-Fi settings", "Gesture settings", "Open setup",
         )) shows(tile)
         // The design's two "Prototype only" tiles are not part of the app.
         cabin.onNodeWithText("Incoming call").assertDoesNotExist()
@@ -125,24 +142,140 @@ class SettingsAndKeysTest {
     }
 
     @Test
-    fun setupListsEverythingCabinAsksForAndTheTwoRailApps() {
+    fun setupListsWhatCabinAsksForOnItsFirstPageAndTheAppsItOpensOnItsSecond() {
         openSettings()
         tap("Open setup")
         cabin.onNodeWithText("Setup").assertIsDisplayed()
         for (tile in listOf(
             "Make Cabin the home app", "Allow notification access", "Allow changing system settings",
-            "Allow location", "Allow microphone", "Allow nearby devices",
-            "Choose the phone app", "Choose the phone link app",
+            "Dim with the headlights", "Allow location", "Allow microphone", "Allow nearby devices",
         )) shows(tile)
+        gone("Choose the phone app")
+
+        tap("Next setup page")
+        for (tile in listOf(
+            "Choose the phone app", "Choose the phone link app", "Choose the maps app", "Choose the music app",
+        )) shows(tile)
+        gone("Allow location")
+        cabin.onNodeWithText("The apps Cabin opens. Tap one to change it.").assertIsDisplayed()
 
         tap("Choose the phone app")
         cabin.onNodeWithText("Phone opens").assertIsDisplayed()
         tap("Maps")
-        // Back on Setup, where the tile now names the chosen app.
+        // Back on the same page of Setup, where the tile now names the chosen app.
         shows("Choose the phone app")
         cabin.waitUntil(2_000) { settings.bindings[Slot.Phone] == FixedApps.id("Maps") }
 
+        tap("Previous setup page")
+        shows("Allow location")
         tap("Finish setup")
+        shows("Arrange apps")
+    }
+
+    /** A point given in design pixels, as a position on this screen. */
+    private fun at(x: Float, y: Float): Offset {
+        val root = cabin.onRoot().fetchSemanticsNode().boundsInRoot
+        val scale = minOf(root.width / 1280f, root.height / 800f)
+        return Offset((root.width - 1280f * scale) / 2f + x * scale, (root.height - 800f * scale) / 2f + y * scale)
+    }
+
+    @Test
+    fun setupPagesTurnWithASwipeAndASwipeNeverLeavesSetup() {
+        openSettings()
+        tap("Open setup")
+        cabin.onRoot().performTouchInput { swipe(at(900f, 400f), at(400f, 400f), durationMillis = 200) }
+        shows("Choose the maps app")
+        cabin.onRoot().performTouchInput { swipe(at(400f, 400f), at(900f, 400f), durationMillis = 200) }
+        shows("Allow location")
+        cabin.onRoot().performTouchInput { swipe(at(400f, 400f), at(900f, 400f), durationMillis = 200) }
+        // Still on Setup: only Done leaves it.
+        shows("Allow location")
+        cabin.onNodeWithText("Setup").assertIsDisplayed()
+    }
+
+    @Test
+    fun theMapsAndMusicAppsAreChosenInSetup() {
+        openSettings()
+        tap("Open setup")
+        tap("Next setup page")
+        // Maps is found without being chosen; music is whichever app played last until one is.
+        cabin.onNodeWithText("Last one that played").assertIsDisplayed()
+        assertEquals(null, settings.bindings[Slot.Maps])
+
+        tap("Choose the music app")
+        cabin.onNodeWithText("Music opens").assertIsDisplayed()
+        tap("Radio")
+        shows("Choose the music app")
+        cabin.waitUntil(2_000) { settings.bindings[Slot.Music] == FixedApps.id("Radio") }
+        awaitNoText("Last one that played")
+        cabin.waitUntil(2_000) { media.musicApp == "design.radio" }
+
+        tap("Choose the maps app")
+        cabin.onNodeWithText("Maps opens").assertIsDisplayed()
+        tap("Browser")
+        shows("Choose the maps app")
+        cabin.waitUntil(2_000) { settings.bindings[Slot.Maps] == FixedApps.id("Browser") }
+
+        // "Auto" in the chooser goes back to no particular music app.
+        tap("Choose the music app")
+        tap("Choose automatically")
+        awaitText("Last one that played")
+        cabin.waitUntil(2_000) { settings.bindings[Slot.Music] == null && media.musicApp == null }
+    }
+
+    @Test
+    fun autoBrightnessFollowsTheHeadlightsUnlessToldNotTo() {
+        val headlights = values.container.headlights as FixedHeadlights
+        // The design is drawn with the headlights off: Auto shows the day level.
+        cabin.onNodeWithText("8").assertIsDisplayed()
+
+        cabin.runOnUiThread { headlights.set(true) }
+        awaitText("3")
+        cabin.onNodeWithText("Auto").assertIsDisplayed()
+
+        openSettings()
+        tap("Open setup")
+        cabin.onNodeWithText("Auto dims with them").assertIsDisplayed()
+        tap("Dim with the headlights")
+        cabin.waitUntil(2_000) { !settings.followHeadlights }
+        awaitText("Auto goes by the sun")
+        // Back to the sun, which is up in the design's values.
+        awaitText("8")
+
+        tap("Dim with the headlights")
+        cabin.waitUntil(2_000) { settings.followHeadlights }
+        awaitText("Auto dims with them")
+        awaitText("3")
+
+        // A unit that gives no signal is said to give none, and Auto goes by the sun.
+        cabin.runOnUiThread { headlights.set(null) }
+        awaitText("No signal from the unit yet")
+        awaitText("8")
+    }
+
+    @Test
+    fun gesturesScreenListsTheThreeGesturesAndATapChangesEach() {
+        openSettings()
+        tap("Gesture settings")
+        cabin.onNodeWithText("Gestures").assertIsDisplayed()
+        cabin.onNodeWithText("Tray").assertIsDisplayed()
+        cabin.onNodeWithText("Apps").assertIsDisplayed()
+        cabin.onNodeWithText("Volume").assertIsDisplayed()
+
+        tap("Swipe down: tray or off")
+        cabin.waitUntil(2_000) { !settings.swipeDownTray }
+        tap("Swipe sideways: apps, tracks or off")
+        cabin.waitUntil(2_000) { settings.sideSwipe == SideSwipe.Tracks }
+        awaitText("Tracks")
+        tap("Swipe sideways: apps, tracks or off")
+        cabin.waitUntil(2_000) { settings.sideSwipe == SideSwipe.Off }
+        tap("Two-finger drag: volume, brightness or off")
+        cabin.waitUntil(2_000) { settings.twoFingerDrag == TwoFingerDrag.Brightness }
+        awaitText("Brightness")
+        // Swipe down and swipe sideways are both off now.
+        awaitText("Off", count = 2)
+
+        tap("Back to settings")
         shows("Arrange apps")
     }
 }

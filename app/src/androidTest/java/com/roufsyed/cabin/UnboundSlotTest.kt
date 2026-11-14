@@ -12,6 +12,7 @@ import com.roufsyed.cabin.media.FixedMedia
 import com.roufsyed.cabin.model.AppEntry
 import com.roufsyed.cabin.model.Glyph
 import com.roufsyed.cabin.model.Slot
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -41,6 +42,8 @@ class UnboundSlotTest {
     @get:Rule(order = 1)
     val cabin = cabinRule()
 
+    private val media get() = values.container.media as FixedMedia
+
     private fun tap(description: String) = cabin.onNodeWithContentDescription(description).performClick()
 
     @Test
@@ -68,5 +71,28 @@ class UnboundSlotTest {
     @Test
     fun withNothingPlayingThePanelSaysSo() {
         cabin.onNodeWithText("Nothing playing").assertIsDisplayed()
+    }
+
+    @Test
+    fun withNoMusicAppChosenPlayIsLeftToTheUnit() {
+        tap("Play or pause")
+        cabin.waitForIdle()
+        // The media source is asked once; with no music app it wakes whichever app played last.
+        assertEquals(listOf("playPause"), media.calls)
+        assertEquals(emptyList<String>(), unknownApps.launched)
+        cabin.onNodeWithText("Nothing playing").assertIsDisplayed()
+    }
+
+    @Test
+    fun withAMusicAppChosenPlayStartsItAndOpensItWhenItCannotBeStartedFromOutside() {
+        runBlocking {
+            values.container.settings.update { it.copy(bindings = it.bindings + (Slot.Music to "vendor.a/.Main")) }
+        }
+        cabin.waitUntil(2_000) { media.musicApp == "vendor.a" }
+
+        tap("Play or pause")
+        cabin.waitForIdle()
+        assertEquals(listOf("playPause", "start:vendor.a"), media.calls)
+        assertEquals(listOf("vendor.a/.Main"), unknownApps.launched)
     }
 }

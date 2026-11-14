@@ -16,6 +16,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.unit.dp
 import com.roufsyed.cabin.ui.components.pressable
 import com.roufsyed.cabin.ui.icons.Icon
+import com.roufsyed.cabin.ui.icons.SlateIcon
 import com.roufsyed.cabin.ui.icons.SlateIcons
 import com.roufsyed.cabin.ui.theme.Slate
 import com.roufsyed.cabin.ui.theme.Txt
@@ -131,9 +132,21 @@ fun PickBar(title: String, hint: String, onAutomatic: () -> Unit, onBack: () -> 
     }
 }
 
-/** A title, a hint and one primary button, in the strip's place: used by Setup. */
+/**
+ * A title, a hint and one primary button, in the strip's place: used by Setup and Gestures. With
+ * [pageIcon] set, an outlined button before the primary one turns the page.
+ */
 @Composable
-fun TitleBar(title: String, hint: String, action: String, actionDescription: String, onAction: () -> Unit) {
+fun TitleBar(
+    title: String,
+    hint: String,
+    action: String,
+    actionDescription: String,
+    onAction: () -> Unit,
+    pageIcon: SlateIcon? = null,
+    pageDescription: String = "",
+    onPage: () -> Unit = {},
+) {
     Row(
         modifier = Modifier.size(1036.dp, 96.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -143,12 +156,23 @@ fun TitleBar(title: String, hint: String, action: String, actionDescription: Str
             Txt(title, 38, weight = Slate.Light, lineHeight = 1f, ellipsis = true)
             Txt(hint, 24, color = Slate.Muted, lineHeight = 1f, ellipsis = true)
         }
-        Box(
-            Modifier
-                .size(150.dp, 96.dp)
-                .pressable(actionDescription, onClick = onAction)
-                .background(Slate.Text, ButtonShape),
-            contentAlignment = Alignment.Center,
-        ) { Txt(action, 26, weight = Slate.SemiBold, color = Slate.Ground, lineHeight = 1f) }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (pageIcon != null) {
+                Box(
+                    Modifier
+                        .size(96.dp)
+                        .pressable(pageDescription, onClick = onPage)
+                        .border(1.dp, Slate.Outline, ButtonShape),
+                    contentAlignment = Alignment.Center,
+                ) { Icon(pageIcon, 40.dp, Slate.Text, 1.5f) }
+            }
+            Box(
+                Modifier
+                    .size(150.dp, 96.dp)
+                    .pressable(actionDescription, onClick = onAction)
+                    .background(Slate.Text, ButtonShape),
+                contentAlignment = Alignment.Center,
+            ) { Txt(action, 26, weight = Slate.SemiBold, color = Slate.Ground, lineHeight = 1f) }
+        }
     }
 }

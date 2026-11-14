@@ -6,6 +6,7 @@ import com.roufsyed.cabin.model.AppEntry
 import com.roufsyed.cabin.model.Glyph
 import com.roufsyed.cabin.model.Slot
 import com.roufsyed.cabin.model.SourceId
+import com.roufsyed.cabin.nav.MapsNotificationParser
 
 /**
  * Which of the unit's apps each slot opens, and which source is the active one.
@@ -13,6 +14,12 @@ import com.roufsyed.cabin.model.SourceId
  * get to, the app that does.
  */
 object SourceRules {
+
+    /**
+     * Apps that are the first choice for a slot whenever they are installed, by package. Google Maps
+     * is the one maps app whose route Cabin can read, so it is preferred when it is there.
+     */
+    private val packages: Map<Slot, List<String>> = mapOf(Slot.Maps to listOf(MapsNotificationParser.MAPS_PACKAGE))
 
     /** Name fragments that identify the stock app for a slot, most specific first. */
     private val names: Map<Slot, List<String>> = mapOf(
@@ -31,11 +38,19 @@ object SourceRules {
         Slot.Usb to Glyph.Music,
         Slot.Phone to Glyph.Phone,
         Slot.Link to Glyph.Link,
+        Slot.Maps to Glyph.Maps,
     )
 
-    /** The app a slot would open if the user has not chosen one: the best match by name, then by kind. */
+    /**
+     * The app a slot would open if the user has not chosen one: a preferred package, then the best
+     * match by name, then by kind. Music is never guessed: left alone, play wakes whichever app played
+     * last, which is Android's own choice and usually the right one.
+     */
     fun guess(slot: Slot, apps: List<AppEntry>): AppEntry? {
-        for (name in names.getValue(slot)) {
+        for (wanted in packages[slot].orEmpty()) {
+            apps.firstOrNull { packageOf(it.id) == wanted }?.let { return it }
+        }
+        for (name in names[slot].orEmpty()) {
             // Of several matches the plainest name wins: "Music" over "BT Music", "Phone" over "Phone Link".
             val match = apps.filter { Names.matches(it.label, name) }.minByOrNull { Names.words(it.label).size }
             if (match != null) return match
@@ -54,6 +69,10 @@ object SourceRules {
         }
         return result
     }
+
+    /** One slot's app, by the same rule as [bindings]. */
+    fun binding(slot: Slot, settings: CabinSettings, apps: List<AppEntry>): AppEntry? =
+        settings.bindings[slot]?.let { id -> apps.firstOrNull { it.id == id } } ?: guess(slot, apps)
 
     /** The package part of a component id such as "com.example/.Main". */
     fun packageOf(appId: String): String = appId.substringBefore('/')
