@@ -62,6 +62,8 @@ say "processor:"
 sh_ cat /proc/cpuinfo | grep -E "Hardware|CPU part|model name|Processor" | sort | uniq -c | sed 's/^/    /' | tee -a "$summary"
 say "light sensor: $(sh_ dumpsys sensorservice | grep -i -m 3 'light' | tr '\n' ';')"
 say "car features: $(sh_ pm list features | grep -i -E 'automotive|car' | tr '\n' ' ')"
+split=$(sh_ cmd activity supports-split-screen-multi-window | grep -E -m 1 '^(true|false)$')
+say "split screen supported: ${split:-not reported}"
 say "night mode now: $(sh_ dumpsys uimode | grep -o -E 'mNightMode=[0-9]+ \([a-z]+\)|mComputedNightMode=[a-z]+' | tr '\n' ' ')"
 say "brightness now: $(sh_ settings get system screen_brightness) (mode $(sh_ settings get system screen_brightness_mode))"
 
