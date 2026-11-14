@@ -64,6 +64,14 @@ say "light sensor: $(sh_ dumpsys sensorservice | grep -i -m 3 'light' | tr '\n' 
 say "car features: $(sh_ pm list features | grep -i -E 'automotive|car' | tr '\n' ' ')"
 split=$(sh_ cmd activity supports-split-screen-multi-window | grep -E -m 1 '^(true|false)$')
 say "split screen supported: ${split:-not reported}"
+# The side bar over other apps is switched on in the unit's Accessibility settings.
+access=$(sh_ cmd package resolve-activity --brief -a android.settings.ACCESSIBILITY_SETTINGS | tail -n 1)
+say "accessibility settings screen: ${access:-not reported}"
+services=$(sh_ settings get secure enabled_accessibility_services)
+case "$services" in
+    *com.roufsyed.cabin/*) say "Cabin's side bar: switched on" ;;
+    *) say "Cabin's side bar: not switched on" ;;
+esac
 say "night mode now: $(sh_ dumpsys uimode | grep -o -E 'mNightMode=[0-9]+ \([a-z]+\)|mComputedNightMode=[a-z]+' | tr '\n' ' ')"
 say "brightness now: $(sh_ settings get system screen_brightness) (mode $(sh_ settings get system screen_brightness_mode))"
 

@@ -140,13 +140,16 @@ class LayoutTest {
     }
 
     @Test
-    fun railMatchesTheDesignGrid() {
-        at("Phone", 1109f, 41f, 130f, 136f)
-        at("Phone link", 1109f, 177f, 130f, 136f)
-        at("All apps", 1109f, 313f, 130f, 136f)
-        at("Volume up", 1109f, 450f, 130f, 104f)
-        at("Mute or unmute", 1109f, 555f, 130f, 99f)
-        at("Volume down", 1109f, 655f, 130f, 104f)
+    fun railHasItsSevenButtonsInsideTheDesignsRail() {
+        // The design's rail, 132 x 720 at (1108, 40), with Back added under Apps: four buttons of 104,
+        // then the volume rocker's three of 100, 99 and 100 between its rules.
+        at("Phone", 1109f, 41f, 130f, 104f)
+        at("Phone link", 1109f, 145f, 130f, 104f)
+        at("All apps", 1109f, 249f, 130f, 104f)
+        at("Go back", 1109f, 353f, 130f, 104f)
+        at("Volume up", 1109f, 458f, 130f, 100f)
+        at("Mute or unmute", 1109f, 559f, 130f, 99f)
+        at("Volume down", 1109f, 659f, 130f, 100f)
     }
 
     @Test
@@ -169,7 +172,7 @@ class LayoutTest {
         at("Maps", 40f, 319f, 196.8f, 154f)
         at("Weather", 879.2f, 486f, 196.8f, 154f)
         // The rail and bottom row do not move between screens.
-        at("Home", 1109f, 313f, 130f, 136f)
+        at("Home", 1109f, 249f, 130f, 104f)
         at("Radio source", 395f, 665f, 138f, 94f)
     }
 
@@ -255,6 +258,7 @@ class LayoutTest {
         at("Make Cabin the home app", 40f, 152f, 511.5f, 112f)
         at("Dim with the headlights", 564.5f, 277f, 511.5f, 112f)
         at("Allow nearby devices", 40f, 527f, 511.5f, 112f)
+        at("Keep the side bar over other apps", 564.5f, 527f, 511.5f, 112f)
 
         cabin.onNodeWithContentDescription("Next setup page").performClick()
         at("Previous setup page", 818f, 40f, 96f, 96f)
@@ -271,7 +275,7 @@ class LayoutTest {
         at("Two-finger drag: volume, brightness or off", 564.5f, 277f, 511.5f, 112f)
         at("Long press on an app: split screen or off", 40f, 402f, 511.5f, 112f)
         // The rail and bottom row do not move.
-        at("Home", 1109f, 313f, 130f, 136f)
+        at("Home", 1109f, 249f, 130f, 104f)
         at("Radio source", 395f, 665f, 138f, 94f)
 
         cabin.onNodeWithContentDescription("Choose a theme").performClick()
@@ -301,7 +305,7 @@ class LayoutTest {
         at("Show the next turn: on or off", 40f, 402f, 511.5f, 112f)
         at("Show what is playing: on or off", 564.5f, 402f, 511.5f, 112f)
         // The rail and bottom row do not move.
-        at("Home", 1109f, 313f, 130f, 136f)
+        at("Home", 1109f, 249f, 130f, 104f)
         at("Radio source", 395f, 665f, 138f, 94f)
 
         cabin.onNodeWithContentDescription("Turn the screen off").performClick()
@@ -356,7 +360,7 @@ class LayoutTest {
         // The same grid, without the app that was held and without Cabin's own tile.
         at("Browser", 40f, 152f, 196.8f, 154f)
         at("Music", 40f, 319f, 196.8f, 154f)
-        at("Home", 1109f, 313f, 130f, 136f)
+        at("Home", 1109f, 249f, 130f, 104f)
         at("Radio source", 395f, 665f, 138f, 94f)
     }
 
@@ -367,7 +371,7 @@ class LayoutTest {
         val scale = minOf(root.width / 1280f, root.height / 800f)
         for (control in listOf(
             "Open Maps", "Open music", "Previous", "Play or pause", "Next", "Phone", "Phone link", "All apps",
-            "Volume up", "Mute or unmute", "Volume down", "Brightness down", "Brightness up",
+            "Go back", "Volume up", "Mute or unmute", "Volume down", "Brightness down", "Brightness up",
             "Night mode: auto, day or night", "Radio source", "Bluetooth source", "USB source", "Android Auto source",
         )) {
             val b = bounds(control)

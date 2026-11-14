@@ -70,6 +70,24 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
+
+        <!--
+            Bound by Android once Cabin is switched on under Accessibility. It keeps the rail on screen
+            over other apps and presses Back in them, which Android lets no other kind of app do. What
+            it asks to be told is in res/xml/side_bar_service.xml.
+        -->
+        <service
+            android:name=".bar.SideBarService"
+            android:exported="true"
+            android:label="@string/side_bar_service"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/side_bar_service" />
+        </service>
     </application>
 
 </manifest>

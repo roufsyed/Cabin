@@ -89,6 +89,8 @@ class HostActions(
     val openWifi: () -> Unit = {},
     /** Opens two apps side by side. The activity has to do it itself: see `AppsSource.launchPair`. */
     val openPair: (SplitPair) -> Boolean = { false },
+    /** Opens the unit's Accessibility settings, where the bar over other apps is allowed. */
+    val openAccessibility: () -> Unit = {},
 )
 
 @Composable
@@ -742,6 +744,7 @@ private fun SetupPermissions(container: AppContainer, host: HostActions) {
     val granted by container.permissions.granted.collectAsStateWithLifecycle()
     val headlights by container.headlights.on.collectAsStateWithLifecycle()
     val settings by container.settings.settings.collectAsStateWithLifecycle()
+    val barAllowed by container.sideBar.allowed.collectAsStateWithLifecycle()
     val follow = settings.followHeadlights
 
     fun state(on: Boolean) = if (on) "On" else "Off"
@@ -781,6 +784,23 @@ private fun SetupPermissions(container: AppContainer, host: HostActions) {
             grant("Location", "Sunrise and sunset for Auto", Grant.Location),
             grant("Microphone", "Say a destination", Grant.Microphone),
             grant("Nearby devices", "Shows a connected phone", Grant.NearbyDevices),
+            // The rail kept on screen over other apps. Android only lets an accessibility service do
+            // that, so the first tap leads to where Cabin is switched on as one; after that the tile
+            // is the bar's own switch.
+            SettingsTile(
+                "Side bar in apps",
+                if (barAllowed) "The rail stays beside every app" else "Allow Cabin under Accessibility",
+                "Keep the side bar over other apps",
+                value = state(barAllowed && settings.sideBar), on = barAllowed && settings.sideBar,
+                onClick = {
+                    if (barAllowed) {
+                        container.scope.launch { container.settings.update { it.copy(sideBar = !it.sideBar) } }
+                    } else {
+                        container.scope.launch { container.settings.update { it.copy(sideBar = true) } }
+                        host.openAccessibility()
+                    }
+                },
+            ),
         ),
     )
 }
@@ -827,10 +847,13 @@ private fun RailContent(
     val volume by dashboard.volume.collectAsStateWithLifecycle()
     Rail(
         onHome = onHome,
+        // Home has nothing behind it. Whatever is laid over a screen covers the rail too.
+        canGoBack = !onHome,
         volume = volume,
         onPhone = { onSlot(Slot.Phone) },
         onLink = { onSlot(Slot.Link) },
         onAppsOrHome = { if (onHome) shell.open(Screen.Apps) else shell.home() },
+        onBack = shell::back,
         onVolumeUp = dashboard::volumeUp,
         onMute = dashboard::toggleMute,
         onVolumeDown = dashboard::volumeDown,

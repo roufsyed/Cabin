@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">Cabin</string>
+    <!-- Shown by Android in its Accessibility settings, where the side bar is switched on. -->
+    <string name="side_bar_service">Cabin side bar</string>
+    <string name="side_bar_service_summary">Keeps Cabin\'s side bar beside other apps</string>
+    <string name="side_bar_service_description">Keeps Cabin\'s side bar on screen while other apps are open, and lets its Back button work in them. Cabin does not read what is on the screen.</string>
 </resources>

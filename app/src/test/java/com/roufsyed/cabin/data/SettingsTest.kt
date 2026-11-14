@@ -70,6 +70,8 @@ class SettingsTest {
         assertEquals(ThemeId.Blue, settings.theme)
         // The screen-off screen is the design's: the time and the date, and nothing else.
         assertEquals(ScreenOffShows(clock = true, date = true, playing = false, turn = false, status = false), settings.screenOff)
+        // The bar over other apps is wanted from the start; it shows once Android allows it.
+        assertTrue(settings.sideBar)
     }
 
     @Test
@@ -102,6 +104,7 @@ class SettingsTest {
             longPressSplit = false,
             theme = ThemeId.Amber,
             screenOff = ScreenOffShows(clock = false, date = true, playing = true, turn = false, status = true),
+            sideBar = false,
             latitude = 12.97,
             longitude = 77.59,
             recentPlaces = listOf("Airport", "City Mall"),

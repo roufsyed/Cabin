@@ -77,6 +77,7 @@ class MainActivity : ComponentActivity() {
             openBluetooth = { open(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) },
             openWifi = { open(Intent(Settings.Panel.ACTION_WIFI), Intent(Settings.ACTION_WIFI_SETTINGS)) },
             openPair = ::openPair,
+            openAccessibility = { open(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) },
         )
         setContent { CabinRoot(container, host) }
         followWindowBrightness()
@@ -86,6 +87,17 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         if (intent.action == Intent.ACTION_MAIN && intent.hasCategory(Intent.CATEGORY_HOME)) shell.home()
+    }
+
+    /** While Cabin's own screen shows, with the whole rail, the bar kept over other apps steps aside. */
+    override fun onStart() {
+        super.onStart()
+        container.sideBar.cabinShowing.value = true
+    }
+
+    override fun onStop() {
+        container.sideBar.cabinShowing.value = false
+        super.onStop()
     }
 
     override fun onResume() {

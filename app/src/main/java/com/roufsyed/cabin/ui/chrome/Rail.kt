@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.roufsyed.cabin.ui.components.Panel
 import com.roufsyed.cabin.ui.components.Rule
@@ -27,15 +26,21 @@ import com.roufsyed.cabin.ui.theme.Txt
 
 /**
  * The right-hand rail, 132 x 720, identical on every screen: Phone, Link, Apps (or Home when not on
- * Home), then the volume rocker with mute.
+ * Home) and Back, then the volume rocker with mute.
+ *
+ * The design has three buttons above the rocker, 136 high. Back makes four, so they are 104 each and
+ * the rocker's 100: all still over the 96 the design asks of anything touched. [canGoBack] is false
+ * where there is nothing to go back to, and Back is then drawn dim and does nothing.
  */
 @Composable
 fun Rail(
     onHome: Boolean,
+    canGoBack: Boolean,
     volume: VolumeUi,
     onPhone: () -> Unit,
     onLink: () -> Unit,
     onAppsOrHome: () -> Unit,
+    onBack: () -> Unit,
     onVolumeUp: () -> Unit,
     onMute: () -> Unit,
     onVolumeDown: () -> Unit,
@@ -50,14 +55,15 @@ fun Rail(
             } else {
                 RailButton("Home", "Home", SlateIcons.House, onAppsOrHome)
             }
-            Box(Modifier.size(130.dp, 310.dp)) {
+            RailButton("Go back", "Back", SlateIcons.Back, onBack, enabled = canGoBack)
+            Box(Modifier.size(130.dp, 302.dp)) {
                 Box(Modifier.fillMaxWidth().height(1.dp).background(Slate.Hairline))
                 Column(
                     modifier = Modifier.fillMaxSize().padding(top = 1.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Box(
-                        Modifier.size(130.dp, 104.dp).pressable("Volume up", onClick = onVolumeUp),
+                        Modifier.size(130.dp, 100.dp).pressable("Volume up", onClick = onVolumeUp),
                         contentAlignment = Alignment.Center,
                     ) { Icon(SlateIcons.Plus, 44.dp, Slate.Ink, 1.5f) }
                     Rule(44.dp, 1.dp)
@@ -79,7 +85,7 @@ fun Rail(
                     }
                     Rule(44.dp, 1.dp)
                     Box(
-                        Modifier.size(130.dp, 104.dp).pressable("Volume down", onClick = onVolumeDown),
+                        Modifier.size(130.dp, 100.dp).pressable("Volume down", onClick = onVolumeDown),
                         contentAlignment = Alignment.Center,
                     ) { Icon(SlateIcons.Minus, 44.dp, Slate.Ink, 1.5f) }
                 }
@@ -94,15 +100,14 @@ private fun RailButton(
     label: String,
     icon: SlateIcon,
     onClick: () -> Unit,
-    iconColor: Color = Slate.Ink,
-    labelColor: Color = Slate.Muted,
+    enabled: Boolean = true,
 ) {
     Column(
-        modifier = Modifier.size(130.dp, 136.dp).pressable(description, onClick = onClick),
-        verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically),
+        modifier = Modifier.size(130.dp, 104.dp).pressable(description, enabled = enabled, onClick = onClick),
+        verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Icon(icon, 44.dp, iconColor, 1.3f)
-        Txt(label, 24, color = labelColor, lineHeight = 1f)
+        Icon(icon, 44.dp, if (enabled) Slate.Ink else Slate.Disabled, 1.3f)
+        Txt(label, 24, color = if (enabled) Slate.Muted else Slate.Disabled, lineHeight = 1f)
     }
 }

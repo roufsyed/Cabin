@@ -6,6 +6,7 @@ import androidx.datastore.preferences.preferencesDataStoreFile
 import com.roufsyed.cabin.apps.AndroidAppsSource
 import com.roufsyed.cabin.apps.AppsSource
 import com.roufsyed.cabin.apps.FixedApps
+import com.roufsyed.cabin.bar.SideBarState
 import com.roufsyed.cabin.data.CabinSettings
 import com.roufsyed.cabin.data.DataStoreSettings
 import com.roufsyed.cabin.data.InMemorySettings
@@ -76,6 +77,8 @@ class AppContainer(
     /** The car's headlights, where the unit reports them. Auto brightness follows it. */
     val headlights: HeadlightSignal = NoHeadlightSignal,
     val listenerHub: ListenerHub = ListenerHub(),
+    /** What the bar that stays over other apps goes by. */
+    val sideBar: SideBarState = SideBarState(),
 ) {
     val sources = SourceController(settings, apps, media, scope)
 
@@ -95,7 +98,7 @@ class AppContainer(
         headlights: HeadlightSignal = this.headlights,
     ): AppContainer = AppContainer(
         scope, settings, apps, clock, homeRole, media, volume, brightness, navigation, voice, tray, status,
-        permissions, headlights, listenerHub,
+        permissions, headlights, listenerHub, sideBar,
     )
 
     companion object {

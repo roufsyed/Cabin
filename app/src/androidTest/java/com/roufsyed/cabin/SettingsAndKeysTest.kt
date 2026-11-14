@@ -155,6 +155,7 @@ class SettingsAndKeysTest {
         for (tile in listOf(
             "Make Cabin the home app", "Allow notification access", "Allow changing system settings",
             "Dim with the headlights", "Allow location", "Allow microphone", "Allow nearby devices",
+            "Keep the side bar over other apps",
         )) shows(tile)
         gone("Choose the phone app")
 
@@ -176,6 +177,31 @@ class SettingsAndKeysTest {
         shows("Allow location")
         tap("Finish setup")
         shows("Arrange apps")
+    }
+
+    @Test
+    fun theSideBarTileSaysWhatItNeedsAndThenSwitchesTheBar() {
+        openSettings()
+        tap("Open setup")
+        // Until Cabin is switched on under Accessibility the bar cannot be drawn, and the tile says so.
+        cabin.onNodeWithText("Side bar in apps").assertIsDisplayed()
+        cabin.onNodeWithText("Allow Cabin under Accessibility").assertIsDisplayed()
+        assertTrue(settings.sideBar)
+
+        // Once it is, the tile is the bar's own switch.
+        values.container.sideBar.allowed.value = true
+        cabin.waitForIdle()
+        cabin.onNodeWithText("The rail stays beside every app").assertIsDisplayed()
+        tap("Keep the side bar over other apps")
+        cabin.waitUntil(2_000) { !settings.sideBar }
+        tap("Keep the side bar over other apps")
+        cabin.waitUntil(2_000) { settings.sideBar }
+    }
+
+    @Test
+    fun cabinTellsTheSideBarWhenItsOwnScreenIsShowing() {
+        // The activity is up, with the whole rail: the bar for other apps steps aside.
+        assertTrue(values.container.sideBar.cabinShowing.value)
     }
 
     /** A point given in design pixels, as a position on this screen. */
@@ -313,8 +339,8 @@ class FirstRunTest {
     @Test
     fun cabinOpensOnSetupOnceAndThenOnHome() {
         cabin.onNodeWithText("Welcome to Cabin").assertIsDisplayed()
-        // Location is granted, microphone and nearby devices are not.
-        cabin.onAllNodesWithText("Off").assertCountEquals(2)
+        // Location is granted; microphone and nearby devices are not, and nor yet is the side bar.
+        cabin.onAllNodesWithText("Off").assertCountEquals(3)
 
         cabin.onNodeWithContentDescription("Finish setup").performClick()
         cabin.onNodeWithContentDescription("Open Maps").assertIsDisplayed()

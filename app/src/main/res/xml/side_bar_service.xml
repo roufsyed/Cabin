@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    What Cabin's accessibility service asks of Android. Being one is itself what allows drawing over
+    other apps and pressing Back in them. Beyond that it asks only to be told when windows open and
+    close, so that the bar can get out of the way of a keyboard; Android ties the list of open windows
+    to canRetrieveWindowContent. Cabin never looks at what is in a window.
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowsChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagRetrieveInteractiveWindows"
+    android:canRetrieveWindowContent="true"
+    android:description="@string/side_bar_service_description"
+    android:summary="@string/side_bar_service_summary" />
