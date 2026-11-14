@@ -39,6 +39,18 @@ interface AppsSource {
 
     /** Opens the app full screen. False if it could not be started. */
     fun launch(id: String): Boolean
+
+    /** Whether the unit can show two apps side by side. */
+    val splitScreen: Boolean
+
+    /**
+     * Opens two apps side by side, [leftId] on the left. False if they could not be started.
+     *
+     * [open] has to carry out the pair's steps from Cabin's activity. Android only puts one app
+     * beside another when an activity asks; asked by the application alone, it opens the app full
+     * screen instead.
+     */
+    fun launchPair(leftId: String, rightId: String, open: (SplitPair) -> Boolean): Boolean
 }
 
 /**
@@ -57,6 +69,7 @@ class AndroidAppsSource(
 
     override val installed: StateFlow<List<AppEntry>> = state
     override val ownId: String = ComponentName(context, MainActivity::class.java).flattenToShortString()
+    override val splitScreen: Boolean = SplitScreen.supported()
 
     init {
         scope.launch {
@@ -87,6 +100,11 @@ class AndroidAppsSource(
         } catch (e: RuntimeException) {
             false
         }
+    }
+
+    override fun launchPair(leftId: String, rightId: String, open: (SplitPair) -> Boolean): Boolean {
+        val pair = SplitScreen.pair(leftId, rightId) ?: return false
+        return open(pair)
     }
 
     private suspend fun refresh() = refreshing.withLock {
@@ -160,12 +178,21 @@ class AndroidAppsSource(
 class FixedApps(
     apps: List<AppEntry> = designApps,
     override val ownId: String = id("Settings"),
+    override val splitScreen: Boolean = true,
 ) : AppsSource {
     override val installed: StateFlow<List<AppEntry>> = MutableStateFlow(apps)
     val launched = mutableListOf<String>()
 
+    /** The pairs opened side by side, left app first. */
+    val pairs = mutableListOf<Pair<String, String>>()
+
     override fun launch(id: String): Boolean {
         launched += id
+        return true
+    }
+
+    override fun launchPair(leftId: String, rightId: String, open: (SplitPair) -> Boolean): Boolean {
+        pairs += leftId to rightId
         return true
     }
 

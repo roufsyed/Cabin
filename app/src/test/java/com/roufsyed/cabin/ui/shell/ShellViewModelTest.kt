@@ -211,6 +211,53 @@ class ShellViewModelTest {
     }
 
     @Test
+    fun `holding an app opens the split chooser, and leaving it returns to the same page of apps`() {
+        shell.appsPage(1)
+        shell.splitWith("maps")
+        assertEquals(Shell(screen = Screen.Split, splitFirst = "maps", pickFromPage = 1), state)
+
+        shell.splitDone()
+        assertEquals(Shell(screen = Screen.Apps, page = 1), state)
+
+        shell.splitWith("maps")
+        shell.back()
+        assertEquals(Shell(screen = Screen.Apps, page = 1), state)
+    }
+
+    @Test
+    fun `the split chooser has pages of its own and a swipe never leaves it`() {
+        shell.open(Screen.Apps)
+        shell.splitWith("maps")
+        shell.swipeLeft(pages = 2)
+        assertEquals(1, state.page)
+        shell.swipeLeft(pages = 2)
+        assertEquals(1, state.page)
+        shell.swipeRight()
+        shell.swipeRight()
+        assertEquals(Shell(screen = Screen.Split, splitFirst = "maps"), state)
+    }
+
+    @Test
+    fun `the split chooser only opens from the plain Apps grid`() {
+        shell.splitWith("maps")
+        assertEquals(Shell(), state)
+
+        shell.arrangeApps()
+        shell.splitWith("maps")
+        assertEquals(Shell(screen = Screen.Apps, edit = EditKind.Apps), state)
+
+        shell.open(Screen.Apps)
+        shell.show(Overlay.Tray)
+        shell.splitWith("maps")
+        assertEquals(Shell(screen = Screen.Apps, overlay = Overlay.Tray), state)
+
+        // Leaving it when it is not open changes nothing.
+        shell.closeOverlay()
+        shell.splitDone()
+        assertEquals(Shell(screen = Screen.Apps), state)
+    }
+
+    @Test
     fun `a swipe right leaves Gestures for Home like any other settings screen`() {
         shell.open(Screen.Gestures)
         shell.swipeRight()

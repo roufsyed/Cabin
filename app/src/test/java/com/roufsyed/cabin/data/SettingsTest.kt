@@ -63,6 +63,7 @@ class SettingsTest {
         assertTrue(settings.swipeDownTray)
         assertEquals(SideSwipe.Apps, settings.sideSwipe)
         assertEquals(TwoFingerDrag.Volume, settings.twoFingerDrag)
+        assertTrue(settings.longPressSplit)
         assertTrue(settings.followHeadlights)
     }
 
@@ -93,6 +94,7 @@ class SettingsTest {
             swipeDownTray = false,
             sideSwipe = SideSwipe.Tracks,
             twoFingerDrag = TwoFingerDrag.Brightness,
+            longPressSplit = false,
             latitude = 12.97,
             longitude = 77.59,
             recentPlaces = listOf("Airport", "City Mall"),

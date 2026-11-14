@@ -2,6 +2,7 @@ package com.roufsyed.cabin.ui.components
 
 import androidx.compose.foundation.IndicationNodeFactory
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.FocusInteraction
 import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
@@ -84,15 +85,36 @@ private object SlateIndication : IndicationNodeFactory {
 
 /**
  * Makes an element a button. Put it before any background or border that should dim with the press.
- * [label] is what a screen reader announces and what tests look up.
+ * [label] is what a screen reader announces and what tests look up. With [onLongClick], holding the
+ * button does that instead, and letting go afterwards is not a tap.
  */
-fun Modifier.pressable(label: String? = null, enabled: Boolean = true, onClick: () -> Unit): Modifier {
-    val clickable = clickable(
-        interactionSource = null,
-        indication = SlateIndication,
-        enabled = enabled,
-        role = Role.Button,
-        onClick = onClick,
-    )
+fun Modifier.pressable(
+    label: String? = null,
+    enabled: Boolean = true,
+    onLongClick: (() -> Unit)? = null,
+    onLongClickLabel: String? = null,
+    onClick: () -> Unit,
+): Modifier {
+    val clickable = if (onLongClick == null) {
+        clickable(
+            interactionSource = null,
+            indication = SlateIndication,
+            enabled = enabled,
+            role = Role.Button,
+            onClick = onClick,
+        )
+    } else {
+        combinedClickable(
+            interactionSource = null,
+            indication = SlateIndication,
+            enabled = enabled,
+            role = Role.Button,
+            onLongClickLabel = onLongClickLabel,
+            onLongClick = onLongClick,
+            // No buzz: the screen changing is the answer, as everywhere else in Cabin.
+            hapticFeedbackEnabled = false,
+            onClick = onClick,
+        )
+    }
     return if (label == null) clickable else clickable.semantics { contentDescription = label }
 }

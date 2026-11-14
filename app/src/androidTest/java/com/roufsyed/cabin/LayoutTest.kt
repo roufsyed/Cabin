@@ -2,6 +2,7 @@ package com.roufsyed.cabin
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
@@ -186,7 +187,20 @@ class LayoutTest {
         at("Swipe down: tray or off", 40f, 152f, 511.5f, 112f)
         at("Swipe sideways: apps, tracks or off", 564.5f, 152f, 511.5f, 112f)
         at("Two-finger drag: volume, brightness or off", 40f, 277f, 511.5f, 112f)
+        at("Long press on an app: split screen or off", 564.5f, 277f, 511.5f, 112f)
         // The rail and bottom row do not move.
+        at("Home", 1109f, 313f, 130f, 136f)
+        at("Radio source", 395f, 665f, 138f, 94f)
+    }
+
+    @Test
+    fun splitChooserIsTheAppsGridUnderATitleBar() {
+        cabin.onNodeWithContentDescription("All apps").performClick()
+        cabin.onNodeWithContentDescription("Maps").performTouchInput { longClick() }
+        at("Cancel split screen", 926f, 40f, 150f, 96f)
+        // The same grid, without the app that was held and without Cabin's own tile.
+        at("Browser", 40f, 152f, 196.8f, 154f)
+        at("Music", 40f, 319f, 196.8f, 154f)
         at("Home", 1109f, 313f, 130f, 136f)
         at("Radio source", 395f, 665f, 138f, 94f)
     }

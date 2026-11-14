@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 
-enum class Screen { Home, Apps, Music, Settings, Keys, Gestures, Sources, Pick, Setup }
+enum class Screen { Home, Apps, Music, Settings, Keys, Gestures, Sources, Pick, Split, Setup }
 
 /** Setup has more tiles than fit at once: what Cabin may do on the first page, the apps it opens on the second. */
 const val SETUP_PAGES = 2
@@ -31,6 +31,8 @@ data class Shell(
     val pickSlot: Slot? = null,
     val pickFrom: Screen = Screen.Home,
     val pickFromPage: Int = 0,
+    /** On the Split screen: the app that was held, for which a neighbour is being chosen. */
+    val splitFirst: String? = null,
 )
 
 /** Screen-to-screen movement. It holds no data of its own, only where the user is. */
@@ -93,6 +95,23 @@ class ShellViewModel : ViewModel() {
     }
 
     /**
+     * Starts choosing the app to show beside [appId] in split screen. Only from the Apps grid itself:
+     * not while arranging, and not under an overlay.
+     */
+    fun splitWith(appId: String) = _state.update {
+        if (it.screen == Screen.Apps && it.edit == null && it.overlay == Overlay.None) {
+            Shell(screen = Screen.Split, splitFirst = appId, pickFromPage = it.page)
+        } else {
+            it
+        }
+    }
+
+    /** Leaves the split-screen chooser for the page of apps it was opened from. */
+    fun splitDone() = _state.update { if (it.screen == Screen.Split) afterSplit(it) else it }
+
+    private fun afterSplit(shell: Shell): Shell = Shell(screen = Screen.Apps, page = shell.pickFromPage)
+
+    /**
      * One finger swiped left: Home leads to the first page of apps, and a page of apps, of the app
      * chooser or of Setup to the next of [pages]. Nothing moves while an overlay is up.
      */
@@ -114,12 +133,13 @@ class ShellViewModel : ViewModel() {
         when {
             it.overlay != Overlay.None || it.screen == Screen.Home -> it
             it.screen.paged && it.page > 0 -> it.copy(page = it.page - 1)
-            it.edit != null || it.screen == Screen.Pick || it.screen == Screen.Setup -> it
+            it.edit != null || it.screen == Screen.Pick || it.screen == Screen.Split || it.screen == Screen.Setup -> it
             else -> Shell()
         }
     }
 
-    private val Screen.paged: Boolean get() = this == Screen.Apps || this == Screen.Pick || this == Screen.Setup
+    private val Screen.paged: Boolean
+        get() = this == Screen.Apps || this == Screen.Pick || this == Screen.Split || this == Screen.Setup
 
     fun show(overlay: Overlay) = _state.update { it.copy(overlay = overlay) }
 
@@ -130,6 +150,7 @@ class ShellViewModel : ViewModel() {
         when {
             it.overlay != Overlay.None -> it.copy(overlay = Overlay.None)
             it.screen == Screen.Pick -> afterPick(it)
+            it.screen == Screen.Split -> afterSplit(it)
             it.edit == EditKind.Sources -> Shell(screen = Screen.Settings)
             it.edit == EditKind.Apps -> Shell(screen = Screen.Apps, page = it.page)
             // The second page of Setup leads back to its first.

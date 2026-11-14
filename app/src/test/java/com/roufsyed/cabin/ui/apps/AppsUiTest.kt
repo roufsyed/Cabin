@@ -38,6 +38,17 @@ class AppsUiTest {
     }
 
     @Test
+    fun `beside an app come the visible apps without it and without Cabin`() {
+        val ui = tiles(18, hidden = setOf(2))
+        val choices = ui.beside(firstId = "app5", ownId = "app0")
+        assertEquals(15, choices.visible.size)
+        assertEquals(listOf("app1", "app3", "app4", "app6"), choices.page(0, editing = false).take(4).map { it.app.id })
+        // Fifteen fit one page exactly; with one fewer hidden there would be a second.
+        assertEquals(1, choices.pageCount(editing = false))
+        assertEquals(2, tiles(18).beside("app5", "app0").pageCount(editing = false))
+    }
+
+    @Test
     fun `a tile's page while arranging comes from its place in the full order`() {
         val ui = tiles(40)
         assertEquals(0, ui.pageOf("app14"))

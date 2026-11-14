@@ -22,6 +22,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.roufsyed.cabin.AppContainer
+import com.roufsyed.cabin.apps.SplitPair
 import com.roufsyed.cabin.data.CabinSettings
 import com.roufsyed.cabin.data.SideSwipe
 import com.roufsyed.cabin.data.TwoFingerDrag
@@ -80,6 +81,8 @@ class HostActions(
     val requestGrant: (Grant) -> Unit = {},
     val openBluetooth: () -> Unit = {},
     val openWifi: () -> Unit = {},
+    /** Opens two apps side by side. The activity has to do it itself: see `AppsSource.launchPair`. */
+    val openPair: (SplitPair) -> Boolean = { false },
 )
 
 @Composable
@@ -210,6 +213,7 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
                                 shell.edit == EditKind.Apps -> AppsEditBar(shell, appsModel, shellModel)
                                 shell.edit == EditKind.Sources -> SourcesEditBar(shell, container, shellModel)
                                 shell.screen == Screen.Pick -> SlotPickBar(shell, container, shellModel)
+                                shell.screen == Screen.Split -> SplitBar(shell, appsModel, shellModel)
                                 shell.screen == Screen.Setup -> SetupBar(shell, container, shellModel)
                                 shell.screen == Screen.Gestures -> GesturesBar(shellModel)
                                 else -> Strip(dashboard, shellModel, host, showMini = shell.screen != Screen.Music)
@@ -225,6 +229,7 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
                                     Screen.Setup -> SetupContent(shell, container, shellModel, host)
                                     Screen.Sources -> SourcesContent(shell, container, shellModel)
                                     Screen.Pick -> SlotPickContent(shell, container, appsModel, shellModel)
+                                    Screen.Split -> SplitContent(shell, appsModel, shellModel, host)
                                     else -> Unit
                                 }
                             }
@@ -290,6 +295,7 @@ private fun pageCount(shell: Shell, apps: AppsViewModel): Int {
     return when {
         shell.screen == Screen.Setup -> SETUP_PAGES
         shell.screen == Screen.Pick -> AppsUi.pagesFor(ui.all.count { it.app.id != apps.ownId })
+        shell.screen == Screen.Split -> ui.beside(shell.splitFirst.orEmpty(), apps.ownId).pageCount(editing = false)
         else -> ui.pageCount(editing = shell.edit == EditKind.Apps)
     }
 }
@@ -368,6 +374,7 @@ private fun AppsContent(shell: Shell, apps: AppsViewModel, shellModel: ShellView
     val ui by apps.ui.collectAsStateWithLifecycle()
     val editing = shell.edit == EditKind.Apps
     val page = shell.page.coerceIn(0, ui.pageCount(editing) - 1)
+    val holdToSplit by apps.holdToSplit.collectAsStateWithLifecycle()
     AppsGrid(
         tiles = ui.page(page, editing),
         picked = shell.picked.takeIf { editing },
@@ -377,6 +384,43 @@ private fun AppsContent(shell: Shell, apps: AppsViewModel, shellModel: ShellView
                 app.id == apps.ownId -> shellModel.open(Screen.Settings)
                 else -> apps.launch(app.id)
             }
+        },
+        // Holding an app leads to choosing a second one to show beside it. Cabin's own tile cannot
+        // be split, and while arranging a hold is just a tap.
+        onHold = if (!editing && holdToSplit) {
+            { app -> if (app.id != apps.ownId) shellModel.splitWith(app.id) }
+        } else {
+            null
+        },
+    )
+}
+
+@Composable
+private fun SplitBar(shell: Shell, apps: AppsViewModel, shellModel: ShellViewModel) {
+    val ui by apps.ui.collectAsStateWithLifecycle()
+    val first = ui.all.firstOrNull { it.app.id == shell.splitFirst }?.app
+    TitleBar(
+        title = "Split screen",
+        hint = if (first == null) "Tap the app for the right." else "${first.label} on the left. Tap the app for the right.",
+        action = "Back",
+        actionDescription = "Cancel split screen",
+        onAction = shellModel::splitDone,
+    )
+}
+
+/** The second half of a split: the grid again, without the app that was held and without Cabin. */
+@Composable
+private fun SplitContent(shell: Shell, apps: AppsViewModel, shellModel: ShellViewModel, host: HostActions) {
+    val first = shell.splitFirst ?: return
+    val ui by apps.ui.collectAsStateWithLifecycle()
+    val choices = ui.beside(first, apps.ownId)
+    val page = shell.page.coerceIn(0, choices.pageCount(editing = false) - 1)
+    AppsGrid(
+        tiles = choices.page(page, editing = false),
+        picked = null,
+        onTap = { second ->
+            apps.launchPair(first, second.id, host.openPair)
+            shellModel.splitDone()
         },
     )
 }
@@ -508,10 +552,11 @@ private fun GesturesBar(shellModel: ShellViewModel) {
     )
 }
 
-/** Gestures: what each of Cabin's three finger movements does. A tap on a tile moves it to its next option. */
+/** Gestures: what each of Cabin's finger movements does. A tap on a tile moves it to its next option. */
 @Composable
 private fun GesturesContent(container: AppContainer) {
     val settings by container.settings.settings.collectAsStateWithLifecycle()
+    val canSplit = container.apps.splitScreen
     fun change(transform: (CabinSettings) -> CabinSettings) {
         container.scope.launch { container.settings.update(transform) }
     }
@@ -531,6 +576,15 @@ private fun GesturesContent(container: AppContainer) {
                 "Two-finger drag", "Up or down", "Two-finger drag: volume, brightness or off",
                 value = settings.twoFingerDrag.label, on = settings.twoFingerDrag != TwoFingerDrag.Off,
                 onClick = { change { it.copy(twoFingerDrag = it.twoFingerDrag.next()) } },
+            ),
+            // Holding an app in the grid opens it beside a second one. Where the unit has no split
+            // screen the tile says so and stays off.
+            SettingsTile(
+                "Long press", if (canSplit) "On an app" else "Unit has no split screen",
+                "Long press on an app: split screen or off",
+                value = if (canSplit && settings.longPressSplit) "Split" else "Off",
+                on = canSplit && settings.longPressSplit,
+                onClick = { if (canSplit) change { it.copy(longPressSplit = !it.longPressSplit) } },
             ),
         ),
     )

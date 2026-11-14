@@ -4,6 +4,7 @@ import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.roufsyed.cabin.apps.AppsSource
+import com.roufsyed.cabin.apps.SplitPair
 import com.roufsyed.cabin.data.Arrange
 import com.roufsyed.cabin.data.CabinSettings
 import com.roufsyed.cabin.data.SettingsStore
@@ -13,7 +14,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -31,6 +34,10 @@ data class AppsUi(val all: List<AppTile> = emptyList()) {
     fun pageCount(editing: Boolean): Int = pagesFor((if (editing) all else visible).size)
 
     fun pageOf(id: String): Int = all.indexOfFirst { it.app.id == id }.coerceAtLeast(0) / APPS_PER_PAGE
+
+    /** The apps that can be shown beside [firstId] in split screen: the grid without it and without Cabin. */
+    fun beside(firstId: String, ownId: String): AppsUi =
+        AppsUi(visible.filter { it.app.id != firstId && it.app.id != ownId })
 
     companion object {
         fun pagesFor(count: Int): Int = if (count == 0) 1 else (count + APPS_PER_PAGE - 1) / APPS_PER_PAGE
@@ -54,7 +61,20 @@ class AppsViewModel(
         return AppsUi(order.map { id -> AppTile(byId.getValue(id), hidden = id in settings.appHidden) })
     }
 
+    /**
+     * Whether holding an app leads to choosing a second one for split screen: the unit must be able
+     * to split, and the long press must be left on in Settings > Gestures. Only this one setting is
+     * watched here, so the grid is not redrawn when any other one changes.
+     */
+    val holdToSplit: StateFlow<Boolean> = settings.settings
+        .map { apps.splitScreen && it.longPressSplit }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, apps.splitScreen && settings.settings.value.longPressSplit)
+
     fun launch(id: String): Boolean = apps.launch(id)
+
+    fun launchPair(leftId: String, rightId: String, open: (SplitPair) -> Boolean): Boolean =
+        apps.launchPair(leftId, rightId, open)
 
     /** Moves a tile one place earlier (-1) or later (+1). */
     fun move(id: String, delta: Int) {

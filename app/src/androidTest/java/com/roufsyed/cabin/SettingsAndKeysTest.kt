@@ -254,13 +254,14 @@ class SettingsAndKeysTest {
     }
 
     @Test
-    fun gesturesScreenListsTheThreeGesturesAndATapChangesEach() {
+    fun gesturesScreenListsTheFourGesturesAndATapChangesEach() {
         openSettings()
         tap("Gesture settings")
         cabin.onNodeWithText("Gestures").assertIsDisplayed()
         cabin.onNodeWithText("Tray").assertIsDisplayed()
         cabin.onNodeWithText("Apps").assertIsDisplayed()
         cabin.onNodeWithText("Volume").assertIsDisplayed()
+        cabin.onNodeWithText("Split").assertIsDisplayed()
 
         tap("Swipe down: tray or off")
         cabin.waitUntil(2_000) { !settings.swipeDownTray }
@@ -274,6 +275,12 @@ class SettingsAndKeysTest {
         awaitText("Brightness")
         // Swipe down and swipe sideways are both off now.
         awaitText("Off", count = 2)
+        tap("Long press on an app: split screen or off")
+        cabin.waitUntil(2_000) { !settings.longPressSplit }
+        awaitText("Off", count = 3)
+        tap("Long press on an app: split screen or off")
+        cabin.waitUntil(2_000) { settings.longPressSplit }
+        awaitText("Split")
 
         tap("Back to settings")
         shows("Arrange apps")

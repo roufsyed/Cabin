@@ -21,6 +21,8 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.roufsyed.cabin.apps.SplitPair
+import com.roufsyed.cabin.apps.SplitScreen
 import com.roufsyed.cabin.notify.CabinNotificationListener
 import com.roufsyed.cabin.system.Grant
 import com.roufsyed.cabin.ui.CabinRoot
@@ -68,6 +70,7 @@ class MainActivity : ComponentActivity() {
             requestGrant = ::requestGrant,
             openBluetooth = { open(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) },
             openWifi = { open(Intent(Settings.Panel.ACTION_WIFI), Intent(Settings.ACTION_WIFI_SETTINGS)) },
+            openPair = ::openPair,
         )
         setContent { CabinRoot(container, host) }
         followWindowBrightness()
@@ -175,6 +178,38 @@ class MainActivity : ComponentActivity() {
                 open(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, "package:$packageName".toUri()))
             }
         }
+    }
+
+    /** The second step of a split-screen pair that is still to come, if any. */
+    private var pairStep: Runnable? = null
+
+    /**
+     * Opens two apps side by side, in the two steps [SplitPair] describes. Both steps have to come
+     * from this activity: started from the application alone, Android opens the second app full
+     * screen instead of beside the first.
+     */
+    private fun openPair(pair: SplitPair): Boolean {
+        pairStep?.let(window.decorView::removeCallbacks)
+        pairStep = null
+        try {
+            startActivities(pair.first)
+        } catch (e: RuntimeException) {
+            // One of the apps has gone, or may not be started from outside.
+            return false
+        }
+        val step = Runnable {
+            pairStep = null
+            // If Cabin is in front again, Home was pressed in the meantime: leave things as they are.
+            if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) return@Runnable
+            try {
+                startActivity(pair.then)
+            } catch (e: RuntimeException) {
+                // The left app stays open on its own.
+            }
+        }
+        pairStep = step
+        window.decorView.postDelayed(step, SplitScreen.STEP_GAP_MS)
+        return true
     }
 
     /** Opens Android's notification-access switch for Cabin, or the list of such apps if that fails. */

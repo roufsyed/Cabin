@@ -35,10 +35,16 @@ private val TileShape = RoundedCornerShape(16.dp)
 
 /**
  * One page of the Apps grid: 5 columns by 3 rows of 154-high tiles, 13 apart, in the 1036 x 488 content
- * area. While arranging, [picked] is outlined in the accent and hidden tiles are shown dimmed.
+ * area. While arranging, [picked] is outlined in the accent and hidden tiles are shown dimmed. With
+ * [onHold], holding a tile does that instead of opening the app.
  */
 @Composable
-fun AppsGrid(tiles: List<AppTile>, picked: String?, onTap: (AppEntry) -> Unit) {
+fun AppsGrid(
+    tiles: List<AppTile>,
+    picked: String?,
+    onTap: (AppEntry) -> Unit,
+    onHold: ((AppEntry) -> Unit)? = null,
+) {
     Column(Modifier.size(1036.dp, 488.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
         for (row in 0 until 3) {
             Row(Modifier.fillMaxWidth().height(154.dp), horizontalArrangement = Arrangement.spacedBy(13.dp)) {
@@ -52,6 +58,8 @@ fun AppsGrid(tiles: List<AppTile>, picked: String?, onTap: (AppEntry) -> Unit) {
                             dimmed = tile.hidden,
                             outlined = tile.app.id == picked,
                             onClick = { onTap(tile.app) },
+                            onLongClick = onHold?.let { hold -> { hold(tile.app) } },
+                            onLongClickLabel = "Open beside another app",
                             modifier = Modifier.weight(1f).fillMaxHeight(),
                         ) { GlyphIcon(tile.app, 46.dp) }
                     }
@@ -71,12 +79,14 @@ fun GridTile(
     modifier: Modifier = Modifier,
     labelSize: Int = 24,
     description: String = label,
+    onLongClick: (() -> Unit)? = null,
+    onLongClickLabel: String? = null,
     mark: (@Composable () -> Unit)? = null,
 ) {
     Column(
         modifier = modifier
             .alpha(if (dimmed) 0.35f else 1f)
-            .pressable(description, onClick = onClick)
+            .pressable(description, onLongClick = onLongClick, onLongClickLabel = onLongClickLabel, onClick = onClick)
             .background(Slate.Surface, TileShape)
             .border(1.dp, if (outlined) Slate.Accent else Slate.Hairline, TileShape),
         verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically),
