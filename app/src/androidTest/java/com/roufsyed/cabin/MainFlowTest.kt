@@ -3,9 +3,11 @@ package com.roufsyed.cabin
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.roufsyed.cabin.apps.FixedApps
 import org.junit.Assert.assertEquals
@@ -82,6 +84,36 @@ class MainFlowTest {
         cabin.onNodeWithText("Maps opens").assertIsDisplayed()
         tap("Go back")
         shows("Choose the maps app")
+    }
+
+    @Test
+    fun holdingAppsOrHomeOnTheRailShowsRecentAppsOnceTheSideBarIsAllowed() {
+        var asked = 0
+        values.container.sideBar.showRecents = {
+            asked++
+            true
+        }
+        // Until Cabin is switched on under Accessibility it cannot ask for them, and a hold is a tap.
+        cabin.onNodeWithContentDescription("All apps").performTouchInput { longClick() }
+        shows("Browser")
+        assertEquals(0, asked)
+        tap("Home")
+
+        values.container.sideBar.allowed.value = true
+        cabin.waitForIdle()
+        cabin.onNodeWithContentDescription("All apps").performTouchInput { longClick() }
+        cabin.waitForIdle()
+        assertEquals(1, asked)
+        // A hold is not also a tap: still on Home.
+        shows("Open Maps")
+
+        // A tap still opens the apps, and there the same button, now Home, does the same when held.
+        tap("All apps")
+        shows("Browser")
+        cabin.onNodeWithContentDescription("Home").performTouchInput { longClick() }
+        cabin.waitForIdle()
+        assertEquals(2, asked)
+        shows("Browser")
     }
 
     @Test

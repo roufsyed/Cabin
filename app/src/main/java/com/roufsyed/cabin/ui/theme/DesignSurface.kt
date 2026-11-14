@@ -1,5 +1,9 @@
 package com.roufsyed.cabin.ui.theme
 
+import android.content.Context
+import android.os.Build
+import android.util.DisplayMetrics
+import android.view.WindowManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -41,4 +45,20 @@ fun DesignSurface(content: @Composable () -> Unit) {
             Box(Modifier.requiredSize(DESIGN_WIDTH.dp, DESIGN_HEIGHT.dp)) { content() }
         }
     }
+}
+
+/**
+ * How large one design pixel is on this unit's screen. It goes by the whole screen, not by the window
+ * that asks, so that the side bar and a window in half the screen draw at the scale Cabin's own
+ * screen does.
+ */
+@Suppress("DEPRECATION")
+fun screenScale(context: Context): Float {
+    val manager = context.getSystemService(WindowManager::class.java)
+    val (width, height) = if (Build.VERSION.SDK_INT >= 30) {
+        manager.maximumWindowMetrics.bounds.let { it.width() to it.height() }
+    } else {
+        DisplayMetrics().also { manager.defaultDisplay.getRealMetrics(it) }.let { it.widthPixels to it.heightPixels }
+    }
+    return minOf(width / DESIGN_WIDTH.toFloat(), height / DESIGN_HEIGHT.toFloat())
 }

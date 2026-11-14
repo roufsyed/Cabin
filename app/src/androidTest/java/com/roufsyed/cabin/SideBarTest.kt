@@ -11,9 +11,11 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -47,7 +49,7 @@ class SideBarTest {
 
     private val buttons = listOf("Phone", "Phone link", "Home", "Go back", "Volume up", "Mute or unmute", "Volume down")
 
-    private fun show() {
+    private fun show(split: Boolean = false) {
         compose.setContent {
             CompositionLocalProvider(LocalDensity provides Density(density = SCALE, fontScale = 1f)) {
                 Box(Modifier.size(66.dp, 800.dp)) {
@@ -55,7 +57,9 @@ class SideBarTest {
                         volume = volume,
                         onPhone = { calls += "phone" },
                         onLink = { calls += "link" },
+                        onSplit = if (split) ({ calls += "split" }) else null,
                         onHome = { calls += "home" },
+                        onRecents = { calls += "recents" },
                         onBack = { calls += "back" },
                         onVolumeUp = { calls += "up" },
                         onMute = { calls += "mute" },
@@ -72,17 +76,15 @@ class SideBarTest {
         return Rect(box.left / SCALE, box.top / SCALE, box.right / SCALE, box.bottom / SCALE)
     }
 
-    @Test
-    fun theBarHasTheRailsSevenButtonsFromTopToBottom() {
-        show()
+    /** Checks the buttons run from the top of the bar to the bottom, each [height] tall. */
+    private fun assertStacked(buttons: List<String>, height: Float) {
         var top = 0f
         for (button in buttons) {
             val box = box(button)
             // Half the rail wide, less the hairline on the edge that meets the app.
             assertEquals("$button left", 1f, box.left, 1f)
             assertEquals("$button width", 65f, box.width, 1f)
-            // Seven share the height: 114 each, where the design asks at least 96 of anything touched.
-            assertEquals("$button height", 114f, box.height, 1.5f)
+            assertEquals("$button height", height, box.height, 1.5f)
             assertEquals("$button top", top, box.top, 1.5f)
             top = box.bottom
             // The one rule on the bar parts the volume from the rest.
@@ -92,11 +94,37 @@ class SideBarTest {
     }
 
     @Test
-    fun eachButtonDoesItsOwnThing() {
+    fun withoutSplitScreenTheBarHasTheRailsSevenButtons() {
         show()
-        for (button in buttons) compose.onNodeWithContentDescription(button).performClick()
+        compose.onNodeWithContentDescription("Split screen").assertDoesNotExist()
+        // Seven share the height: 114 each, where the design asks at least 96 of anything touched.
+        assertStacked(buttons, 114f)
+    }
+
+    @Test
+    fun withSplitScreenThereIsASplitButtonAboveHome() {
+        show(split = true)
+        // Eight share the height: 100 each.
+        assertStacked(buttons.take(2) + "Split screen" + buttons.drop(2), 100f)
+    }
+
+    @Test
+    fun eachButtonDoesItsOwnThing() {
+        show(split = true)
+        for (button in buttons.take(2) + "Split screen" + buttons.drop(2)) {
+            compose.onNodeWithContentDescription(button).performClick()
+        }
         compose.waitForIdle()
-        assertEquals(listOf("phone", "link", "home", "back", "up", "mute", "down"), calls)
+        assertEquals(listOf("phone", "link", "split", "home", "back", "up", "mute", "down"), calls)
+    }
+
+    @Test
+    fun holdingHomeShowsTheRecentApps() {
+        show()
+        compose.onNodeWithContentDescription("Home").performTouchInput { longClick() }
+        compose.waitForIdle()
+        // A hold is not also a tap.
+        assertEquals(listOf("recents"), calls)
     }
 
     @Test

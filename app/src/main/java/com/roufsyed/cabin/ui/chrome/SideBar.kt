@@ -27,19 +27,23 @@ import com.roufsyed.cabin.ui.theme.Txt
 const val SIDE_BAR_WIDTH = 66
 
 /**
- * The rail as it stays on screen while another app is open: its seven buttons at half the width,
- * down the screen's right edge from top to bottom. There is no room for words at that width, so the
- * buttons are icons alone. The third is always Home, since this is only ever seen outside Cabin.
+ * The rail as it stays on screen while another app is open: its buttons at half the width, down the
+ * screen's right edge from top to bottom. There is no room for words at that width, so the buttons
+ * are icons alone. Home is always Home here, since this is only ever seen outside Cabin; held, it
+ * shows the recent apps. Above it, where the unit can show two apps side by side, is Split.
  *
- * At 66 wide the buttons are narrower than the 96 the design asks of anything touched; they are 114
- * tall on the design's 800, which is what they are aimed at.
+ * At 66 wide the buttons are narrower than the 96 the design asks of anything touched. With Split
+ * there are eight, 100 tall on the design's 800; without it seven, 114 tall.
  */
 @Composable
 fun SideBar(
     volume: VolumeUi,
     onPhone: () -> Unit,
     onLink: () -> Unit,
+    /** Null where the unit has no split screen: the button is then left out. */
+    onSplit: (() -> Unit)?,
     onHome: () -> Unit,
+    onRecents: () -> Unit,
     onBack: () -> Unit,
     onVolumeUp: () -> Unit,
     onMute: () -> Unit,
@@ -57,7 +61,8 @@ fun SideBar(
         Column(Modifier.fillMaxSize()) {
             BarButton("Phone", SlateIcons.Handset, 1.3f, onPhone)
             BarButton("Phone link", SlateIcons.Link, 1.3f, onLink)
-            BarButton("Home", SlateIcons.House, 1.3f, onHome)
+            if (onSplit != null) BarButton("Split screen", SlateIcons.Split, 1.3f, onSplit)
+            BarButton("Home", SlateIcons.House, 1.3f, onHome, onLongClick = onRecents, onLongClickLabel = "Recent apps")
             BarButton("Go back", SlateIcons.Back, 1.3f, onBack)
             Box(Modifier.fillMaxWidth().height(1.dp).background(Slate.Hairline))
             BarButton("Volume up", SlateIcons.Plus, 1.5f, onVolumeUp)
@@ -84,9 +89,19 @@ fun SideBar(
 }
 
 @Composable
-private fun ColumnScope.BarButton(description: String, icon: SlateIcon, stroke: Float, onClick: () -> Unit) {
+private fun ColumnScope.BarButton(
+    description: String,
+    icon: SlateIcon,
+    stroke: Float,
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
+    onLongClickLabel: String? = null,
+) {
     Box(
-        Modifier.weight(1f).fillMaxWidth().pressable(description, onClick = onClick),
+        Modifier
+            .weight(1f)
+            .fillMaxWidth()
+            .pressable(description, onLongClick = onLongClick, onLongClickLabel = onLongClickLabel, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { Icon(icon, 38.dp, Slate.Ink, stroke) }
 }

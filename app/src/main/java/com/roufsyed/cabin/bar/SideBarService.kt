@@ -5,7 +5,6 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.os.Build
-import android.util.DisplayMetrics
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
@@ -33,10 +32,9 @@ import com.roufsyed.cabin.model.Slot
 import com.roufsyed.cabin.sources.Opened
 import com.roufsyed.cabin.ui.chrome.SIDE_BAR_WIDTH
 import com.roufsyed.cabin.ui.chrome.SideBar
-import com.roufsyed.cabin.ui.theme.DESIGN_HEIGHT
-import com.roufsyed.cabin.ui.theme.DESIGN_WIDTH
 import com.roufsyed.cabin.ui.theme.Slate
 import com.roufsyed.cabin.ui.theme.Themes
+import com.roufsyed.cabin.ui.theme.screenScale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
@@ -47,13 +45,15 @@ import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 /**
- * Keeps Cabin's rail on screen while another app is open, at half its width, and presses Back there.
+ * Keeps Cabin's rail on screen while another app is open, at half its width, and does there what
+ * only this kind of service may: press Back, and show the recent apps.
  *
- * Android lets an app do these two things only as an accessibility service: no other kind may press
- * Back in an app that is not its own, and an accessibility service may also draw over every app
- * without a further permission. All this one asks to be told is when windows open and close, which
- * is how it knows a keyboard has come up and gets out of its way. It reads nothing that is in them
- * (see res/xml/side_bar_service.xml).
+ * Android lets no other kind of app press Back in an app that is not its own or ask for the list of
+ * recent apps, and an accessibility service may also draw over every app without a further
+ * permission. All this one asks to be told is when windows open and close, which is how it knows a
+ * keyboard has come up and gets out of its way. It never reads what an app shows. The one thing it
+ * asks about other apps' windows is which apps they belong to, when Split is pressed (see
+ * res/xml/side_bar_service.xml).
  *
  * The bar lies on top of the app's right-hand edge. Android gives an app no way to make other apps
  * narrower, so whatever an app draws under those 66 pixels is covered.
@@ -74,6 +74,7 @@ class SideBarService : AccessibilityService() {
         val state = container.sideBar
         val scope = MainScope().also { scope = it }
         state.allowed.value = true
+        state.showRecents = ::showRecents
         // The bar is in the theme's colours. Cabin's own screen may not have been opened in this run.
         scope.launch {
             container.settings.settings.map { it.theme }.distinctUntilChanged().collect { Slate.palette = Themes.palette(it) }
@@ -108,6 +109,7 @@ class SideBarService : AccessibilityService() {
         container?.sideBar?.let {
             it.allowed.value = false
             it.keyboardUp.value = false
+            it.showRecents = null
         }
         container = null
     }
@@ -142,8 +144,7 @@ class SideBarService : AccessibilityService() {
         if (bar != null) return
         val manager = getSystemService(WindowManager::class.java)
         // One design pixel is as large here as on Cabin's own screen.
-        val (width, height) = screenSize(manager)
-        val scale = minOf(width / DESIGN_WIDTH.toFloat(), height / DESIGN_HEIGHT.toFloat())
+        val scale = screenScale(this)
         val barOwner = BarOwner()
         val view = ComposeView(this).apply {
             setViewTreeLifecycleOwner(barOwner)
@@ -189,14 +190,6 @@ class SideBarService : AccessibilityService() {
         owner = null
     }
 
-    @Suppress("DEPRECATION")
-    private fun screenSize(manager: WindowManager): Pair<Int, Int> =
-        if (Build.VERSION.SDK_INT >= 30) {
-            manager.maximumWindowMetrics.bounds.let { it.width() to it.height() }
-        } else {
-            DisplayMetrics().also { manager.defaultDisplay.getRealMetrics(it) }.let { it.widthPixels to it.heightPixels }
-        }
-
     @Composable
     private fun Bar(container: AppContainer) {
         val volume by container.volume.volume.collectAsStateWithLifecycle()
@@ -205,12 +198,44 @@ class SideBarService : AccessibilityService() {
             // With no app chosen for one of these, Cabin comes up, where the button leads to choosing one.
             onPhone = { if (container.sources.open(Slot.Phone) == Opened.NeedsApp) showCabin() },
             onLink = { if (container.sources.open(Slot.Link) == Opened.NeedsApp) showCabin() },
+            onSplit = if (container.apps.splitScreen) ({ split(container) }) else null,
             onHome = ::showCabin,
+            onRecents = { showRecents() },
             onBack = { performGlobalAction(GLOBAL_ACTION_BACK) },
             onVolumeUp = container.volume::up,
             onMute = container.volume::toggleMute,
             onVolumeDown = container.volume::down,
         )
+    }
+
+    /** Android's own list of recent apps, wherever the unit has one. */
+    private fun showRecents(): Boolean = performGlobalAction(GLOBAL_ACTION_RECENTS)
+
+    /**
+     * Split: the app in front keeps one half of the screen and the chooser for a second app opens in
+     * the other. Cabin's activity has to be the one that asks Android for that. If it is not there,
+     * as after Android has restarted Cabin behind another app, Cabin's Home comes up instead, and
+     * the activity with it.
+     */
+    private fun split(container: AppContainer) {
+        val open = container.sideBar.openSplitChooser
+        if (open == null || !open(appsOnScreen())) showCabin()
+    }
+
+    /**
+     * The packages of the apps on screen, one or, when the screen is already split, two, so that the
+     * chooser can leave them out. It is the one thing Cabin ever asks about another app's window,
+     * and only when Split is pressed.
+     */
+    private fun appsOnScreen(): List<String> = try {
+        val own = packageName
+        windows
+            .filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }
+            .mapNotNull { it.root?.packageName?.toString() }
+            .filter { it != own }
+            .distinct()
+    } catch (e: RuntimeException) {
+        emptyList()
     }
 
     /** Brings Cabin's Home up, as the unit's Home button does. */

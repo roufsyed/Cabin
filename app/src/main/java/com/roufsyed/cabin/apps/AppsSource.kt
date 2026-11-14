@@ -40,6 +40,12 @@ interface AppsSource {
     /** Opens the app full screen. False if it could not be started. */
     fun launch(id: String): Boolean
 
+    /**
+     * Opens the app in the same half of a split screen as one of Cabin's own activities. [start] is
+     * that activity starting what it is given. False if it could not be started.
+     */
+    fun launchBeside(id: String, start: (Intent) -> Unit): Boolean
+
     /** Whether the unit can show two apps side by side. */
     val splitScreen: Boolean
 
@@ -96,6 +102,16 @@ class AndroidAppsSource(
             // No transition animation: the design is flat and the unit should not spend frames on it.
             val options = ActivityOptions.makeCustomAnimation(context, 0, 0).toBundle()
             launcherApps.startMainActivity(component, Process.myUserHandle(), null, options)
+            true
+        } catch (e: RuntimeException) {
+            false
+        }
+    }
+
+    override fun launchBeside(id: String, start: (Intent) -> Unit): Boolean {
+        val intent = SplitScreen.inSameHalf(id) ?: return false
+        return try {
+            start(intent)
             true
         } catch (e: RuntimeException) {
             false
@@ -187,6 +203,11 @@ class FixedApps(
     val pairs = mutableListOf<Pair<String, String>>()
 
     override fun launch(id: String): Boolean {
+        launched += id
+        return true
+    }
+
+    override fun launchBeside(id: String, start: (Intent) -> Unit): Boolean {
         launched += id
         return true
     }

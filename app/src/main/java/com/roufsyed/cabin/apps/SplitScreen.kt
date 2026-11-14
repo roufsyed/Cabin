@@ -67,6 +67,14 @@ object SplitScreen {
         )
     }
 
+    /**
+     * What an activity that is itself one half of a split screen starts to open [appId] in its own
+     * half. Android opens an app where the activity that asked for it is; asked for in any other way,
+     * the app takes the whole screen and the split ends. (emulator) Null if [appId] is not a component.
+     */
+    fun inSameHalf(appId: String): Intent? =
+        ComponentName.unflattenFromString(appId)?.let { launcher(it).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+
     /** An app as a launcher starts it, so that one already running is brought forward as it is. */
     private fun launcher(component: ComponentName): Intent =
         Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setComponent(component)

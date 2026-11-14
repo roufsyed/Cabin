@@ -60,6 +60,22 @@
             </intent-filter>
         </activity>
 
+        <!--
+            The chooser for a second app, which the side bar's Split button opens in half the screen
+            beside the app that was in front. It is a task of its own, and it goes as soon as an app is
+            chosen or it is left.
+        -->
+        <activity
+            android:name=".ui.split.SplitChooserActivity"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|locale|layoutDirection|mcc|mnc"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:noHistory="true"
+            android:resizeableActivity="true"
+            android:taskAffinity="com.roufsyed.cabin.split"
+            android:windowSoftInputMode="adjustNothing" />
+
         <!-- Bound by Android once notification access is granted. It is how Cabin sees what is playing. -->
         <service
             android:name=".notify.CabinNotificationListener"

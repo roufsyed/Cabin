@@ -255,7 +255,7 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
                     }
                 },
                 bottomRow = { BottomRowContent(dashboard, selectSource) },
-                rail = { RailContent(dashboard, shell.screen == Screen.Home, shellModel, openSlot) },
+                rail = { RailContent(container, dashboard, shell.screen == Screen.Home, shellModel, openSlot) },
             )
             if (shell.overlay == Overlay.Voice) {
                 val voice by voiceModel.ui.collectAsStateWithLifecycle()
@@ -839,12 +839,16 @@ private fun BottomRowContent(dashboard: DashboardViewModel, onSource: (SourceId)
 
 @Composable
 private fun RailContent(
+    container: AppContainer,
     dashboard: DashboardViewModel,
     onHome: Boolean,
     shell: ShellViewModel,
     onSlot: (Slot) -> Unit,
 ) {
     val volume by dashboard.volume.collectAsStateWithLifecycle()
+    // Android's list of recent apps can only be asked for through the service that draws the side
+    // bar. Until that is allowed, holding the button is the same as tapping it.
+    val barAllowed by container.sideBar.allowed.collectAsStateWithLifecycle()
     Rail(
         onHome = onHome,
         // Home has nothing behind it. Whatever is laid over a screen covers the rail too.
@@ -853,6 +857,7 @@ private fun RailContent(
         onPhone = { onSlot(Slot.Phone) },
         onLink = { onSlot(Slot.Link) },
         onAppsOrHome = { if (onHome) shell.open(Screen.Apps) else shell.home() },
+        onRecents = if (barAllowed) ({ container.sideBar.showRecents?.invoke() }) else null,
         onBack = shell::back,
         onVolumeUp = dashboard::volumeUp,
         onMute = dashboard::toggleMute,

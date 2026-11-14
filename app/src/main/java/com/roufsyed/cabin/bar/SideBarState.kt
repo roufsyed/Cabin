@@ -22,6 +22,21 @@ class SideBarState {
      * windows. The bar would lie over the keyboard's right-hand keys.
      */
     val keyboardUp = MutableStateFlow(false)
+
+    /**
+     * Shows Android's list of recent apps. Set by the service while it runs: an accessibility service
+     * is the only kind of app Android lets ask for it.
+     */
+    @Volatile
+    var showRecents: (() -> Boolean)? = null
+
+    /**
+     * Opens the chooser for a second app in half the screen, beside what is on screen already, whose
+     * packages it is given. Set by Cabin's activity while it exists: Android only puts one app beside
+     * another when an activity asks.
+     */
+    @Volatile
+    var openSplitChooser: ((onScreen: List<String>) -> Boolean)? = null
 }
 
 /** When the bar is drawn. Kept apart from Android so it can be tested. */

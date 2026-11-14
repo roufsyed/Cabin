@@ -30,7 +30,8 @@ import com.roufsyed.cabin.ui.theme.Txt
  *
  * The design has three buttons above the rocker, 136 high. Back makes four, so they are 104 each and
  * the rocker's 100: all still over the 96 the design asks of anything touched. [canGoBack] is false
- * where there is nothing to go back to, and Back is then drawn dim and does nothing.
+ * where there is nothing to go back to, and Back is then drawn dim and does nothing. With [onRecents],
+ * holding Apps or Home shows the recent apps; without it a hold is a tap.
  */
 @Composable
 fun Rail(
@@ -40,6 +41,7 @@ fun Rail(
     onPhone: () -> Unit,
     onLink: () -> Unit,
     onAppsOrHome: () -> Unit,
+    onRecents: (() -> Unit)?,
     onBack: () -> Unit,
     onVolumeUp: () -> Unit,
     onMute: () -> Unit,
@@ -51,9 +53,9 @@ fun Rail(
             RailButton("Phone", "Phone", SlateIcons.Handset, onPhone)
             RailButton("Phone link", "Link", SlateIcons.Link, onLink)
             if (onHome) {
-                RailButton("All apps", "Apps", SlateIcons.AppsGrid, onAppsOrHome)
+                RailButton("All apps", "Apps", SlateIcons.AppsGrid, onAppsOrHome, onLongClick = onRecents)
             } else {
-                RailButton("Home", "Home", SlateIcons.House, onAppsOrHome)
+                RailButton("Home", "Home", SlateIcons.House, onAppsOrHome, onLongClick = onRecents)
             }
             RailButton("Go back", "Back", SlateIcons.Back, onBack, enabled = canGoBack)
             Box(Modifier.size(130.dp, 302.dp)) {
@@ -101,9 +103,15 @@ private fun RailButton(
     icon: SlateIcon,
     onClick: () -> Unit,
     enabled: Boolean = true,
+    onLongClick: (() -> Unit)? = null,
 ) {
     Column(
-        modifier = Modifier.size(130.dp, 104.dp).pressable(description, enabled = enabled, onClick = onClick),
+        modifier = Modifier
+            .size(130.dp, 104.dp)
+            .pressable(
+                description, enabled = enabled, onLongClick = onLongClick, onLongClickLabel = "Recent apps",
+                onClick = onClick,
+            ),
         verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {

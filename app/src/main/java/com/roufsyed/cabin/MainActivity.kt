@@ -31,6 +31,7 @@ import com.roufsyed.cabin.ui.CabinRoot
 import com.roufsyed.cabin.ui.HostActions
 import com.roufsyed.cabin.ui.shell.Overlay
 import com.roufsyed.cabin.ui.shell.ShellViewModel
+import com.roufsyed.cabin.ui.split.SplitChooserActivity
 import com.roufsyed.cabin.ui.theme.Slate
 import com.roufsyed.cabin.ui.theme.Themes
 import kotlinx.coroutines.flow.combine
@@ -81,6 +82,27 @@ class MainActivity : ComponentActivity() {
         )
         setContent { CabinRoot(container, host) }
         followWindowBrightness()
+        container.sideBar.openSplitChooser = openSplitChooser
+    }
+
+    override fun onDestroy() {
+        val state = container.sideBar
+        if (state.openSplitChooser === openSplitChooser) state.openSplitChooser = null
+        super.onDestroy()
+    }
+
+    /**
+     * The side bar's Split button: opens the chooser for a second app beside what is on screen. The
+     * side bar's service hands this over because Android only puts one app beside another when an
+     * activity asks, and does it for this one even while it is in the background.
+     */
+    private val openSplitChooser: (List<String>) -> Boolean = { onScreen ->
+        try {
+            startActivity(SplitChooserActivity.beside(this, onScreen))
+            true
+        } catch (e: RuntimeException) {
+            false
+        }
     }
 
     /** The Home button while Cabin is already showing: go back to the Home screen. */
