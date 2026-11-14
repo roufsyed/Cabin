@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
@@ -69,6 +68,8 @@ fun SideBar(
     modifier: Modifier = Modifier,
     /** Null where the handle is switched off in Settings: the bar then cannot be tucked away. */
     onTuck: (() -> Unit)? = null,
+    /** True where the bar is down the screen's left edge. The design, and the default, is the right. */
+    onLeft: Boolean = false,
 ) {
     Row(
         modifier
@@ -76,9 +77,9 @@ fun SideBar(
             .fillMaxHeight()
             .background(Slate.Surface),
     ) {
-        // The one edge that meets the app beside it.
-        Box(Modifier.width(1.dp).fillMaxHeight().background(Slate.Hairline))
-        Column(Modifier.fillMaxSize()) {
+        // The one edge that meets the app beside it has a hairline.
+        if (!onLeft) Box(Modifier.width(1.dp).fillMaxHeight().background(Slate.Hairline))
+        Column(Modifier.weight(1f).fillMaxHeight()) {
             BarButton("Phone", SlateIcons.Handset, 1.3f, onPhone)
             BarButton("Phone link", SlateIcons.Link, 1.3f, onLink)
             if (onSplit != null) BarButton("Split screen", SlateIcons.Split, 1.3f, onSplit)
@@ -91,7 +92,7 @@ fun SideBar(
                 Column(Modifier.fillMaxWidth().height(SIDE_BAR_GRIP.dp).pressable("Tuck the side bar away", onClick = onTuck)) {
                     Box(Modifier.fillMaxWidth().height(1.dp).background(Slate.Hairline))
                     Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-                        Icon(SlateIcons.ChevronRight, 24.dp, Slate.Muted, 1.5f)
+                        Icon(if (onLeft) SlateIcons.ChevronLeft else SlateIcons.ChevronRight, 24.dp, Slate.Muted, 1.5f)
                     }
                     Box(Modifier.fillMaxWidth().height(1.dp).background(Slate.Hairline))
                 }
@@ -116,6 +117,7 @@ fun SideBar(
             }
             BarButton("Volume down", SlateIcons.Minus, 1.5f, onVolumeDown)
         }
+        if (onLeft) Box(Modifier.width(1.dp).fillMaxHeight().background(Slate.Hairline))
     }
 }
 
@@ -139,11 +141,16 @@ private fun ColumnScope.BarButton(
 
 /**
  * What is left of the bar while it is tucked away: a tab against the screen's edge, where the bar's
- * grip was. A tap brings the bar back.
+ * grip was. A tap brings the bar back. With [onLeft] it is the tab for the left edge.
  */
 @Composable
-fun SideBarHandle(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val shape = RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp)
+fun SideBarHandle(onClick: () -> Unit, modifier: Modifier = Modifier, onLeft: Boolean = false) {
+    // Rounded on the side away from the screen's edge, with a chevron pointing the way the bar comes.
+    val shape = if (onLeft) {
+        RoundedCornerShape(topEnd = 12.dp, bottomEnd = 12.dp)
+    } else {
+        RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp)
+    }
     Box(
         modifier
             .size(SIDE_BAR_HANDLE_WIDTH.dp, SIDE_BAR_HANDLE_HEIGHT.dp)
@@ -151,5 +158,5 @@ fun SideBarHandle(onClick: () -> Unit, modifier: Modifier = Modifier) {
             .background(Slate.Surface, shape)
             .border(1.dp, Slate.Hairline, shape),
         contentAlignment = Alignment.Center,
-    ) { Icon(SlateIcons.ChevronLeft, 24.dp, Slate.Ink, 1.5f) }
+    ) { Icon(if (onLeft) SlateIcons.ChevronRight else SlateIcons.ChevronLeft, 24.dp, Slate.Ink, 1.5f) }
 }

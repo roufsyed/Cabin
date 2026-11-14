@@ -30,6 +30,9 @@ import com.roufsyed.cabin.data.next
 import com.roufsyed.cabin.gesture.Gesture
 import com.roufsyed.cabin.gesture.cabinGestures
 import com.roufsyed.cabin.model.AppTile
+import com.roufsyed.cabin.model.BarSide
+import com.roufsyed.cabin.model.HomePanel
+import com.roufsyed.cabin.model.LayoutRules
 import com.roufsyed.cabin.model.ScreenOffShows
 import com.roufsyed.cabin.model.Slot
 import com.roufsyed.cabin.model.SourceId
@@ -65,6 +68,7 @@ import com.roufsyed.cabin.ui.settings.ThemeGrid
 import com.roufsyed.cabin.ui.settings.WheelActions
 import com.roufsyed.cabin.ui.shell.EditKind
 import com.roufsyed.cabin.ui.shell.Overlay
+import com.roufsyed.cabin.ui.shell.PREFERENCES_PAGES
 import com.roufsyed.cabin.ui.shell.SETUP_PAGES
 import com.roufsyed.cabin.ui.shell.Screen
 import com.roufsyed.cabin.ui.shell.Shell
@@ -210,17 +214,19 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
     }
 
     // Nothing is drawn until the saved settings have been read, which takes a few milliseconds:
-    // otherwise every start would show a frame of the default theme, order and levels first.
-    val loaded by remember(container) {
-        container.settings.settings.map { it.loaded }.distinctUntilChanged()
-    }.collectAsStateWithLifecycle(initialValue = false)
+    // otherwise every start would show a frame of the default theme, order and levels first. Where
+    // the rail and the Home panels go is read in the same piece, so they are right from that frame.
+    val placing by remember(container) {
+        container.settings.settings.map { Placing(it.loaded, it.barSide, it.homeOrder) }.distinctUntilChanged()
+    }.collectAsStateWithLifecycle(initialValue = Placing(loaded = false))
 
     DesignSurface {
-        if (loaded) Box(Modifier.fillMaxSize().cabinGestures(onGesture)) {
+        if (placing.loaded) Box(Modifier.fillMaxSize().cabinGestures(onGesture)) {
             CabinFrame(
+                railOnLeft = placing.barSide == BarSide.Left,
                 content = {
                     if (shell.screen == Screen.Home) {
-                        HomeContent(dashboard, shellModel, host, whereTo, openMaps, navigateTo)
+                        HomeContent(placing.homeOrder, dashboard, shellModel, host, whereTo, openMaps, navigateTo)
                     } else {
                         Column {
                             when {
@@ -229,7 +235,7 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
                                 shell.screen == Screen.Pick -> SlotPickBar(shell, container, shellModel)
                                 shell.screen == Screen.Split -> SplitBar(shell, appsModel, shellModel)
                                 shell.screen == Screen.Setup -> SetupBar(shell, container, shellModel)
-                                shell.screen == Screen.Preferences -> PreferencesBar(shellModel)
+                                shell.screen == Screen.Preferences -> PreferencesBar(shell, shellModel)
                                 shell.screen == Screen.Theme -> ThemeBar(shellModel)
                                 shell.screen == Screen.ScreenOff -> ScreenOffBar(shellModel)
                                 else -> Strip(dashboard, shellModel, host, showMini = shell.screen != Screen.Music)
@@ -241,7 +247,7 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
                                     Screen.Music -> MusicContent(dashboard)
                                     Screen.Settings -> SettingsContent(container, shellModel, host)
                                     Screen.Keys -> KeysScreen(wheel, onBack = { shellModel.open(Screen.Settings) })
-                                    Screen.Preferences -> PreferencesContent(container, shellModel, host)
+                                    Screen.Preferences -> PreferencesContent(shell, container, shellModel, host)
                                     Screen.Theme -> ThemeContent(container)
                                     Screen.ScreenOff -> ScreenOffOptions(container, shellModel)
                                     Screen.Setup -> SetupContent(shell, container, shellModel, host)
@@ -322,11 +328,19 @@ private fun ScreenOffLayer(container: AppContainer, dashboard: DashboardViewMode
     )
 }
 
+/** Where the rail and the Home panels go, with whether the saved settings have been read yet. */
+private data class Placing(
+    val loaded: Boolean,
+    val barSide: BarSide = BarSide.Right,
+    val homeOrder: List<HomePanel> = LayoutRules.DESIGN_ORDER,
+)
+
 /** How many pages the grid on screen has, so a swipe left knows whether there is a next one. */
 private fun pageCount(shell: Shell, apps: AppsViewModel): Int {
     val ui = apps.ui.value
     return when {
         shell.screen == Screen.Setup -> SETUP_PAGES
+        shell.screen == Screen.Preferences -> PREFERENCES_PAGES
         shell.screen == Screen.Pick -> AppsUi.pagesFor(ui.all.count { it.app.id != apps.ownId })
         shell.screen == Screen.Split -> ui.beside(shell.splitFirst.orEmpty(), apps.ownId).pageCount(editing = false)
         else -> ui.pageCount(editing = shell.edit == EditKind.Apps)
@@ -347,6 +361,7 @@ private fun BrightnessReadout(dashboard: DashboardViewModel) {
 
 @Composable
 private fun HomeContent(
+    order: List<HomePanel>,
     dashboard: DashboardViewModel,
     shell: ShellViewModel,
     host: HostActions,
@@ -359,6 +374,7 @@ private fun HomeContent(
     val nav by dashboard.nav.collectAsStateWithLifecycle()
     val nowPlaying by dashboard.nowPlaying.collectAsStateWithLifecycle()
     HomePanels(
+        order = order,
         clock = clock,
         status = status,
         nav = nav,
@@ -570,7 +586,7 @@ private fun SettingsContent(container: AppContainer, shellModel: ShellViewModel,
                 "Wi-Fi", "Hotspot and updates", "Wi-Fi settings",
                 value = if (status.wifi) "On" else "Off", on = status.wifi, onClick = host.openWifi,
             ),
-            SettingsTile("Theme and gestures", "Colours, swipes and the side bar", "Theme and gestures") {
+            SettingsTile("Theme and gestures", "Colours, swipes and layout", "Theme and gestures") {
                 shellModel.open(Screen.Preferences)
             },
             SettingsTile("Setup", "Permissions and apps", "Open setup") { shellModel.open(Screen.Setup) },
@@ -579,25 +595,34 @@ private fun SettingsContent(container: AppContainer, shellModel: ShellViewModel,
 }
 
 @Composable
-private fun PreferencesBar(shellModel: ShellViewModel) {
+private fun PreferencesBar(shell: Shell, shellModel: ShellViewModel) {
+    val onLayout = shell.page > 0
     TitleBar(
-        title = "Theme and gestures",
-        hint = "Tap one to change it",
+        title = if (onLayout) "Layout" else "Theme and gestures",
+        hint = if (onLayout) "Where things are. Tap one to change it." else "Tap one to change it",
         action = "Done",
         actionDescription = "Back to settings",
         onAction = { shellModel.open(Screen.Settings) },
+        // The screen has two pages; a swipe turns them as well.
+        pageIcon = if (onLayout) SlateIcons.ChevronLeft else SlateIcons.ChevronRight,
+        pageDescription = if (onLayout) "Theme and gestures page" else "Layout page",
+        onPage = { shellModel.preferencesPage(if (onLayout) 0 else 1) },
     )
 }
 
 /**
- * Theme and gestures: the colour theme, what each of Cabin's finger movements does, and whether the
- * side bar stays on screen over other apps. The theme tile leads to the chooser; a tap on any other
- * tile moves it to its next option.
+ * Theme and gestures, in two pages. First the colour theme and what each of Cabin's finger movements
+ * does: the theme tile leads to the chooser, and a tap on a gesture's tile moves it to its next
+ * option. Then Layout: the side bar, and where things are on screen.
  */
 @Composable
-private fun PreferencesContent(container: AppContainer, shellModel: ShellViewModel, host: HostActions) {
+private fun PreferencesContent(shell: Shell, container: AppContainer, shellModel: ShellViewModel, host: HostActions) {
+    if (shell.page > 0) LayoutTiles(container, host) else ThemeAndGestureTiles(container, shellModel)
+}
+
+@Composable
+private fun ThemeAndGestureTiles(container: AppContainer, shellModel: ShellViewModel) {
     val settings by container.settings.settings.collectAsStateWithLifecycle()
-    val barAllowed by container.sideBar.allowed.collectAsStateWithLifecycle()
     val canSplit = container.apps.splitScreen
     fun change(transform: (CabinSettings) -> CabinSettings) {
         container.scope.launch { container.settings.update(transform) }
@@ -633,7 +658,30 @@ private fun PreferencesContent(container: AppContainer, shellModel: ShellViewMod
                 on = canSplit && settings.longPressSplit,
                 onClick = { if (canSplit) change { it.copy(longPressSplit = !it.longPressSplit) } },
             ),
-            // The same switch as on Setup's first page, here with the other things Cabin does.
+        ),
+    )
+}
+
+/**
+ * Layout: the side bar's switches and which edge it is on, then the place of each of Home's three
+ * panels, then the tile that puts every place back as the design has it. A tap on a panel's tile
+ * moves that panel one place to the right, and from the right-hand place round to the left.
+ */
+@Composable
+private fun LayoutTiles(container: AppContainer, host: HostActions) {
+    val settings by container.settings.settings.collectAsStateWithLifecycle()
+    val barAllowed by container.sideBar.allowed.collectAsStateWithLifecycle()
+    fun change(transform: (CabinSettings) -> CabinSettings) {
+        container.scope.launch { container.settings.update(transform) }
+    }
+    fun panel(panel: HomePanel) = SettingsTile(
+        panel.label, "Its place on Home", "${panel.label} on Home: left, middle or right",
+        value = LayoutRules.place(settings.homeOrder, panel), on = true,
+        onClick = { change { it.copy(homeOrder = LayoutRules.moved(it.homeOrder, panel)) } },
+    )
+    SettingsGrid(
+        listOf(
+            // The same switch as on Setup's first page, here with the other things about the bar.
             sideBarTile(container, host, settings.sideBar, barAllowed, "Side bar over other apps: on or off"),
             // The grip on that bar that tucks it away, and the handle that brings it back.
             SettingsTile(
@@ -641,6 +689,18 @@ private fun PreferencesContent(container: AppContainer, shellModel: ShellViewMod
                 value = if (settings.barHandle) "On" else "Off", on = settings.barHandle,
                 onClick = { change { it.copy(barHandle = !it.barHandle) } },
             ),
+            // Cabin's own rail and the bar over other apps go to the same edge.
+            SettingsTile(
+                "Side bar position", "The edge of the screen it is on", "Side bar position: right or left",
+                value = settings.barSide.label, on = true,
+                onClick = { change { it.copy(barSide = it.barSide.next()) } },
+            ),
+            panel(HomePanel.Clock),
+            panel(HomePanel.Navigation),
+            panel(HomePanel.NowPlaying),
+            SettingsTile("Reset positions", "Side bar right, panels as designed", "Reset positions") {
+                change { it.copy(barSide = BarSide.Right, homeOrder = LayoutRules.DESIGN_ORDER) }
+            },
         ),
     )
 }
@@ -649,7 +709,7 @@ private fun PreferencesContent(container: AppContainer, shellModel: ShellViewMod
  * The switch for the rail kept on screen over other apps. Android only lets an accessibility service
  * do that, so until Cabin has been switched on as one, a tap leads to where that is done. After that
  * the tile is the bar's own switch. It is on Setup's first page, among what Cabin asks of the unit,
- * and under Theme and gestures, among what Cabin does.
+ * and on the Layout page of Theme and gestures, with the bar's other settings.
  */
 private fun sideBarTile(
     container: AppContainer,

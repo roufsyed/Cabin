@@ -30,6 +30,7 @@ import com.roufsyed.cabin.AppContainer
 import com.roufsyed.cabin.CabinApp
 import com.roufsyed.cabin.apps.SplitChoices
 import com.roufsyed.cabin.model.AppEntry
+import com.roufsyed.cabin.model.BarSide
 import com.roufsyed.cabin.ui.apps.AppsViewModel
 import com.roufsyed.cabin.ui.chrome.SIDE_BAR_WIDTH
 import com.roufsyed.cabin.ui.theme.DESIGN_WIDTH
@@ -67,6 +68,7 @@ class SplitChooserActivity : ComponentActivity() {
         val scale = screenScale(this)
         val screenWidth = scale * DESIGN_WIDTH
         val barWantedAtFirst = container.settings.settings.value.sideBar
+        val barOnLeftAtFirst = container.settings.settings.value.barSide == BarSide.Left
         setContent {
             CompositionLocalProvider(LocalDensity provides Density(density = scale, fontScale = 1f)) {
                 val apps: AppsViewModel = viewModel(
@@ -78,20 +80,25 @@ class SplitChooserActivity : ComponentActivity() {
                 }.collectAsStateWithLifecycle(initialValue = barWantedAtFirst)
                 val barAllowed by container.sideBar.allowed.collectAsStateWithLifecycle()
                 val barTucked by container.sideBar.tucked.collectAsStateWithLifecycle()
-                // How far this window reaches under the side bar, which lies along the screen's right edge.
+                val barOnLeft by remember(container) {
+                    container.settings.settings.map { it.barSide == BarSide.Left }.distinctUntilChanged()
+                }.collectAsStateWithLifecycle(initialValue = barOnLeftAtFirst)
+                // How far this window reaches under the side bar, which lies along one edge of the screen.
                 var underBar by remember { mutableFloatStateOf(0f) }
                 val view = LocalView.current
+                val barWidth = SIDE_BAR_WIDTH * scale
                 Box(
                     Modifier.fillMaxSize().onGloballyPositioned {
                         val place = IntArray(2)
                         view.getLocationOnScreen(place)
-                        val right = place[0] + view.width
-                        underBar = (right - (screenWidth - SIDE_BAR_WIDTH * scale)).coerceIn(0f, SIDE_BAR_WIDTH * scale)
+                        val reach = if (barOnLeft) barWidth - place[0] else place[0] + view.width - (screenWidth - barWidth)
+                        underBar = reach.coerceIn(0f, barWidth)
                     },
                 ) {
                     SplitChooser(
                         apps = remember(ui, onScreen) { SplitChoices.of(ui.visible, container.apps.ownId, onScreen) },
                         barRoom = if (barWanted && barAllowed && !barTucked) (underBar / scale).dp else 0.dp,
+                        barOnLeft = barOnLeft,
                         onPick = ::open,
                         onCancel = ::finish,
                     )

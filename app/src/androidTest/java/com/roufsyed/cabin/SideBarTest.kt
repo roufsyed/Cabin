@@ -50,7 +50,7 @@ class SideBarTest {
 
     private val buttons = listOf("Phone", "Phone link", "Home", "Go back", "Volume up", "Mute or unmute", "Volume down")
 
-    private fun show(split: Boolean = false, handle: Boolean = false) {
+    private fun show(split: Boolean = false, handle: Boolean = false, onLeft: Boolean = false) {
         compose.setContent {
             CompositionLocalProvider(LocalDensity provides Density(density = SCALE, fontScale = 1f)) {
                 Box(Modifier.size(66.dp, 800.dp)) {
@@ -66,6 +66,7 @@ class SideBarTest {
                         onMute = { calls += "mute" },
                         onVolumeDown = { calls += "down" },
                         onTuck = if (handle) ({ calls += "tuck" }) else null,
+                        onLeft = onLeft,
                     )
                 }
             }
@@ -155,6 +156,18 @@ class SideBarTest {
         compose.onNodeWithContentDescription("Bring the side bar back").performClick()
         compose.waitForIdle()
         assertEquals(listOf("back out"), calls)
+    }
+
+    @Test
+    fun onTheLeftEdgeTheBarHasTheSameButtonsWithItsHairlineOnTheOtherSide() {
+        show(split = true, handle = true, onLeft = true)
+        for (button in buttons.take(2) + "Split screen" + buttons.drop(2) + "Tuck the side bar away") {
+            val box = box(button)
+            // The hairline is on the right now, where the bar meets the app.
+            assertEquals("$button left", 0f, box.left, 1f)
+            assertEquals("$button width", 65f, box.width, 1f)
+        }
+        assertEquals(96f, box("Home").height, 1.5f)
     }
 
     @Test

@@ -301,4 +301,39 @@ class ShellViewModelTest {
         shell.back()
         assertEquals(Shell(screen = Screen.Settings), state)
     }
+
+    @Test
+    fun `theme and gestures has a second page, layout, and back leads from it to the first`() {
+        shell.open(Screen.Preferences)
+        shell.preferencesPage(1)
+        assertEquals(Shell(screen = Screen.Preferences, page = 1), state)
+        // There is no third page.
+        shell.preferencesPage(5)
+        assertEquals(1, state.page)
+
+        shell.back()
+        assertEquals(Shell(screen = Screen.Preferences), state)
+        shell.back()
+        assertEquals(Screen.Settings, state.screen)
+    }
+
+    @Test
+    fun `a swipe turns the pages of theme and gestures, and from its first page a swipe right goes Home`() {
+        shell.open(Screen.Preferences)
+        shell.swipeLeft(pages = PREFERENCES_PAGES)
+        assertEquals(1, state.page)
+        shell.swipeLeft(pages = PREFERENCES_PAGES)
+        assertEquals(1, state.page)
+        shell.swipeRight()
+        assertEquals(Shell(screen = Screen.Preferences), state)
+        shell.swipeRight()
+        assertEquals(Shell(), state)
+    }
+
+    @Test
+    fun `turning a page only works on the screen that has them`() {
+        shell.open(Screen.Settings)
+        shell.preferencesPage(1)
+        assertEquals(Shell(screen = Screen.Settings), state)
+    }
 }

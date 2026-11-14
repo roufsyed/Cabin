@@ -10,8 +10,11 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import com.roufsyed.cabin.model.AppEntry
+import com.roufsyed.cabin.model.BarSide
 import com.roufsyed.cabin.model.BrightnessMode
 import com.roufsyed.cabin.model.Glyph
+import com.roufsyed.cabin.model.HomePanel
+import com.roufsyed.cabin.model.LayoutRules
 import com.roufsyed.cabin.model.ScreenOffShows
 import com.roufsyed.cabin.model.Slot
 import com.roufsyed.cabin.model.SourceId
@@ -85,6 +88,10 @@ data class CabinSettings(
     val sideBar: Boolean = true,
     /** That bar has a grip that tucks it away, leaving a handle at the screen's edge to bring it back. */
     val barHandle: Boolean = true,
+    /** Which edge of the screen the side bar is on, in Cabin and over other apps. */
+    val barSide: BarSide = BarSide.Right,
+    /** The Home screen's three panels, from left to right. */
+    val homeOrder: List<HomePanel> = LayoutRules.DESIGN_ORDER,
     /** Last known position, kept so sunrise and sunset can be worked out without waiting for a fix. */
     val latitude: Double? = null,
     val longitude: Double? = null,
@@ -140,6 +147,8 @@ object SettingsCodec {
     private val theme = stringPreferencesKey("theme")
     private val sideBar = booleanPreferencesKey("side_bar")
     private val barHandle = booleanPreferencesKey("side_bar_handle")
+    private val barSide = stringPreferencesKey("side_bar_side")
+    private val homeOrder = stringPreferencesKey("home_order")
     private val offClock = booleanPreferencesKey("off_clock")
     private val offDate = booleanPreferencesKey("off_date")
     private val offPlaying = booleanPreferencesKey("off_playing")
@@ -187,6 +196,10 @@ object SettingsCodec {
             ),
             sideBar = prefs[sideBar] ?: defaults.sideBar,
             barHandle = prefs[barHandle] ?: defaults.barHandle,
+            barSide = prefs[barSide]?.let { enumOrNull<BarSide>(it) } ?: defaults.barSide,
+            homeOrder = LayoutRules.valid(
+                prefs[homeOrder]?.split(',')?.mapNotNull { enumOrNull<HomePanel>(it) } ?: defaults.homeOrder,
+            ),
             latitude = coordinates?.getOrNull(0)?.takeIf { coordinates.size == 2 },
             longitude = coordinates?.getOrNull(1)?.takeIf { coordinates.size == 2 },
             recentPlaces = prefs[recentPlaces]?.lines()?.filter { it.isNotEmpty() }.orEmpty(),
@@ -222,6 +235,8 @@ object SettingsCodec {
         prefs[offStatus] = settings.screenOff.status
         prefs[sideBar] = settings.sideBar
         prefs[barHandle] = settings.barHandle
+        prefs[barSide] = settings.barSide.name
+        prefs[homeOrder] = settings.homeOrder.joinToString(",") { it.name }
         prefs.remove(retiredSwipe)
         if (settings.latitude != null && settings.longitude != null) {
             prefs[position] = "${settings.latitude},${settings.longitude}"

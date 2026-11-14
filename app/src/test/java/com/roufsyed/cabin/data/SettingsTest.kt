@@ -5,8 +5,10 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.roufsyed.cabin.model.AppEntry
+import com.roufsyed.cabin.model.BarSide
 import com.roufsyed.cabin.model.BrightnessMode
 import com.roufsyed.cabin.model.Glyph
+import com.roufsyed.cabin.model.HomePanel
 import com.roufsyed.cabin.model.ScreenOffShows
 import com.roufsyed.cabin.model.Slot
 import com.roufsyed.cabin.model.SourceId
@@ -73,6 +75,9 @@ class SettingsTest {
         // The bar over other apps is wanted from the start; it shows once Android allows it.
         assertTrue(settings.sideBar)
         assertTrue(settings.barHandle)
+        // The side bar is on the right and Home's panels are in the design's order.
+        assertEquals(BarSide.Right, settings.barSide)
+        assertEquals(listOf(HomePanel.Clock, HomePanel.Navigation, HomePanel.NowPlaying), settings.homeOrder)
     }
 
     @Test
@@ -107,6 +112,8 @@ class SettingsTest {
             screenOff = ScreenOffShows(clock = false, date = true, playing = true, turn = false, status = true),
             sideBar = false,
             barHandle = false,
+            barSide = BarSide.Left,
+            homeOrder = listOf(HomePanel.NowPlaying, HomePanel.Clock, HomePanel.Navigation),
             latitude = 12.97,
             longitude = 77.59,
             recentPlaces = listOf("Airport", "City Mall"),
@@ -152,9 +159,13 @@ class SettingsTest {
                 it[stringPreferencesKey("gesture_side")] = "Diagonal"
                 it[stringPreferencesKey("theme")] = "Tartan"
                 it[stringPreferencesKey("gesture_two_finger")] = ""
+                it[stringPreferencesKey("side_bar_side")] = "Top"
+                it[stringPreferencesKey("home_order")] = "Clock,Clock,Weather"
             }
         }
         val settings = SettingsCodec.decode(runBlocking { raw.data.first() })
+        assertEquals(BarSide.Right, settings.barSide)
+        assertEquals(listOf(HomePanel.Clock, HomePanel.Navigation, HomePanel.NowPlaying), settings.homeOrder)
         assertEquals(SideSwipe.Apps, settings.sideSwipe)
         assertEquals(TwoFingerDrag.Volume, settings.twoFingerDrag)
         assertEquals(ThemeId.Blue, settings.theme)

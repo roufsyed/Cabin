@@ -11,7 +11,10 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.roufsyed.cabin.data.CabinSettings
 import com.roufsyed.cabin.media.FixedMedia
+import com.roufsyed.cabin.model.BarSide
+import com.roufsyed.cabin.model.HomePanel
 import com.roufsyed.cabin.model.NavUi
 import com.roufsyed.cabin.model.Samples
 import com.roufsyed.cabin.model.ScreenOffShows
@@ -151,6 +154,49 @@ class LayoutTest {
         cabin.onNodeWithContentDescription("Go back").assertDoesNotExist()
     }
 
+    private fun place(transform: (CabinSettings) -> CabinSettings) {
+        runBlocking { values.container.settings.update(transform) }
+        cabin.waitForIdle()
+    }
+
+    @Test
+    fun withTheSideBarOnTheLeftTheRailAndTheMainColumnChangePlaces() {
+        place { it.copy(barSide = BarSide.Left) }
+        // The rail takes the left margin, and the main column starts 164 further right than designed.
+        at("Phone", 41f, 41f, 130f, 136f)
+        at("Phone link", 41f, 177f, 130f, 136f)
+        at("All apps", 41f, 313f, 130f, 136f)
+        at("Volume up", 41f, 450f, 130f, 104f)
+        at("Volume down", 41f, 655f, 130f, 104f)
+        at("Open Maps", 559f, 41f, 326f, 598f)
+        at("Open music", 913f, 41f, 326f, 470f)
+        at("Brightness down", 205f, 665f, 96f, 94f)
+        at("Radio source", 559f, 665f, 138f, 94f)
+        // The same on another screen.
+        cabin.onNodeWithContentDescription("All apps").performClick()
+        at("Home", 41f, 313f, 130f, 136f)
+        at("Browser", 204f, 152f, 196.8f, 154f)
+
+        place { it.copy(barSide = BarSide.Right) }
+        at("Home", 1109f, 313f, 130f, 136f)
+        at("Browser", 40f, 152f, 196.8f, 154f)
+    }
+
+    @Test
+    fun homesPanelsGoWhereTheyArePlaced() {
+        // The design: clock, navigation, now playing.
+        assertEquals(73f, line("Thursday").left, 1.5f)
+        at("Open Maps", 395f, 41f, 326f, 598f)
+        at("Open music", 749f, 41f, 326f, 470f)
+
+        place { it.copy(homeOrder = listOf(HomePanel.NowPlaying, HomePanel.Clock, HomePanel.Navigation)) }
+        // The three panels keep their size and the 26 between them; only who is where changes.
+        at("Open music", 41f, 41f, 326f, 470f)
+        at("Previous", 41f, 511f, 108f, 128f)
+        assertEquals(427f, line("Thursday").left, 1.5f)
+        at("Open Maps", 749f, 41f, 326f, 598f)
+    }
+
     @Test
     fun bottomRowMatchesTheDesignGrid() {
         at("Brightness down", 41f, 665f, 96f, 94f)
@@ -273,8 +319,18 @@ class LayoutTest {
         at("Swipe sideways: apps, tracks or off", 40f, 277f, 511.5f, 112f)
         at("Two-finger drag: volume, brightness or off", 564.5f, 277f, 511.5f, 112f)
         at("Long press on an app: split screen or off", 40f, 402f, 511.5f, 112f)
-        at("Side bar over other apps: on or off", 564.5f, 402f, 511.5f, 112f)
-        at("Side bar handle: on or off", 40f, 527f, 511.5f, 112f)
+        // Its second page, Layout, is reached by the same kind of button as Setup's.
+        at("Layout page", 818f, 40f, 96f, 96f)
+        cabin.onNodeWithContentDescription("Layout page").performClick()
+        at("Theme and gestures page", 818f, 40f, 96f, 96f)
+        at("Side bar over other apps: on or off", 40f, 152f, 511.5f, 112f)
+        at("Side bar handle: on or off", 564.5f, 152f, 511.5f, 112f)
+        at("Side bar position: right or left", 40f, 277f, 511.5f, 112f)
+        at("Clock and date on Home: left, middle or right", 564.5f, 277f, 511.5f, 112f)
+        at("Navigation on Home: left, middle or right", 40f, 402f, 511.5f, 112f)
+        at("Now playing on Home: left, middle or right", 564.5f, 402f, 511.5f, 112f)
+        at("Reset positions", 40f, 527f, 511.5f, 112f)
+        cabin.onNodeWithContentDescription("Theme and gestures page").performClick()
         // The rail and bottom row do not move.
         at("Home", 1109f, 313f, 130f, 136f)
         at("Radio source", 395f, 665f, 138f, 94f)

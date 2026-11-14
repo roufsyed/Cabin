@@ -30,15 +30,20 @@ import com.roufsyed.cabin.ui.icons.SlateIcons
 import com.roufsyed.cabin.ui.media.CoverArt
 import com.roufsyed.cabin.ui.media.ProgressBlock
 import com.roufsyed.cabin.model.ClockUi
+import com.roufsyed.cabin.model.HomePanel
 import com.roufsyed.cabin.model.NavUi
 import com.roufsyed.cabin.model.NowPlayingUi
 import com.roufsyed.cabin.model.StatusUi
 import com.roufsyed.cabin.ui.theme.Slate
 import com.roufsyed.cabin.ui.theme.Txt
 
-/** The three Home panels: 328 x 600 each, 26 apart, filling the 1036 x 600 content area. */
+/**
+ * The three Home panels: 328 x 600 each, 26 apart, filling the 1036 x 600 content area. [order] is
+ * which panel has which place, from left to right; the design's is clock, navigation, now playing.
+ */
 @Composable
 fun HomePanels(
+    order: List<HomePanel>,
     clock: ClockUi,
     status: StatusUi,
     nav: NavUi,
@@ -53,9 +58,13 @@ fun HomePanels(
     onNext: () -> Unit,
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(26.dp)) {
-        ClockPanel(clock, status)
-        NavigationPanel(nav, onOpenMaps, onWhereTo, onNavigateHome, onNavigateOffice)
-        NowPlayingPanel(nowPlaying, onOpenNowPlaying, onPrevious, onPlayPause, onNext)
+        for (panel in order) {
+            when (panel) {
+                HomePanel.Clock -> ClockPanel(clock, status)
+                HomePanel.Navigation -> NavigationPanel(nav, onOpenMaps, onWhereTo, onNavigateHome, onNavigateOffice)
+                HomePanel.NowPlaying -> NowPlayingPanel(nowPlaying, onOpenNowPlaying, onPrevious, onPlayPause, onNext)
+            }
+        }
     }
 }
 

@@ -19,6 +19,9 @@ enum class Screen {
 /** Setup has more tiles than fit at once: what Cabin may do on the first page, the apps it opens on the second. */
 const val SETUP_PAGES = 2
 
+/** So has "Theme and gestures": the theme and what the gestures do, then where things are on screen. */
+const val PREFERENCES_PAGES = 2
+
 enum class EditKind { Apps, Sources }
 
 enum class Overlay { None, Tray, Voice, ScreenOff }
@@ -65,6 +68,11 @@ class ShellViewModel : ViewModel() {
     /** Turns to a page of Setup. */
     fun setupPage(page: Int) = _state.update {
         if (it.screen == Screen.Setup) it.copy(page = page.coerceIn(0, SETUP_PAGES - 1)) else it
+    }
+
+    /** Turns to a page of "Theme and gestures". */
+    fun preferencesPage(page: Int) = _state.update {
+        if (it.screen == Screen.Preferences) it.copy(page = page.coerceIn(0, PREFERENCES_PAGES - 1)) else it
     }
 
     fun arrangeApps() = _state.update { Shell(screen = Screen.Apps, edit = EditKind.Apps) }
@@ -145,7 +153,8 @@ class ShellViewModel : ViewModel() {
     }
 
     private val Screen.paged: Boolean
-        get() = this == Screen.Apps || this == Screen.Pick || this == Screen.Split || this == Screen.Setup
+        get() = this == Screen.Apps || this == Screen.Pick || this == Screen.Split || this == Screen.Setup ||
+            this == Screen.Preferences
 
     fun show(overlay: Overlay) = _state.update { it.copy(overlay = overlay) }
 
@@ -159,8 +168,8 @@ class ShellViewModel : ViewModel() {
             it.screen == Screen.Split -> afterSplit(it)
             it.edit == EditKind.Sources -> Shell(screen = Screen.Settings)
             it.edit == EditKind.Apps -> Shell(screen = Screen.Apps, page = it.page)
-            // The second page of Setup leads back to its first.
-            it.screen == Screen.Setup && it.page > 0 -> it.copy(page = it.page - 1)
+            // The second page of Setup, or of Theme and gestures, leads back to its first.
+            (it.screen == Screen.Setup || it.screen == Screen.Preferences) && it.page > 0 -> it.copy(page = it.page - 1)
             // The theme chooser is reached from the "Theme and gestures" screen.
             it.screen == Screen.Theme -> Shell(screen = Screen.Preferences)
             it.screen == Screen.Keys || it.screen == Screen.Preferences || it.screen == Screen.ScreenOff ||

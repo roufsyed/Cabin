@@ -12,6 +12,8 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
+import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.test.swipeRight
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.roufsyed.cabin.apps.FixedApps
 import com.roufsyed.cabin.data.CabinSettings
@@ -19,6 +21,9 @@ import com.roufsyed.cabin.data.InMemorySettings
 import com.roufsyed.cabin.data.SideSwipe
 import com.roufsyed.cabin.data.TwoFingerDrag
 import com.roufsyed.cabin.media.FixedMedia
+import com.roufsyed.cabin.model.BarSide
+import com.roufsyed.cabin.model.HomePanel
+import com.roufsyed.cabin.model.LayoutRules
 import com.roufsyed.cabin.model.Slot
 import com.roufsyed.cabin.model.SourceId
 import com.roufsyed.cabin.system.FixedHeadlights
@@ -199,11 +204,18 @@ class SettingsAndKeysTest {
         cabin.waitUntil(2_000) { settings.sideBar }
     }
 
-    @Test
-    fun theSideBarsSwitchIsAlsoUnderThemeAndGestures() {
+    /** Settings > Theme and gestures > its second page. */
+    private fun openLayout() {
         openSettings()
-        cabin.onNodeWithText("Colours, swipes and the side bar").assertIsDisplayed()
+        cabin.onNodeWithText("Colours, swipes and layout").assertIsDisplayed()
         tap("Theme and gestures")
+        tap("Layout page")
+        cabin.onNodeWithText("Layout").assertIsDisplayed()
+    }
+
+    @Test
+    fun theSideBarsSwitchIsAlsoOnTheLayoutPage() {
+        openLayout()
         cabin.onNodeWithText("Side bar in apps").assertIsDisplayed()
         cabin.onNodeWithText("Allow Cabin under Accessibility").assertIsDisplayed()
 
@@ -222,10 +234,9 @@ class SettingsAndKeysTest {
     }
 
     @Test
-    fun theSideBarsHandleIsOnUntilSwitchedOffUnderThemeAndGestures() {
+    fun theSideBarsHandleIsOnUntilSwitchedOffOnTheLayoutPage() {
         assertTrue(settings.barHandle)
-        openSettings()
-        tap("Theme and gestures")
+        openLayout()
         cabin.onNodeWithText("Side bar handle").assertIsDisplayed()
         cabin.onNodeWithContentDescription("Side bar handle: on or off").assertTextContains("On")
         tap("Side bar handle: on or off")
@@ -233,6 +244,49 @@ class SettingsAndKeysTest {
         cabin.onNodeWithContentDescription("Side bar handle: on or off").assertTextContains("Off")
         tap("Side bar handle: on or off")
         cabin.waitUntil(2_000) { settings.barHandle }
+    }
+
+    @Test
+    fun theLayoutPageMovesTheSideBarAndHomesPanelsAndResetPutsThemBack() {
+        openLayout()
+        // As the design has them: the bar on the right, then clock, navigation, now playing.
+        cabin.onNodeWithContentDescription("Side bar position: right or left").assertTextContains("Right")
+        cabin.onNodeWithContentDescription("Clock and date on Home: left, middle or right").assertTextContains("Left")
+        cabin.onNodeWithContentDescription("Navigation on Home: left, middle or right").assertTextContains("Middle")
+        cabin.onNodeWithContentDescription("Now playing on Home: left, middle or right").assertTextContains("Right")
+
+        tap("Side bar position: right or left")
+        cabin.waitUntil(2_000) { settings.barSide == BarSide.Left }
+        cabin.onNodeWithContentDescription("Side bar position: right or left").assertTextContains("Left")
+
+        // A tap moves a panel one place to the right; the one that was there takes its place.
+        tap("Clock and date on Home: left, middle or right")
+        cabin.waitUntil(2_000) { settings.homeOrder == listOf(HomePanel.Navigation, HomePanel.Clock, HomePanel.NowPlaying) }
+        cabin.onNodeWithContentDescription("Clock and date on Home: left, middle or right").assertTextContains("Middle")
+        cabin.onNodeWithContentDescription("Navigation on Home: left, middle or right").assertTextContains("Left")
+        // From the right a panel goes round to the left.
+        tap("Now playing on Home: left, middle or right")
+        cabin.waitUntil(2_000) { settings.homeOrder == listOf(HomePanel.NowPlaying, HomePanel.Navigation, HomePanel.Clock) }
+
+        tap("Reset positions")
+        cabin.waitUntil(2_000) { settings.barSide == BarSide.Right && settings.homeOrder == LayoutRules.DESIGN_ORDER }
+        cabin.onNodeWithContentDescription("Side bar position: right or left").assertTextContains("Right")
+        cabin.onNodeWithContentDescription("Clock and date on Home: left, middle or right").assertTextContains("Left")
+        // Reset is about places only: the bar's own switches stay as they were.
+        assertTrue(settings.sideBar)
+        assertTrue(settings.barHandle)
+    }
+
+    @Test
+    fun aSwipeTurnsBetweenThemeAndGesturesAndLayout() {
+        openSettings()
+        tap("Theme and gestures")
+        cabin.onRoot().performTouchInput { swipeLeft() }
+        cabin.onNodeWithText("Layout").assertIsDisplayed()
+        shows("Reset positions")
+        cabin.onRoot().performTouchInput { swipeRight() }
+        cabin.onNodeWithText("Theme and gestures").assertIsDisplayed()
+        shows("Choose a theme")
     }
 
     @Test
@@ -344,11 +398,11 @@ class SettingsAndKeysTest {
         tap("Two-finger drag: volume, brightness or off")
         cabin.waitUntil(2_000) { settings.twoFingerDrag == TwoFingerDrag.Brightness }
         awaitText("Brightness")
-        // Swipe down and swipe sideways are both off now, beside the side bar, which is not allowed yet.
-        awaitText("Off", count = 3)
+        // Swipe down and swipe sideways are both off now.
+        awaitText("Off", count = 2)
         tap("Long press on an app: split screen or off")
         cabin.waitUntil(2_000) { !settings.longPressSplit }
-        awaitText("Off", count = 4)
+        awaitText("Off", count = 3)
         tap("Long press on an app: split screen or off")
         cabin.waitUntil(2_000) { settings.longPressSplit }
         awaitText("Split")

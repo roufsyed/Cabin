@@ -40,7 +40,8 @@ private val ButtonShape = RoundedCornerShape(20.dp)
  * beside the app that was in front when Split was pressed. The same tiles as the Apps grid, as many
  * across and down as fit, with further pages a swipe away.
  *
- * [barRoom] is left clear on the right, where the side bar lies over this half's edge.
+ * [barRoom] is left clear where the side bar lies over this half's edge: on the right, or on the
+ * left with [barOnLeft].
  */
 @Composable
 fun SplitChooser(
@@ -48,6 +49,7 @@ fun SplitChooser(
     barRoom: Dp,
     onPick: (AppEntry) -> Unit,
     onCancel: () -> Unit,
+    barOnLeft: Boolean = false,
 ) {
     var page by remember { mutableIntStateOf(0) }
     BoxWithConstraints(
@@ -55,7 +57,10 @@ fun SplitChooser(
             .fillMaxSize()
             .background(Slate.Ground)
             // 16 all round: with the heading that leaves room for four rows on a screen 800 high.
-            .padding(start = 16.dp, top = 16.dp, end = 16.dp + barRoom, bottom = 16.dp),
+            .padding(
+                start = 16.dp + (if (barOnLeft) barRoom else 0.dp), top = 16.dp,
+                end = 16.dp + (if (barOnLeft) 0.dp else barRoom), bottom = 16.dp,
+            ),
     ) {
         // Inside Cabin one dp is one design pixel, so these are the design's numbers.
         val grid = SplitChoices.grid(maxWidth.value, maxHeight.value - 96f - 16f)
