@@ -32,6 +32,7 @@ import com.roufsyed.cabin.gesture.cabinGestures
 import com.roufsyed.cabin.model.AppTile
 import com.roufsyed.cabin.model.Slot
 import com.roufsyed.cabin.model.SourceId
+import com.roufsyed.cabin.model.ThemeId
 import com.roufsyed.cabin.nav.SavedPlace
 import com.roufsyed.cabin.sources.Opened
 import com.roufsyed.cabin.system.BrightnessRules
@@ -58,6 +59,7 @@ import com.roufsyed.cabin.ui.overlay.VolumeHud
 import com.roufsyed.cabin.ui.settings.KeysScreen
 import com.roufsyed.cabin.ui.settings.SettingsGrid
 import com.roufsyed.cabin.ui.settings.SettingsTile
+import com.roufsyed.cabin.ui.settings.ThemeGrid
 import com.roufsyed.cabin.ui.settings.WheelActions
 import com.roufsyed.cabin.ui.shell.EditKind
 import com.roufsyed.cabin.ui.shell.Overlay
@@ -67,7 +69,9 @@ import com.roufsyed.cabin.ui.shell.Shell
 import com.roufsyed.cabin.ui.shell.ShellViewModel
 import com.roufsyed.cabin.ui.sources.SourcesGrid
 import com.roufsyed.cabin.ui.theme.DesignSurface
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 /** Things only the activity can do, handed down to the screens. */
@@ -201,8 +205,14 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
         }
     }
 
+    // Nothing is drawn until the saved settings have been read, which takes a few milliseconds:
+    // otherwise every start would show a frame of the default theme, order and levels first.
+    val loaded by remember(container) {
+        container.settings.settings.map { it.loaded }.distinctUntilChanged()
+    }.collectAsStateWithLifecycle(initialValue = false)
+
     DesignSurface {
-        Box(Modifier.fillMaxSize().cabinGestures(onGesture)) {
+        if (loaded) Box(Modifier.fillMaxSize().cabinGestures(onGesture)) {
             CabinFrame(
                 content = {
                     if (shell.screen == Screen.Home) {
@@ -215,7 +225,8 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
                                 shell.screen == Screen.Pick -> SlotPickBar(shell, container, shellModel)
                                 shell.screen == Screen.Split -> SplitBar(shell, appsModel, shellModel)
                                 shell.screen == Screen.Setup -> SetupBar(shell, container, shellModel)
-                                shell.screen == Screen.Gestures -> GesturesBar(shellModel)
+                                shell.screen == Screen.Preferences -> PreferencesBar(shellModel)
+                                shell.screen == Screen.Theme -> ThemeBar(shellModel)
                                 else -> Strip(dashboard, shellModel, host, showMini = shell.screen != Screen.Music)
                             }
                             Spacer(Modifier.height(16.dp))
@@ -225,7 +236,8 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
                                     Screen.Music -> MusicContent(dashboard)
                                     Screen.Settings -> SettingsContent(container, shellModel, host)
                                     Screen.Keys -> KeysScreen(wheel, onBack = { shellModel.open(Screen.Settings) })
-                                    Screen.Gestures -> GesturesContent(container)
+                                    Screen.Preferences -> PreferencesContent(container, shellModel)
+                                    Screen.Theme -> ThemeContent(container)
                                     Screen.Setup -> SetupContent(shell, container, shellModel, host)
                                     Screen.Sources -> SourcesContent(shell, container, shellModel)
                                     Screen.Pick -> SlotPickContent(shell, container, appsModel, shellModel)
@@ -535,26 +547,31 @@ private fun SettingsContent(container: AppContainer, shellModel: ShellViewModel,
                 "Wi-Fi", "Hotspot and updates", "Wi-Fi settings",
                 value = if (status.wifi) "On" else "Off", on = status.wifi, onClick = host.openWifi,
             ),
-            SettingsTile("Gestures", "Swipes and two fingers", "Gesture settings") { shellModel.open(Screen.Gestures) },
+            SettingsTile("Theme and gestures", "Colours and what swipes do", "Theme and gestures") {
+                shellModel.open(Screen.Preferences)
+            },
             SettingsTile("Setup", "Permissions and apps", "Open setup") { shellModel.open(Screen.Setup) },
         ),
     )
 }
 
 @Composable
-private fun GesturesBar(shellModel: ShellViewModel) {
+private fun PreferencesBar(shellModel: ShellViewModel) {
     TitleBar(
-        title = "Gestures",
-        hint = "Tap one to change what it does",
+        title = "Theme and gestures",
+        hint = "Tap one to change it",
         action = "Done",
         actionDescription = "Back to settings",
         onAction = { shellModel.open(Screen.Settings) },
     )
 }
 
-/** Gestures: what each of Cabin's finger movements does. A tap on a tile moves it to its next option. */
+/**
+ * Theme and gestures: the colour theme, then what each of Cabin's finger movements does. The theme
+ * tile leads to the chooser; a tap on a gesture's tile moves it to its next option.
+ */
 @Composable
-private fun GesturesContent(container: AppContainer) {
+private fun PreferencesContent(container: AppContainer, shellModel: ShellViewModel) {
     val settings by container.settings.settings.collectAsStateWithLifecycle()
     val canSplit = container.apps.splitScreen
     fun change(transform: (CabinSettings) -> CabinSettings) {
@@ -562,6 +579,11 @@ private fun GesturesContent(container: AppContainer) {
     }
     SettingsGrid(
         listOf(
+            SettingsTile(
+                "Theme", "Colours of the screen", "Choose a theme",
+                value = settings.theme.label, on = true,
+                onClick = { shellModel.open(Screen.Theme) },
+            ),
             SettingsTile(
                 "Swipe down", "One finger", "Swipe down: tray or off",
                 value = if (settings.swipeDownTray) "Tray" else "Off", on = settings.swipeDownTray,
@@ -587,6 +609,29 @@ private fun GesturesContent(container: AppContainer) {
                 onClick = { if (canSplit) change { it.copy(longPressSplit = !it.longPressSplit) } },
             ),
         ),
+    )
+}
+
+@Composable
+private fun ThemeBar(shellModel: ShellViewModel) {
+    TitleBar(
+        title = "Theme",
+        hint = "Tap one to use it",
+        action = "Done",
+        actionDescription = "Back to theme and gestures",
+        onAction = { shellModel.open(Screen.Preferences) },
+    )
+}
+
+/** The ten themes. A tap saves the choice; the whole screen follows it at once, which is the preview. */
+@Composable
+private fun ThemeContent(container: AppContainer) {
+    val current by remember(container) {
+        container.settings.settings.map { it.theme }.distinctUntilChanged()
+    }.collectAsStateWithLifecycle(initialValue = ThemeId.Blue)
+    ThemeGrid(
+        current = current,
+        onPick = { id -> container.scope.launch { container.settings.update { it.copy(theme = id) } } },
     )
 }
 

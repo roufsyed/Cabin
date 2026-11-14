@@ -93,6 +93,12 @@ object SlateIcons {
     /** The ring behind a one-letter monogram. */
     val Ring = icon { circle(12f, 12f, 9f) }
 
+    /** A ring with a dot in it: the one chosen among several, as on a radio button. */
+    val RingChosen = icon {
+        circle(12f, 12f, 9f)
+        dot(12f, 12f, 4f)
+    }
+
     // Tray and keys
     val Message = icon { path("M4 5.5h16v10.5H10l-4.5 4v-4H4z") }
     val Mode = icon {

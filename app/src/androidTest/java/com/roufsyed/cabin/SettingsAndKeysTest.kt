@@ -67,11 +67,11 @@ class SettingsAndKeysTest {
     }
 
     @Test
-    fun settingsHasTheDesignsSixTilesThenGesturesAndSetup() {
+    fun settingsHasTheDesignsSixTilesThenThemeAndGesturesAndSetup() {
         openSettings()
         for (tile in listOf(
             "Arrange apps", "Arrange sources", "Steering wheel keys", "Turn the screen off",
-            "Bluetooth settings", "Wi-Fi settings", "Gesture settings", "Open setup",
+            "Bluetooth settings", "Wi-Fi settings", "Theme and gestures", "Open setup",
         )) shows(tile)
         // The design's two "Prototype only" tiles are not part of the app.
         cabin.onNodeWithText("Incoming call").assertDoesNotExist()
@@ -254,10 +254,12 @@ class SettingsAndKeysTest {
     }
 
     @Test
-    fun gesturesScreenListsTheFourGesturesAndATapChangesEach() {
+    fun themeAndGesturesListsTheThemeAndTheFourGesturesAndATapChangesEach() {
         openSettings()
-        tap("Gesture settings")
-        cabin.onNodeWithText("Gestures").assertIsDisplayed()
+        tap("Theme and gestures")
+        cabin.onNodeWithText("Theme and gestures").assertIsDisplayed()
+        // The theme in use is named on its tile.
+        cabin.onNodeWithText("Blue").assertIsDisplayed()
         cabin.onNodeWithText("Tray").assertIsDisplayed()
         cabin.onNodeWithText("Apps").assertIsDisplayed()
         cabin.onNodeWithText("Volume").assertIsDisplayed()

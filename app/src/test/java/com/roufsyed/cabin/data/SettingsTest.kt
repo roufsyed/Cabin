@@ -9,6 +9,7 @@ import com.roufsyed.cabin.model.BrightnessMode
 import com.roufsyed.cabin.model.Glyph
 import com.roufsyed.cabin.model.Slot
 import com.roufsyed.cabin.model.SourceId
+import com.roufsyed.cabin.model.ThemeId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -65,6 +66,7 @@ class SettingsTest {
         assertEquals(TwoFingerDrag.Volume, settings.twoFingerDrag)
         assertTrue(settings.longPressSplit)
         assertTrue(settings.followHeadlights)
+        assertEquals(ThemeId.Blue, settings.theme)
     }
 
     @Test
@@ -95,6 +97,7 @@ class SettingsTest {
             sideSwipe = SideSwipe.Tracks,
             twoFingerDrag = TwoFingerDrag.Brightness,
             longPressSplit = false,
+            theme = ThemeId.Amber,
             latitude = 12.97,
             longitude = 77.59,
             recentPlaces = listOf("Airport", "City Mall"),
@@ -138,12 +141,14 @@ class SettingsTest {
                 it[stringPreferencesKey("position")] = "not,numbers"
                 it[stringPreferencesKey("app_cache")] = "broken line\ncom.a/.Main\tWhat\tAlpha"
                 it[stringPreferencesKey("gesture_side")] = "Diagonal"
+                it[stringPreferencesKey("theme")] = "Tartan"
                 it[stringPreferencesKey("gesture_two_finger")] = ""
             }
         }
         val settings = SettingsCodec.decode(runBlocking { raw.data.first() })
         assertEquals(SideSwipe.Apps, settings.sideSwipe)
         assertEquals(TwoFingerDrag.Volume, settings.twoFingerDrag)
+        assertEquals(ThemeId.Blue, settings.theme)
 
         // Known sources keep their saved place; the rest are appended so none can go missing.
         assertEquals(

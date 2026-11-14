@@ -14,6 +14,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.ui.graphics.toArgb
+import androidx.core.graphics.drawable.toDrawable
 import androidx.core.net.toUri
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -29,8 +31,11 @@ import com.roufsyed.cabin.ui.CabinRoot
 import com.roufsyed.cabin.ui.HostActions
 import com.roufsyed.cabin.ui.shell.Overlay
 import com.roufsyed.cabin.ui.shell.ShellViewModel
+import com.roufsyed.cabin.ui.theme.Slate
+import com.roufsyed.cabin.ui.theme.Themes
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 /** Cabin's only activity. It is the unit's home screen, so it is never finished. */
@@ -60,6 +65,7 @@ class MainActivity : ComponentActivity() {
         }
         hideSystemBars()
         val container = container
+        followTheme()
         val host = HostActions(
             requestHomeRole = { container.homeRole.requestIntent()?.let(homeRoleRequest::launch) },
             requestNotificationAccess = ::openNotificationAccess,
@@ -95,6 +101,21 @@ class MainActivity : ComponentActivity() {
         container.volume.refresh()
         container.permissions.refresh()
         container.status.refresh()
+    }
+
+    /**
+     * Puts the saved colour theme in use, now and whenever another is chosen. It starts before the
+     * first frame is composed, so a theme that is already known is there from the start. The window
+     * behind the screen takes the theme's ground colour too.
+     */
+    private fun followTheme() {
+        lifecycleScope.launch {
+            container.settings.settings.map { it.theme }.distinctUntilChanged().collect { id ->
+                val palette = Themes.palette(id)
+                Slate.palette = palette
+                window.setBackgroundDrawable(palette.ground.toArgb().toDrawable())
+            }
+        }
     }
 
     /**

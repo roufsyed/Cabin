@@ -141,7 +141,7 @@ class NoSplitScreenTest {
         assertEquals(listOf(FixedApps.id("Maps")), apps.launched)
 
         tap("Settings")
-        tap("Gesture settings")
+        tap("Theme and gestures")
         cabin.onNodeWithText("Unit has no split screen").assertIsDisplayed()
         // Tapping the tile changes nothing: there is nothing to switch on.
         tap("Long press on an app: split screen or off")

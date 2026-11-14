@@ -3,7 +3,10 @@ package com.roufsyed.cabin.ui.theme
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.PlatformTextStyle
@@ -19,22 +22,31 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.roufsyed.cabin.R
+import com.roufsyed.cabin.model.ThemeId
 
-/** Colour tokens of the Slate design. The accent is used for the active state only. */
+/**
+ * Colour tokens of the Slate design. The accent is used for the active state only.
+ *
+ * Each token reads the theme in use, [palette]. Everything on screen takes its colours from here, so
+ * setting another palette recolours the whole of Cabin on the next frame.
+ */
 object Slate {
-    val Ground = Color(0xFF08090A)
-    val Surface = Color(0xFF111315)
-    val Raised = Color(0xFF15181B)
-    val Hairline = Color(0xFF1F2226)
-    val Outline = Color(0xFF2A2E35)
-    val Text = Color(0xFFF2F2F0)
-    val Ink = Color(0xFFECEBE7)
-    val TextSecondary = Color(0xFFDAD9D5)
-    val Muted = Color(0xFFA4A6A9)
-    val Disabled = Color(0xFF6E737B)
-    val Accent = Color(0xFF9CC9F5)
-    val Danger = Color(0xFFC8423B)
-    val Scrim = Color(0x9E000000)
+    /** The colours in use. The design's own until the saved theme has been read. */
+    var palette: Palette by mutableStateOf(Themes.palette(ThemeId.Blue))
+
+    val Ground: Color get() = palette.ground
+    val Surface: Color get() = palette.surface
+    val Raised: Color get() = palette.raised
+    val Hairline: Color get() = palette.hairline
+    val Outline: Color get() = palette.outline
+    val Text: Color get() = palette.text
+    val Ink: Color get() = palette.ink
+    val TextSecondary: Color get() = palette.textSecondary
+    val Muted: Color get() = palette.muted
+    val Disabled: Color get() = palette.disabled
+    val Accent: Color get() = palette.accent
+    val Danger: Color get() = palette.danger
+    val Scrim: Color get() = palette.scrim
 
     val Figtree = FontFamily(
         Font(R.font.figtree_light, FontWeight.Light),

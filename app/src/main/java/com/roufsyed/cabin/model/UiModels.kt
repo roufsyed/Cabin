@@ -85,6 +85,20 @@ data class VolumeUi(val level: Int, val muted: Boolean)
 
 enum class BrightnessMode(val label: String) { Auto("Auto"), Day("Day"), Night("Night") }
 
+/** The colour themes, in the order they are offered. Blue is the design's own. */
+enum class ThemeId(val label: String) {
+    Blue("Blue"),
+    Teal("Teal"),
+    Emerald("Emerald"),
+    Champagne("Champagne"),
+    Amber("Amber"),
+    Copper("Copper"),
+    Ruby("Ruby"),
+    Rose("Rose"),
+    Amethyst("Amethyst"),
+    Platinum("Platinum"),
+}
+
 @Immutable
 data class BrightnessUi(val level: Int, val night: Boolean, val mode: BrightnessMode)
 

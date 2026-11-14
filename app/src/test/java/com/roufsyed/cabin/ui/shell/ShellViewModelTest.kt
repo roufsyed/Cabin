@@ -139,8 +139,8 @@ class ShellViewModelTest {
     }
 
     @Test
-    fun `back from the keys screen, from Gestures and from Setup returns to Settings`() {
-        for (screen in listOf(Screen.Keys, Screen.Gestures, Screen.Setup)) {
+    fun `back from the keys screen, from Theme and gestures and from Setup returns to Settings`() {
+        for (screen in listOf(Screen.Keys, Screen.Preferences, Screen.Setup)) {
             shell.open(screen)
             shell.back()
             assertEquals(Shell(screen = Screen.Settings), state)
@@ -258,9 +258,18 @@ class ShellViewModelTest {
     }
 
     @Test
-    fun `a swipe right leaves Gestures for Home like any other settings screen`() {
-        shell.open(Screen.Gestures)
+    fun `a swipe right leaves Theme and gestures for Home like any other settings screen`() {
+        shell.open(Screen.Preferences)
         shell.swipeRight()
         assertEquals(Shell(), state)
+    }
+
+    @Test
+    fun `back from the theme chooser returns to Theme and gestures, then to Settings`() {
+        shell.open(Screen.Theme)
+        shell.back()
+        assertEquals(Shell(screen = Screen.Preferences), state)
+        shell.back()
+        assertEquals(Shell(screen = Screen.Settings), state)
     }
 }

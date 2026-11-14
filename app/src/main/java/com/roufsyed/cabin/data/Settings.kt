@@ -14,6 +14,7 @@ import com.roufsyed.cabin.model.BrightnessMode
 import com.roufsyed.cabin.model.Glyph
 import com.roufsyed.cabin.model.Slot
 import com.roufsyed.cabin.model.SourceId
+import com.roufsyed.cabin.model.ThemeId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -75,6 +76,8 @@ data class CabinSettings(
     val twoFingerDrag: TwoFingerDrag = TwoFingerDrag.Volume,
     /** Holding an app in the grid starts choosing a second one to show beside it. */
     val longPressSplit: Boolean = true,
+    /** The colour theme. */
+    val theme: ThemeId = ThemeId.Blue,
     /** Last known position, kept so sunrise and sunset can be worked out without waiting for a fix. */
     val latitude: Double? = null,
     val longitude: Double? = null,
@@ -127,6 +130,7 @@ object SettingsCodec {
     private val sideSwipe = stringPreferencesKey("gesture_side")
     private val twoFingerDrag = stringPreferencesKey("gesture_two_finger")
     private val longPressSplit = booleanPreferencesKey("gesture_long_press")
+    private val theme = stringPreferencesKey("theme")
 
     /** Written by earlier builds, when sideways swipes had a single fixed meaning. No longer read. */
     private val retiredSwipe = stringPreferencesKey("swipe_action")
@@ -159,6 +163,7 @@ object SettingsCodec {
             sideSwipe = prefs[sideSwipe]?.let { enumOrNull<SideSwipe>(it) } ?: defaults.sideSwipe,
             twoFingerDrag = prefs[twoFingerDrag]?.let { enumOrNull<TwoFingerDrag>(it) } ?: defaults.twoFingerDrag,
             longPressSplit = prefs[longPressSplit] ?: defaults.longPressSplit,
+            theme = prefs[theme]?.let { enumOrNull<ThemeId>(it) } ?: defaults.theme,
             latitude = coordinates?.getOrNull(0)?.takeIf { coordinates.size == 2 },
             longitude = coordinates?.getOrNull(1)?.takeIf { coordinates.size == 2 },
             recentPlaces = prefs[recentPlaces]?.lines()?.filter { it.isNotEmpty() }.orEmpty(),
@@ -186,6 +191,7 @@ object SettingsCodec {
         prefs[sideSwipe] = settings.sideSwipe.name
         prefs[twoFingerDrag] = settings.twoFingerDrag.name
         prefs[longPressSplit] = settings.longPressSplit
+        prefs[theme] = settings.theme.name
         prefs.remove(retiredSwipe)
         if (settings.latitude != null && settings.longitude != null) {
             prefs[position] = "${settings.latitude},${settings.longitude}"
