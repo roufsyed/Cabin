@@ -4,6 +4,7 @@ import android.view.KeyEvent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -199,6 +200,28 @@ class SettingsAndKeysTest {
     }
 
     @Test
+    fun theSideBarsSwitchIsAlsoUnderThemeAndGestures() {
+        openSettings()
+        cabin.onNodeWithText("Colours, swipes and the side bar").assertIsDisplayed()
+        tap("Theme and gestures")
+        cabin.onNodeWithText("Side bar in apps").assertIsDisplayed()
+        cabin.onNodeWithText("Allow Cabin under Accessibility").assertIsDisplayed()
+
+        values.container.sideBar.allowed.value = true
+        cabin.waitForIdle()
+        cabin.onNodeWithText("The rail stays beside every app").assertIsDisplayed()
+        tap("Side bar over other apps: on or off")
+        cabin.waitUntil(2_000) { !settings.sideBar }
+        // It is the one setting, so Setup's tile shows the same.
+        tap("Back to settings")
+        tap("Open setup")
+        cabin.onNodeWithContentDescription("Keep the side bar over other apps").assertTextContains("Off")
+        tap("Keep the side bar over other apps")
+        cabin.waitUntil(2_000) { settings.sideBar }
+        cabin.onNodeWithContentDescription("Keep the side bar over other apps").assertTextContains("On")
+    }
+
+    @Test
     fun cabinTellsTheSideBarWhenItsOwnScreenIsShowing() {
         // The activity is up, with the whole rail: the bar for other apps steps aside.
         assertTrue(values.container.sideBar.cabinShowing.value)
@@ -307,11 +330,11 @@ class SettingsAndKeysTest {
         tap("Two-finger drag: volume, brightness or off")
         cabin.waitUntil(2_000) { settings.twoFingerDrag == TwoFingerDrag.Brightness }
         awaitText("Brightness")
-        // Swipe down and swipe sideways are both off now.
-        awaitText("Off", count = 2)
+        // Swipe down and swipe sideways are both off now, beside the side bar, which is not allowed yet.
+        awaitText("Off", count = 3)
         tap("Long press on an app: split screen or off")
         cabin.waitUntil(2_000) { !settings.longPressSplit }
-        awaitText("Off", count = 3)
+        awaitText("Off", count = 4)
         tap("Long press on an app: split screen or off")
         cabin.waitUntil(2_000) { settings.longPressSplit }
         awaitText("Split")

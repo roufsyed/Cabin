@@ -241,7 +241,7 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
                                     Screen.Music -> MusicContent(dashboard)
                                     Screen.Settings -> SettingsContent(container, shellModel, host)
                                     Screen.Keys -> KeysScreen(wheel, onBack = { shellModel.open(Screen.Settings) })
-                                    Screen.Preferences -> PreferencesContent(container, shellModel)
+                                    Screen.Preferences -> PreferencesContent(container, shellModel, host)
                                     Screen.Theme -> ThemeContent(container)
                                     Screen.ScreenOff -> ScreenOffOptions(container, shellModel)
                                     Screen.Setup -> SetupContent(shell, container, shellModel, host)
@@ -570,7 +570,7 @@ private fun SettingsContent(container: AppContainer, shellModel: ShellViewModel,
                 "Wi-Fi", "Hotspot and updates", "Wi-Fi settings",
                 value = if (status.wifi) "On" else "Off", on = status.wifi, onClick = host.openWifi,
             ),
-            SettingsTile("Theme and gestures", "Colours and what swipes do", "Theme and gestures") {
+            SettingsTile("Theme and gestures", "Colours, swipes and the side bar", "Theme and gestures") {
                 shellModel.open(Screen.Preferences)
             },
             SettingsTile("Setup", "Permissions and apps", "Open setup") { shellModel.open(Screen.Setup) },
@@ -590,12 +590,14 @@ private fun PreferencesBar(shellModel: ShellViewModel) {
 }
 
 /**
- * Theme and gestures: the colour theme, then what each of Cabin's finger movements does. The theme
- * tile leads to the chooser; a tap on a gesture's tile moves it to its next option.
+ * Theme and gestures: the colour theme, what each of Cabin's finger movements does, and whether the
+ * side bar stays on screen over other apps. The theme tile leads to the chooser; a tap on any other
+ * tile moves it to its next option.
  */
 @Composable
-private fun PreferencesContent(container: AppContainer, shellModel: ShellViewModel) {
+private fun PreferencesContent(container: AppContainer, shellModel: ShellViewModel, host: HostActions) {
     val settings by container.settings.settings.collectAsStateWithLifecycle()
+    val barAllowed by container.sideBar.allowed.collectAsStateWithLifecycle()
     val canSplit = container.apps.splitScreen
     fun change(transform: (CabinSettings) -> CabinSettings) {
         container.scope.launch { container.settings.update(transform) }
@@ -631,9 +633,38 @@ private fun PreferencesContent(container: AppContainer, shellModel: ShellViewMod
                 on = canSplit && settings.longPressSplit,
                 onClick = { if (canSplit) change { it.copy(longPressSplit = !it.longPressSplit) } },
             ),
+            // The same switch as on Setup's first page, here with the other things Cabin does.
+            sideBarTile(container, host, settings.sideBar, barAllowed, "Side bar over other apps: on or off"),
         ),
     )
 }
+
+/**
+ * The switch for the rail kept on screen over other apps. Android only lets an accessibility service
+ * do that, so until Cabin has been switched on as one, a tap leads to where that is done. After that
+ * the tile is the bar's own switch. It is on Setup's first page, among what Cabin asks of the unit,
+ * and under Theme and gestures, among what Cabin does.
+ */
+private fun sideBarTile(
+    container: AppContainer,
+    host: HostActions,
+    wanted: Boolean,
+    allowed: Boolean,
+    description: String,
+) = SettingsTile(
+    "Side bar in apps",
+    if (allowed) "The rail stays beside every app" else "Allow Cabin under Accessibility",
+    description,
+    value = if (allowed && wanted) "On" else "Off", on = allowed && wanted,
+    onClick = {
+        if (allowed) {
+            container.scope.launch { container.settings.update { it.copy(sideBar = !it.sideBar) } }
+        } else {
+            container.scope.launch { container.settings.update { it.copy(sideBar = true) } }
+            host.openAccessibility()
+        }
+    },
+)
 
 @Composable
 private fun ScreenOffBar(shellModel: ShellViewModel) {
@@ -784,23 +815,7 @@ private fun SetupPermissions(container: AppContainer, host: HostActions) {
             grant("Location", "Sunrise and sunset for Auto", Grant.Location),
             grant("Microphone", "Say a destination", Grant.Microphone),
             grant("Nearby devices", "Shows a connected phone", Grant.NearbyDevices),
-            // The rail kept on screen over other apps. Android only lets an accessibility service do
-            // that, so the first tap leads to where Cabin is switched on as one; after that the tile
-            // is the bar's own switch.
-            SettingsTile(
-                "Side bar in apps",
-                if (barAllowed) "The rail stays beside every app" else "Allow Cabin under Accessibility",
-                "Keep the side bar over other apps",
-                value = state(barAllowed && settings.sideBar), on = barAllowed && settings.sideBar,
-                onClick = {
-                    if (barAllowed) {
-                        container.scope.launch { container.settings.update { it.copy(sideBar = !it.sideBar) } }
-                    } else {
-                        container.scope.launch { container.settings.update { it.copy(sideBar = true) } }
-                        host.openAccessibility()
-                    }
-                },
-            ),
+            sideBarTile(container, host, settings.sideBar, barAllowed, "Keep the side bar over other apps"),
         ),
     )
 }
