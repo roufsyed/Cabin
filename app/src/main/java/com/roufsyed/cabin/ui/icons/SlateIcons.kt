@@ -32,7 +32,7 @@ object SlateIcons {
     }
     val ChevronRight = icon { path("M9.5 5.5L16 12l-6.5 6.5") }
     val ChevronLeft = icon { path("M14.5 5.5L8 12l6.5 6.5") }
-    /** Not in the design, which has no Back button: its left chevron with a shaft, in the same line. */
+    /** For the bar over other apps. Not in the design, which has no Back button: its left chevron with a shaft. */
     val Back = icon { path("M11 5.5L4.5 12l6.5 6.5"); path("M4.5 12h15") }
     /** Not in the design either: a screen parted down the middle, for two apps side by side. */
     val Split = icon { rect(3.5f, 5f, 17f, 14f, 2f); path("M12 5v14") }

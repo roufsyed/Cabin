@@ -1,8 +1,6 @@
 package com.roufsyed.cabin
 
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsEnabled
-import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -40,7 +38,7 @@ class MainFlowTest {
         cabin.onNodeWithText("Open Road").assertIsDisplayed()
         for (control in listOf(
             "Open Maps", "Open music", "Previous", "Play or pause", "Next",
-            "Phone", "Phone link", "All apps", "Go back", "Volume up", "Mute or unmute", "Volume down",
+            "Phone", "Phone link", "All apps", "Volume up", "Mute or unmute", "Volume down",
             "Brightness down", "Night mode: auto, day or night", "Brightness up",
             "Radio source", "Bluetooth source", "USB source", "Android Auto source",
         )) shows(control)
@@ -49,41 +47,16 @@ class MainFlowTest {
     }
 
     @Test
-    fun backOnTheRailGoesOneStepBackAndIsOffOnHome() {
-        // Home has nothing behind it.
-        cabin.onNodeWithContentDescription("Go back").assertIsNotEnabled()
+    fun theRailHasNoBackButtonOnAnyOfCabinsScreens() {
+        // Back is for other apps, on the bar that stays over them. Cabin's screens have their own ways back.
+        gone("Go back")
         tap("All apps")
-        cabin.onNodeWithContentDescription("Go back").assertIsEnabled()
+        gone("Go back")
         tap("Settings")
+        gone("Go back")
         tap("Theme and gestures")
-        tap("Choose a theme")
-        shows("Back to theme and gestures")
-        // Each press is one step: the theme chooser, its page, Settings, the apps, Home.
-        tap("Go back")
-        shows("Choose a theme")
-        tap("Go back")
-        shows("Theme and gestures")
-        tap("Go back")
-        shows("Browser")
-        tap("Go back")
-        shows("Open Maps")
-        cabin.onNodeWithContentDescription("Go back").assertIsNotEnabled()
-    }
-
-    @Test
-    fun backOnTheRailLeavesArrangingAndTheAppChooser() {
-        tap("All apps")
-        tap("Settings")
-        tap("Arrange sources")
-        cabin.onNodeWithText("Arrange sources").assertIsDisplayed()
-        tap("Go back")
-        shows("Arrange sources")
-        tap("Open setup")
-        tap("Next setup page")
-        tap("Choose the maps app")
-        cabin.onNodeWithText("Maps opens").assertIsDisplayed()
-        tap("Go back")
-        shows("Choose the maps app")
+        gone("Go back")
+        shows("Back to settings")
     }
 
     @Test
