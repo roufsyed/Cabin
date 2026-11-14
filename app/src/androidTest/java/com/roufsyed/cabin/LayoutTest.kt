@@ -274,6 +274,7 @@ class LayoutTest {
         at("Two-finger drag: volume, brightness or off", 564.5f, 277f, 511.5f, 112f)
         at("Long press on an app: split screen or off", 40f, 402f, 511.5f, 112f)
         at("Side bar over other apps: on or off", 564.5f, 402f, 511.5f, 112f)
+        at("Side bar handle: on or off", 40f, 527f, 511.5f, 112f)
         // The rail and bottom row do not move.
         at("Home", 1109f, 313f, 130f, 136f)
         at("Radio source", 395f, 665f, 138f, 94f)

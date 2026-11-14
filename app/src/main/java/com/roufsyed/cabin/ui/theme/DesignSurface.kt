@@ -47,18 +47,23 @@ fun DesignSurface(content: @Composable () -> Unit) {
     }
 }
 
+/** The whole screen's width and height in pixels, whatever part of it the window that asks has. */
+@Suppress("DEPRECATION")
+fun screenSize(context: Context): Pair<Int, Int> {
+    val manager = context.getSystemService(WindowManager::class.java)
+    return if (Build.VERSION.SDK_INT >= 30) {
+        manager.maximumWindowMetrics.bounds.let { it.width() to it.height() }
+    } else {
+        DisplayMetrics().also { manager.defaultDisplay.getRealMetrics(it) }.let { it.widthPixels to it.heightPixels }
+    }
+}
+
 /**
  * How large one design pixel is on this unit's screen. It goes by the whole screen, not by the window
  * that asks, so that the side bar and a window in half the screen draw at the scale Cabin's own
  * screen does.
  */
-@Suppress("DEPRECATION")
 fun screenScale(context: Context): Float {
-    val manager = context.getSystemService(WindowManager::class.java)
-    val (width, height) = if (Build.VERSION.SDK_INT >= 30) {
-        manager.maximumWindowMetrics.bounds.let { it.width() to it.height() }
-    } else {
-        DisplayMetrics().also { manager.defaultDisplay.getRealMetrics(it) }.let { it.widthPixels to it.heightPixels }
-    }
+    val (width, height) = screenSize(context)
     return minOf(width / DESIGN_WIDTH.toFloat(), height / DESIGN_HEIGHT.toFloat())
 }

@@ -77,6 +77,7 @@ class SplitChooserActivity : ComponentActivity() {
                     container.settings.settings.map { it.sideBar }.distinctUntilChanged()
                 }.collectAsStateWithLifecycle(initialValue = barWantedAtFirst)
                 val barAllowed by container.sideBar.allowed.collectAsStateWithLifecycle()
+                val barTucked by container.sideBar.tucked.collectAsStateWithLifecycle()
                 // How far this window reaches under the side bar, which lies along the screen's right edge.
                 var underBar by remember { mutableFloatStateOf(0f) }
                 val view = LocalView.current
@@ -90,7 +91,7 @@ class SplitChooserActivity : ComponentActivity() {
                 ) {
                     SplitChooser(
                         apps = remember(ui, onScreen) { SplitChoices.of(ui.visible, container.apps.ownId, onScreen) },
-                        barRoom = if (barWanted && barAllowed) (underBar / scale).dp else 0.dp,
+                        barRoom = if (barWanted && barAllowed && !barTucked) (underBar / scale).dp else 0.dp,
                         onPick = ::open,
                         onCancel = ::finish,
                     )

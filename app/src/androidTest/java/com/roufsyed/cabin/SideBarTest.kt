@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.roufsyed.cabin.model.VolumeUi
 import com.roufsyed.cabin.ui.chrome.SideBar
+import com.roufsyed.cabin.ui.chrome.SideBarHandle
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -49,7 +50,7 @@ class SideBarTest {
 
     private val buttons = listOf("Phone", "Phone link", "Home", "Go back", "Volume up", "Mute or unmute", "Volume down")
 
-    private fun show(split: Boolean = false) {
+    private fun show(split: Boolean = false, handle: Boolean = false) {
         compose.setContent {
             CompositionLocalProvider(LocalDensity provides Density(density = SCALE, fontScale = 1f)) {
                 Box(Modifier.size(66.dp, 800.dp)) {
@@ -64,6 +65,7 @@ class SideBarTest {
                         onVolumeUp = { calls += "up" },
                         onMute = { calls += "mute" },
                         onVolumeDown = { calls += "down" },
+                        onTuck = if (handle) ({ calls += "tuck" }) else null,
                     )
                 }
             }
@@ -76,8 +78,11 @@ class SideBarTest {
         return Rect(box.left / SCALE, box.top / SCALE, box.right / SCALE, box.bottom / SCALE)
     }
 
-    /** Checks the buttons run from the top of the bar to the bottom, each [height] tall. */
-    private fun assertStacked(buttons: List<String>, height: Float) {
+    /**
+     * Checks the buttons run from the top of the bar to the bottom, each [height] tall, with [gap]
+     * between Back and the volume buttons: the one rule on the bar, or the grip.
+     */
+    private fun assertStacked(buttons: List<String>, height: Float, gap: Float = 1f) {
         var top = 0f
         for (button in buttons) {
             val box = box(button)
@@ -87,8 +92,7 @@ class SideBarTest {
             assertEquals("$button height", height, box.height, 1.5f)
             assertEquals("$button top", top, box.top, 1.5f)
             top = box.bottom
-            // The one rule on the bar parts the volume from the rest.
-            if (button == "Go back") top += 1f
+            if (button == "Go back") top += gap
         }
         assertEquals(800f, top, 2f)
     }
@@ -106,6 +110,51 @@ class SideBarTest {
         show(split = true)
         // Eight share the height: 100 each.
         assertStacked(buttons.take(2) + "Split screen" + buttons.drop(2), 100f)
+    }
+
+    @Test
+    fun withTheHandleThereIsAGripBetweenTheTwoGroupsAndEveryButtonIs96Tall() {
+        show(split = true, handle = true)
+        assertStacked(buttons.take(2) + "Split screen" + buttons.drop(2), 96f, gap = 32f)
+        val grip = box("Tuck the side bar away")
+        assertEquals(480f, grip.top, 1.5f)
+        assertEquals(32f, grip.height, 1f)
+        assertEquals(65f, grip.width, 1f)
+    }
+
+    @Test
+    fun withTheHandleAndNoSplitTheSevenButtonsShareWhatTheGripLeaves() {
+        show(handle = true)
+        assertStacked(buttons, 109.7f, gap = 32f)
+    }
+
+    @Test
+    fun withoutTheHandleThereIsNoGrip() {
+        show(split = true)
+        compose.onNodeWithContentDescription("Tuck the side bar away").assertDoesNotExist()
+    }
+
+    @Test
+    fun theGripTucksTheBarAway() {
+        show(split = true, handle = true)
+        compose.onNodeWithContentDescription("Tuck the side bar away").performClick()
+        compose.waitForIdle()
+        assertEquals(listOf("tuck"), calls)
+    }
+
+    @Test
+    fun theHandleIsASmallTabThatBringsTheBarBack() {
+        compose.setContent {
+            CompositionLocalProvider(LocalDensity provides Density(density = SCALE, fontScale = 1f)) {
+                SideBarHandle(onClick = { calls += "back out" })
+            }
+        }
+        val handle = box("Bring the side bar back")
+        assertEquals(28f, handle.width, 1f)
+        assertEquals(96f, handle.height, 1f)
+        compose.onNodeWithContentDescription("Bring the side bar back").performClick()
+        compose.waitForIdle()
+        assertEquals(listOf("back out"), calls)
     }
 
     @Test

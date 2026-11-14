@@ -13,6 +13,7 @@ import android.view.accessibility.AccessibilityWindowInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
@@ -30,11 +31,18 @@ import com.roufsyed.cabin.CabinApp
 import com.roufsyed.cabin.MainActivity
 import com.roufsyed.cabin.model.Slot
 import com.roufsyed.cabin.sources.Opened
+import com.roufsyed.cabin.ui.chrome.SIDE_BAR_GRIP
+import com.roufsyed.cabin.ui.chrome.SIDE_BAR_HANDLE_HEIGHT
+import com.roufsyed.cabin.ui.chrome.SIDE_BAR_HANDLE_WIDTH
 import com.roufsyed.cabin.ui.chrome.SIDE_BAR_WIDTH
 import com.roufsyed.cabin.ui.chrome.SideBar
+import com.roufsyed.cabin.ui.chrome.SideBarHandle
+import com.roufsyed.cabin.ui.chrome.sideBarButtons
+import com.roufsyed.cabin.ui.chrome.sideBarButtonsAboveGrip
 import com.roufsyed.cabin.ui.theme.Slate
 import com.roufsyed.cabin.ui.theme.Themes
 import com.roufsyed.cabin.ui.theme.screenScale
+import com.roufsyed.cabin.ui.theme.screenSize
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
@@ -64,7 +72,8 @@ class SideBarService : AccessibilityService() {
     private var container: AppContainer? = null
     private var scope: CoroutineScope? = null
 
-    /** The bar while it is up, and what its Compose content lives by. */
+    /** What is up over the app in front, its window, and what its Compose content lives by. */
+    private var showing = BarView.None
     private var bar: View? = null
     private var owner: BarOwner? = null
 
@@ -86,8 +95,20 @@ class SideBarService : AccessibilityService() {
                 container.settings.settings.map { it.loaded && it.sideBar },
                 state.cabinShowing,
                 state.keyboardUp,
-                SideBarRules::shown,
-            ).distinctUntilChanged().collect { up -> if (up) open(container) else close() }
+                container.settings.settings.map { it.barHandle },
+                state.tucked,
+                SideBarRules::view,
+            ).distinctUntilChanged().collect { view -> show(view, container) }
+        }
+        // Tucked away is for the app in front. Once Cabin's own screen has been shown, or the handle
+        // has been switched off in Settings, the bar is whole again.
+        scope.launch {
+            state.cabinShowing.collect { showing -> if (showing) state.tucked.value = false }
+        }
+        scope.launch {
+            container.settings.settings.map { it.barHandle }.distinctUntilChanged().collect { handle ->
+                if (!handle) state.tucked.value = false
+            }
         }
         lookForKeyboard()
     }
@@ -109,6 +130,7 @@ class SideBarService : AccessibilityService() {
         container?.sideBar?.let {
             it.allowed.value = false
             it.keyboardUp.value = false
+            it.tucked.value = false
             it.showRecents = null
         }
         container = null
@@ -133,38 +155,69 @@ class SideBarService : AccessibilityService() {
     /** The screen may have turned or changed size, and the bar is cut to fit it. */
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        val container = container
-        if (bar != null && container != null) {
+        val container = container ?: return
+        val view = showing
+        if (view != BarView.None) {
             close()
-            open(container)
+            show(view, container)
         }
     }
 
-    private fun open(container: AppContainer) {
-        if (bar != null) return
-        val manager = getSystemService(WindowManager::class.java)
+    /** Puts up the whole bar, only its handle, or nothing, in place of whatever was up. */
+    private fun show(view: BarView, container: AppContainer) {
+        if (view == showing) return
+        close()
         // One design pixel is as large here as on Cabin's own screen.
         val scale = screenScale(this)
+        when (view) {
+            BarView.None -> Unit
+            // The bar runs the full height of the screen.
+            BarView.Bar -> open(
+                scale, "Cabin side bar",
+                width = (SIDE_BAR_WIDTH * scale).roundToInt(), height = WindowManager.LayoutParams.MATCH_PARENT, top = 0,
+            ) { Bar(container) }
+            // The handle sits where the bar's grip was, so the same spot brings the bar back.
+            BarView.Handle -> {
+                val split = container.apps.splitScreen
+                open(
+                    scale, "Cabin side bar handle",
+                    width = (SIDE_BAR_HANDLE_WIDTH * scale).roundToInt(),
+                    height = (SIDE_BAR_HANDLE_HEIGHT * scale).roundToInt(),
+                    top = SideBarRules.handleTop(
+                        screenHeight = screenSize(this).second,
+                        grip = SIDE_BAR_GRIP * scale,
+                        handleHeight = SIDE_BAR_HANDLE_HEIGHT * scale,
+                        buttons = sideBarButtons(split),
+                        above = sideBarButtonsAboveGrip(split),
+                    ),
+                ) { SideBarHandle(onClick = { container.sideBar.tucked.value = false }) }
+            }
+        }
+        showing = if (bar == null) BarView.None else view
+    }
+
+    /** A window of Cabin's against the screen's right edge, over whatever app is in front. */
+    private fun open(scale: Float, title: String, width: Int, height: Int, top: Int, content: @Composable () -> Unit) {
+        val manager = getSystemService(WindowManager::class.java)
         val barOwner = BarOwner()
         val view = ComposeView(this).apply {
             setViewTreeLifecycleOwner(barOwner)
             setViewTreeSavedStateRegistryOwner(barOwner)
             setContent {
-                CompositionLocalProvider(LocalDensity provides Density(density = scale, fontScale = 1f)) {
-                    Bar(container)
-                }
+                CompositionLocalProvider(LocalDensity provides Density(density = scale, fontScale = 1f), content = content)
             }
         }
         val layout = WindowManager.LayoutParams(
-            (SIDE_BAR_WIDTH * scale).roundToInt(),
-            WindowManager.LayoutParams.MATCH_PARENT,
+            width,
+            height,
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-            // Never takes the keys from the app beside it, and runs the full height of the screen.
+            // Never takes the keys from the app beside it, and is placed on the whole screen, bars and all.
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.END or Gravity.TOP
-            title = "Cabin side bar"
+            y = top
+            this.title = title
             if (Build.VERSION.SDK_INT >= 30) fitInsetsTypes = 0
         }
         barOwner.start()
@@ -179,6 +232,7 @@ class SideBarService : AccessibilityService() {
     }
 
     private fun close() {
+        showing = BarView.None
         val view = bar ?: return
         bar = null
         try {
@@ -193,6 +247,9 @@ class SideBarService : AccessibilityService() {
     @Composable
     private fun Bar(container: AppContainer) {
         val volume by container.volume.volume.collectAsStateWithLifecycle()
+        val handle by remember(container) {
+            container.settings.settings.map { it.barHandle }.distinctUntilChanged()
+        }.collectAsStateWithLifecycle(initialValue = true)
         SideBar(
             volume = volume,
             // With no app chosen for one of these, Cabin comes up, where the button leads to choosing one.
@@ -205,6 +262,7 @@ class SideBarService : AccessibilityService() {
             onVolumeUp = container.volume::up,
             onMute = container.volume::toggleMute,
             onVolumeDown = container.volume::down,
+            onTuck = if (handle) ({ container.sideBar.tucked.value = true }) else null,
         )
     }
 

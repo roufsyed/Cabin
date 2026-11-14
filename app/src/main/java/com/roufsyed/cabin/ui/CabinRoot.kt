@@ -635,6 +635,12 @@ private fun PreferencesContent(container: AppContainer, shellModel: ShellViewMod
             ),
             // The same switch as on Setup's first page, here with the other things Cabin does.
             sideBarTile(container, host, settings.sideBar, barAllowed, "Side bar over other apps: on or off"),
+            // The grip on that bar that tucks it away, and the handle that brings it back.
+            SettingsTile(
+                "Side bar handle", "Tucks the bar away and back", "Side bar handle: on or off",
+                value = if (settings.barHandle) "On" else "Off", on = settings.barHandle,
+                onClick = { change { it.copy(barHandle = !it.barHandle) } },
+            ),
         ),
     )
 }

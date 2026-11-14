@@ -83,6 +83,8 @@ data class CabinSettings(
     val screenOff: ScreenOffShows = ScreenOffShows(),
     /** The rail stays on screen, at half its width, while another app is open. */
     val sideBar: Boolean = true,
+    /** That bar has a grip that tucks it away, leaving a handle at the screen's edge to bring it back. */
+    val barHandle: Boolean = true,
     /** Last known position, kept so sunrise and sunset can be worked out without waiting for a fix. */
     val latitude: Double? = null,
     val longitude: Double? = null,
@@ -137,6 +139,7 @@ object SettingsCodec {
     private val longPressSplit = booleanPreferencesKey("gesture_long_press")
     private val theme = stringPreferencesKey("theme")
     private val sideBar = booleanPreferencesKey("side_bar")
+    private val barHandle = booleanPreferencesKey("side_bar_handle")
     private val offClock = booleanPreferencesKey("off_clock")
     private val offDate = booleanPreferencesKey("off_date")
     private val offPlaying = booleanPreferencesKey("off_playing")
@@ -183,6 +186,7 @@ object SettingsCodec {
                 status = prefs[offStatus] ?: defaults.screenOff.status,
             ),
             sideBar = prefs[sideBar] ?: defaults.sideBar,
+            barHandle = prefs[barHandle] ?: defaults.barHandle,
             latitude = coordinates?.getOrNull(0)?.takeIf { coordinates.size == 2 },
             longitude = coordinates?.getOrNull(1)?.takeIf { coordinates.size == 2 },
             recentPlaces = prefs[recentPlaces]?.lines()?.filter { it.isNotEmpty() }.orEmpty(),
@@ -217,6 +221,7 @@ object SettingsCodec {
         prefs[offTurn] = settings.screenOff.turn
         prefs[offStatus] = settings.screenOff.status
         prefs[sideBar] = settings.sideBar
+        prefs[barHandle] = settings.barHandle
         prefs.remove(retiredSwipe)
         if (settings.latitude != null && settings.longitude != null) {
             prefs[position] = "${settings.latitude},${settings.longitude}"

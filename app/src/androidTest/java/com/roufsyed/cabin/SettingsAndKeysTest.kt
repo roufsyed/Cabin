@@ -222,6 +222,20 @@ class SettingsAndKeysTest {
     }
 
     @Test
+    fun theSideBarsHandleIsOnUntilSwitchedOffUnderThemeAndGestures() {
+        assertTrue(settings.barHandle)
+        openSettings()
+        tap("Theme and gestures")
+        cabin.onNodeWithText("Side bar handle").assertIsDisplayed()
+        cabin.onNodeWithContentDescription("Side bar handle: on or off").assertTextContains("On")
+        tap("Side bar handle: on or off")
+        cabin.waitUntil(2_000) { !settings.barHandle }
+        cabin.onNodeWithContentDescription("Side bar handle: on or off").assertTextContains("Off")
+        tap("Side bar handle: on or off")
+        cabin.waitUntil(2_000) { settings.barHandle }
+    }
+
+    @Test
     fun cabinTellsTheSideBarWhenItsOwnScreenIsShowing() {
         // The activity is up, with the whole rail: the bar for other apps steps aside.
         assertTrue(values.container.sideBar.cabinShowing.value)
