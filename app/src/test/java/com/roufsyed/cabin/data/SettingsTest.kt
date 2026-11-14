@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import com.roufsyed.cabin.model.AppEntry
 import com.roufsyed.cabin.model.BrightnessMode
 import com.roufsyed.cabin.model.Glyph
+import com.roufsyed.cabin.model.ScreenOffShows
 import com.roufsyed.cabin.model.Slot
 import com.roufsyed.cabin.model.SourceId
 import com.roufsyed.cabin.model.ThemeId
@@ -67,6 +68,8 @@ class SettingsTest {
         assertTrue(settings.longPressSplit)
         assertTrue(settings.followHeadlights)
         assertEquals(ThemeId.Blue, settings.theme)
+        // The screen-off screen is the design's: the time and the date, and nothing else.
+        assertEquals(ScreenOffShows(clock = true, date = true, playing = false, turn = false, status = false), settings.screenOff)
     }
 
     @Test
@@ -98,6 +101,7 @@ class SettingsTest {
             twoFingerDrag = TwoFingerDrag.Brightness,
             longPressSplit = false,
             theme = ThemeId.Amber,
+            screenOff = ScreenOffShows(clock = false, date = true, playing = true, turn = false, status = true),
             latitude = 12.97,
             longitude = 77.59,
             recentPlaces = listOf("Airport", "City Mall"),

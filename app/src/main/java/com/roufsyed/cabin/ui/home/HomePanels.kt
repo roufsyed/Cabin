@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -88,9 +89,12 @@ private fun ClockPanel(clock: ClockUi, status: StatusUi) {
     }
 }
 
-/** Phone, Wi-Fi and GPS marks. A mark that is off is dimmer and struck through. */
+/**
+ * Phone, Wi-Fi and GPS marks. A mark that is off is dimmer and struck through. [on] and [off] are
+ * the design's two greys unless the marks sit somewhere with greys of its own.
+ */
 @Composable
-fun StatusIcons(status: StatusUi) {
+fun StatusIcons(status: StatusUi, on: Color = Slate.Muted, off: Color = Slate.Disabled) {
     Row(
         modifier = Modifier.semantics(mergeDescendants = true) { contentDescription = status.description },
         horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -98,15 +102,15 @@ fun StatusIcons(status: StatusUi) {
     ) {
         Icon(
             if (status.phone) SlateIcons.StatusPhone else SlateIcons.StatusPhoneOff, 26.dp,
-            if (status.phone) Slate.Muted else Slate.Disabled, 1.5f,
+            if (status.phone) on else off, 1.5f,
         )
         Icon(
             if (status.wifi) SlateIcons.StatusWifi else SlateIcons.StatusWifiOff, 26.dp,
-            if (status.wifi) Slate.Muted else Slate.Disabled, 1.5f,
+            if (status.wifi) on else off, 1.5f,
         )
         Icon(
             if (status.gps) SlateIcons.StatusGps else SlateIcons.StatusGpsOff, 26.dp,
-            if (status.gps) Slate.Muted else Slate.Disabled, 1.5f,
+            if (status.gps) on else off, 1.5f,
         )
     }
 }

@@ -1,15 +1,10 @@
 package com.roufsyed.cabin
 
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asAndroidBitmap
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
-import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.roufsyed.cabin.data.CabinSettings
@@ -22,22 +17,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-
-/**
- * How many pixels of what is on screen are exactly each of [colours], in the order given. The screen
- * is read once, as plain numbers: going through it pixel by pixel as colours takes minutes.
- */
-private fun CabinRule.pixelsOf(colours: List<Color>): List<Int> {
-    val bitmap = onRoot().captureToImage().asAndroidBitmap()
-    val pixels = IntArray(bitmap.width * bitmap.height)
-    bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
-    val wanted = IntArray(colours.size) { colours[it].toArgb() }
-    val counts = IntArray(colours.size)
-    for (pixel in pixels) {
-        for (i in wanted.indices) if (pixel == wanted[i]) counts[i]++
-    }
-    return counts.toList()
-}
 
 /** The Theme section: ten presets, and what choosing one does. */
 @RunWith(AndroidJUnit4::class)

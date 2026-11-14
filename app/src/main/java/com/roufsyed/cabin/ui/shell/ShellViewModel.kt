@@ -8,7 +8,13 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 
-enum class Screen { Home, Apps, Music, Settings, Keys, Preferences, Theme, Sources, Pick, Split, Setup }
+enum class Screen {
+    Home, Apps, Music, Settings, Keys, Preferences, Theme,
+
+    /** The page that turns the screen off and chooses what the dark screen shows. */
+    ScreenOff,
+    Sources, Pick, Split, Setup,
+}
 
 /** Setup has more tiles than fit at once: what Cabin may do on the first page, the apps it opens on the second. */
 const val SETUP_PAGES = 2
@@ -157,8 +163,8 @@ class ShellViewModel : ViewModel() {
             it.screen == Screen.Setup && it.page > 0 -> it.copy(page = it.page - 1)
             // The theme chooser is reached from the "Theme and gestures" screen.
             it.screen == Screen.Theme -> Shell(screen = Screen.Preferences)
-            it.screen == Screen.Keys || it.screen == Screen.Preferences || it.screen == Screen.Sources ||
-                it.screen == Screen.Setup -> Shell(screen = Screen.Settings)
+            it.screen == Screen.Keys || it.screen == Screen.Preferences || it.screen == Screen.ScreenOff ||
+                it.screen == Screen.Sources || it.screen == Screen.Setup -> Shell(screen = Screen.Settings)
             it.screen == Screen.Settings -> Shell(screen = Screen.Apps)
             else -> Shell()
         }

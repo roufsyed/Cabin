@@ -30,9 +30,11 @@ import com.roufsyed.cabin.data.next
 import com.roufsyed.cabin.gesture.Gesture
 import com.roufsyed.cabin.gesture.cabinGestures
 import com.roufsyed.cabin.model.AppTile
+import com.roufsyed.cabin.model.ScreenOffShows
 import com.roufsyed.cabin.model.Slot
 import com.roufsyed.cabin.model.SourceId
 import com.roufsyed.cabin.model.ThemeId
+import com.roufsyed.cabin.model.screenOffUi
 import com.roufsyed.cabin.nav.SavedPlace
 import com.roufsyed.cabin.sources.Opened
 import com.roufsyed.cabin.system.BrightnessRules
@@ -52,7 +54,7 @@ import com.roufsyed.cabin.ui.home.HomePanels
 import com.roufsyed.cabin.ui.icons.SlateIcons
 import com.roufsyed.cabin.ui.music.MusicScreen
 import com.roufsyed.cabin.ui.overlay.BrightnessHud
-import com.roufsyed.cabin.ui.overlay.ScreenOffClock
+import com.roufsyed.cabin.ui.overlay.ScreenOffOverlay
 import com.roufsyed.cabin.ui.overlay.TrayOverlay
 import com.roufsyed.cabin.ui.overlay.VoiceOverlay
 import com.roufsyed.cabin.ui.overlay.VolumeHud
@@ -227,6 +229,7 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
                                 shell.screen == Screen.Setup -> SetupBar(shell, container, shellModel)
                                 shell.screen == Screen.Preferences -> PreferencesBar(shellModel)
                                 shell.screen == Screen.Theme -> ThemeBar(shellModel)
+                                shell.screen == Screen.ScreenOff -> ScreenOffBar(shellModel)
                                 else -> Strip(dashboard, shellModel, host, showMini = shell.screen != Screen.Music)
                             }
                             Spacer(Modifier.height(16.dp))
@@ -238,6 +241,7 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
                                     Screen.Keys -> KeysScreen(wheel, onBack = { shellModel.open(Screen.Settings) })
                                     Screen.Preferences -> PreferencesContent(container, shellModel)
                                     Screen.Theme -> ThemeContent(container)
+                                    Screen.ScreenOff -> ScreenOffOptions(container, shellModel)
                                     Screen.Setup -> SetupContent(shell, container, shellModel, host)
                                     Screen.Sources -> SourcesContent(shell, container, shellModel)
                                     Screen.Pick -> SlotPickContent(shell, container, appsModel, shellModel)
@@ -267,10 +271,7 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
                 )
             }
             if (shell.overlay == Overlay.Tray) TrayContent(container, shellModel, host)
-            if (shell.overlay == Overlay.ScreenOff) {
-                val clock by dashboard.clock.collectAsStateWithLifecycle()
-                ScreenOffClock(clock, onWake = shellModel::closeOverlay)
-            }
+            if (shell.overlay == Overlay.ScreenOff) ScreenOffLayer(container, dashboard, shellModel)
             when (drag) {
                 TwoFingerDrag.Volume -> VolumeReadout(dashboard)
                 TwoFingerDrag.Brightness -> BrightnessReadout(dashboard)
@@ -298,6 +299,24 @@ private fun TrayContent(container: AppContainer, shellModel: ShellViewModel, hos
         onClearAll = container.tray::clearAll,
         onScreenOff = { shellModel.show(Overlay.ScreenOff) },
         onClose = shellModel::closeOverlay,
+    )
+}
+
+/**
+ * The dark screen, with as much on it as Settings > Screen off asks for. What it draws from is
+ * collected only while it is showing.
+ */
+@Composable
+private fun ScreenOffLayer(container: AppContainer, dashboard: DashboardViewModel, shellModel: ShellViewModel) {
+    val settings by container.settings.settings.collectAsStateWithLifecycle()
+    val clock by dashboard.clock.collectAsStateWithLifecycle()
+    val status by dashboard.status.collectAsStateWithLifecycle()
+    val nav by dashboard.nav.collectAsStateWithLifecycle()
+    val nowPlaying by dashboard.nowPlaying.collectAsStateWithLifecycle()
+    val brightness by dashboard.brightness.collectAsStateWithLifecycle()
+    ScreenOffOverlay(
+        ui = screenOffUi(settings.screenOff, clock, status, nav, nowPlaying, brightness.night),
+        onWake = shellModel::closeOverlay,
     )
 }
 
@@ -534,8 +553,10 @@ private fun SettingsContent(container: AppContainer, shellModel: ShellViewModel,
             SettingsTile("Apps", "Choose and arrange", "Arrange apps") { shellModel.arrangeApps() },
             SettingsTile("Sources", "Choose and arrange", "Arrange sources") { shellModel.arrangeSources() },
             SettingsTile("Steering wheel keys", "Six keys mapped", "Steering wheel keys") { shellModel.open(Screen.Keys) },
-            SettingsTile("Screen off", "Clock only, tap to wake", "Turn the screen off") {
-                shellModel.show(Overlay.ScreenOff)
+            // Turning the screen off is one tap further in, on a page with what the dark screen shows.
+            // The tray's Screen off button still does it in one.
+            SettingsTile("Screen off", "Turn off, or set what it shows", "Screen off options") {
+                shellModel.open(Screen.ScreenOff)
             },
             // Android does not let an ordinary app switch these, so the tiles show the state and open
             // the unit's own switch.
@@ -608,6 +629,50 @@ private fun PreferencesContent(container: AppContainer, shellModel: ShellViewMod
                 on = canSplit && settings.longPressSplit,
                 onClick = { if (canSplit) change { it.copy(longPressSplit = !it.longPressSplit) } },
             ),
+        ),
+    )
+}
+
+@Composable
+private fun ScreenOffBar(shellModel: ShellViewModel) {
+    TitleBar(
+        title = "Screen off",
+        hint = "Choose what the dark screen shows",
+        action = "Done",
+        actionDescription = "Back to settings",
+        onAction = { shellModel.open(Screen.Settings) },
+    )
+}
+
+/**
+ * Screen off: the tile that turns the screen off, then a switch for each line the dark screen can
+ * show, in the order the lines come on it. Turned off from here, the screen wakes back here, which is
+ * how a choice is tried out.
+ */
+@Composable
+private fun ScreenOffOptions(container: AppContainer, shellModel: ShellViewModel) {
+    val settings by container.settings.settings.collectAsStateWithLifecycle()
+    val shows = settings.screenOff
+    fun line(title: String, subtitle: String, what: String, on: Boolean, flip: (ScreenOffShows) -> ScreenOffShows) =
+        SettingsTile(
+            title, subtitle, "Show $what: on or off",
+            value = if (on) "On" else "Off", on = on,
+            onClick = {
+                container.scope.launch { container.settings.update { it.copy(screenOff = flip(it.screenOff)) } }
+            },
+        )
+    SettingsGrid(
+        listOf(
+            SettingsTile(
+                "Turn off now", if (shows.nothing) "Plain black, tap to wake" else "Tap the screen to wake it",
+                "Turn the screen off",
+            ) { shellModel.show(Overlay.ScreenOff) },
+            line("Clock", "The time", "the clock", shows.clock) { it.copy(clock = !it.clock) },
+            line("Date", "Day and date", "the date", shows.date) { it.copy(date = !it.date) },
+            line("Status marks", "Phone, Wi-Fi and GPS", "the status marks", shows.status) { it.copy(status = !it.status) },
+            // The turn only while a route is followed, the track only while it plays.
+            line("Next turn", "While Maps is guiding", "the next turn", shows.turn) { it.copy(turn = !it.turn) },
+            line("Now playing", "Title and artist", "what is playing", shows.playing) { it.copy(playing = !it.playing) },
         ),
     )
 }

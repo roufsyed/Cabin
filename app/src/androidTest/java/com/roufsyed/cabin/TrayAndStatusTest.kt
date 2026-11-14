@@ -109,10 +109,11 @@ class TrayAndStatusTest {
     }
 
     @Test
-    fun screenOffShowsOnlyTheClockUntilTapped() {
+    fun screenOffInTheTrayDarkensTheScreenInOneTapUntilItIsTapped() {
         swipeDown()
         tap("Screen off")
         shows("Wake screen")
+        cabin.onNodeWithText("10:10").assertIsDisplayed()
         cabin.onNodeWithText("Tap to wake").assertIsDisplayed()
         cabin.onNodeWithText("Thursday 12 November").assertIsDisplayed()
         tap("Wake screen")

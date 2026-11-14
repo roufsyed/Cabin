@@ -4,13 +4,16 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.roufsyed.cabin.model.NavUi
+import com.roufsyed.cabin.model.ScreenOffShows
 import com.roufsyed.cabin.nav.FixedNavigation
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -47,6 +50,19 @@ class LayoutTest {
         )
         assertEquals("$description expected $expected but was $actual", 0f, worst, 1.01f)
     }
+
+    /** [box], which is in this screen's pixels, in design pixels. */
+    private fun inDesign(box: Rect): Rect {
+        val root = cabin.onRoot().fetchSemanticsNode().boundsInRoot
+        val scale = minOf(root.width / 1280f, root.height / 800f)
+        val left = (root.width - 1280f * scale) / 2f
+        val top = (root.height - 800f * scale) / 2f
+        return Rect((box.left - left) / scale, (box.top - top) / scale, (box.right - left) / scale, (box.bottom - top) / scale)
+    }
+
+    /** The box of one line of text, in design pixels, wherever it sits inside a button. */
+    private fun line(text: String): Rect =
+        inDesign(cabin.onNodeWithText(text, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot)
 
     @Test
     fun homeMatchesTheDesignGrid() {
@@ -200,6 +216,71 @@ class LayoutTest {
         at("Amber theme", 879.2f, 152f, 196.8f, 154f)
         at("Copper theme", 40f, 319f, 196.8f, 154f)
         at("Platinum theme", 879.2f, 319f, 196.8f, 154f)
+    }
+
+    private fun openScreenOffPage() {
+        cabin.onNodeWithContentDescription("All apps").performClick()
+        cabin.onNodeWithContentDescription("Settings").performClick()
+        cabin.onNodeWithContentDescription("Screen off options").performClick()
+    }
+
+    @Test
+    fun screenOffPageUsesTheSettingsGridAndTheDarkScreenIsWhereTheDesignHasIt() {
+        openScreenOffPage()
+        at("Back to settings", 926f, 40f, 150f, 96f)
+        at("Turn the screen off", 40f, 152f, 511.5f, 112f)
+        at("Show the clock: on or off", 564.5f, 152f, 511.5f, 112f)
+        // The switches come in the order of the lines on the dark screen.
+        at("Show the date: on or off", 40f, 277f, 511.5f, 112f)
+        at("Show the status marks: on or off", 564.5f, 277f, 511.5f, 112f)
+        at("Show the next turn: on or off", 40f, 402f, 511.5f, 112f)
+        at("Show what is playing: on or off", 564.5f, 402f, 511.5f, 112f)
+        // The rail and bottom row do not move.
+        at("Home", 1109f, 313f, 130f, 136f)
+        at("Radio source", 395f, 665f, 138f, 94f)
+
+        cabin.onNodeWithContentDescription("Turn the screen off").performClick()
+        // One button over the whole screen. The design's three lines are 168, 33.6 and 28.8 high, 18
+        // apart and centred as a group, so they start at 266.8, 452.8 and 504.4.
+        at("Wake screen", 0f, 0f, 1280f, 800f)
+        val time = line("10:10")
+        val date = line("Thursday 12 November")
+        val hint = line("Tap to wake")
+        assertEquals(266.8f, time.top, 1.5f)
+        assertEquals(434.8f, time.bottom, 1.5f)
+        assertEquals(452.8f, date.top, 1.5f)
+        assertEquals(486.4f, date.bottom, 1.5f)
+        assertEquals(504.4f, hint.top, 1.5f)
+        assertEquals(533.2f, hint.bottom, 1.5f)
+        for (box in listOf(time, date, hint)) assertEquals(640f, box.center.x, 1.5f)
+    }
+
+    @Test
+    fun theDarkScreenWithEveryLineKeepsTheDesignsSpacingAndStaysCentred() {
+        runBlocking {
+            values.container.settings.update {
+                it.copy(screenOff = ScreenOffShows(clock = true, date = true, playing = true, turn = true, status = true))
+            }
+        }
+        openScreenOffPage()
+        cabin.onNodeWithContentDescription("Turn the screen off").performClick()
+        // Top to bottom: the time, the date, the marks, the next turn, the track, the hint.
+        val rows = listOf(
+            line("10:10"),
+            line("Thursday 12 November"),
+            inDesign(bounds("Phone connected, Wi-Fi on, GPS ready")),
+            line("350 m · Ring Road"),
+            line("Open Road · Aster Lane"),
+            line("Tap to wake"),
+        )
+        for ((upper, lower) in rows.zipWithNext()) assertEquals(18f, lower.top - upper.bottom, 1f)
+        // The group as a whole is centred up and down, and each line across, the turn with its arrow.
+        assertEquals(800f, rows.first().top + rows.last().bottom, 2f)
+        for (row in rows - rows[3]) assertEquals(640f, row.center.x, 1.5f)
+        // The arrow is 28 wide and 16 from its text, so the text sits 22 right of centre.
+        assertEquals(662f, rows[3].center.x, 1.5f)
+        // No line is smaller than the design's smallest text, 24 px, whose line is 28.8 high.
+        for (row in rows - rows[2]) assert(row.height >= 28f) { "a line is only ${row.height} high" }
     }
 
     @Test

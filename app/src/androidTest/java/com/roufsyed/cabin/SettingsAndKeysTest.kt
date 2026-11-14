@@ -70,7 +70,7 @@ class SettingsAndKeysTest {
     fun settingsHasTheDesignsSixTilesThenThemeAndGesturesAndSetup() {
         openSettings()
         for (tile in listOf(
-            "Arrange apps", "Arrange sources", "Steering wheel keys", "Turn the screen off",
+            "Arrange apps", "Arrange sources", "Steering wheel keys", "Screen off options",
             "Bluetooth settings", "Wi-Fi settings", "Theme and gestures", "Open setup",
         )) shows(tile)
         // The design's two "Prototype only" tiles are not part of the app.
@@ -79,11 +79,17 @@ class SettingsAndKeysTest {
     }
 
     @Test
-    fun screenOffTileShowsTheClock() {
+    fun screenOffTileOpensThePageThatTurnsTheScreenOff() {
         openSettings()
+        tap("Screen off options")
+        cabin.onNodeWithText("Choose what the dark screen shows").assertIsDisplayed()
+        // The tile itself no longer darkens the screen: that is one tap further in.
+        gone("Wake screen")
         tap("Turn the screen off")
         shows("Wake screen")
         tap("Wake screen")
+        gone("Wake screen")
+        tap("Back to settings")
         shows("Arrange apps")
     }
 

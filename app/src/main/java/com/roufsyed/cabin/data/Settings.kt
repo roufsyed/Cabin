@@ -12,6 +12,7 @@ import androidx.datastore.preferences.core.stringSetPreferencesKey
 import com.roufsyed.cabin.model.AppEntry
 import com.roufsyed.cabin.model.BrightnessMode
 import com.roufsyed.cabin.model.Glyph
+import com.roufsyed.cabin.model.ScreenOffShows
 import com.roufsyed.cabin.model.Slot
 import com.roufsyed.cabin.model.SourceId
 import com.roufsyed.cabin.model.ThemeId
@@ -78,6 +79,8 @@ data class CabinSettings(
     val longPressSplit: Boolean = true,
     /** The colour theme. */
     val theme: ThemeId = ThemeId.Blue,
+    /** Which lines the screen-off screen shows. */
+    val screenOff: ScreenOffShows = ScreenOffShows(),
     /** Last known position, kept so sunrise and sunset can be worked out without waiting for a fix. */
     val latitude: Double? = null,
     val longitude: Double? = null,
@@ -131,6 +134,11 @@ object SettingsCodec {
     private val twoFingerDrag = stringPreferencesKey("gesture_two_finger")
     private val longPressSplit = booleanPreferencesKey("gesture_long_press")
     private val theme = stringPreferencesKey("theme")
+    private val offClock = booleanPreferencesKey("off_clock")
+    private val offDate = booleanPreferencesKey("off_date")
+    private val offPlaying = booleanPreferencesKey("off_playing")
+    private val offTurn = booleanPreferencesKey("off_turn")
+    private val offStatus = booleanPreferencesKey("off_status")
 
     /** Written by earlier builds, when sideways swipes had a single fixed meaning. No longer read. */
     private val retiredSwipe = stringPreferencesKey("swipe_action")
@@ -164,6 +172,13 @@ object SettingsCodec {
             twoFingerDrag = prefs[twoFingerDrag]?.let { enumOrNull<TwoFingerDrag>(it) } ?: defaults.twoFingerDrag,
             longPressSplit = prefs[longPressSplit] ?: defaults.longPressSplit,
             theme = prefs[theme]?.let { enumOrNull<ThemeId>(it) } ?: defaults.theme,
+            screenOff = ScreenOffShows(
+                clock = prefs[offClock] ?: defaults.screenOff.clock,
+                date = prefs[offDate] ?: defaults.screenOff.date,
+                playing = prefs[offPlaying] ?: defaults.screenOff.playing,
+                turn = prefs[offTurn] ?: defaults.screenOff.turn,
+                status = prefs[offStatus] ?: defaults.screenOff.status,
+            ),
             latitude = coordinates?.getOrNull(0)?.takeIf { coordinates.size == 2 },
             longitude = coordinates?.getOrNull(1)?.takeIf { coordinates.size == 2 },
             recentPlaces = prefs[recentPlaces]?.lines()?.filter { it.isNotEmpty() }.orEmpty(),
@@ -192,6 +207,11 @@ object SettingsCodec {
         prefs[twoFingerDrag] = settings.twoFingerDrag.name
         prefs[longPressSplit] = settings.longPressSplit
         prefs[theme] = settings.theme.name
+        prefs[offClock] = settings.screenOff.clock
+        prefs[offDate] = settings.screenOff.date
+        prefs[offPlaying] = settings.screenOff.playing
+        prefs[offTurn] = settings.screenOff.turn
+        prefs[offStatus] = settings.screenOff.status
         prefs.remove(retiredSwipe)
         if (settings.latitude != null && settings.longitude != null) {
             prefs[position] = "${settings.latitude},${settings.longitude}"

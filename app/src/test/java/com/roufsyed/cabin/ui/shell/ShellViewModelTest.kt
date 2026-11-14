@@ -139,8 +139,8 @@ class ShellViewModelTest {
     }
 
     @Test
-    fun `back from the keys screen, from Theme and gestures and from Setup returns to Settings`() {
-        for (screen in listOf(Screen.Keys, Screen.Preferences, Screen.Setup)) {
+    fun `back from the keys screen, Theme and gestures, Screen off and Setup returns to Settings`() {
+        for (screen in listOf(Screen.Keys, Screen.Preferences, Screen.ScreenOff, Screen.Setup)) {
             shell.open(screen)
             shell.back()
             assertEquals(Shell(screen = Screen.Settings), state)
@@ -260,6 +260,35 @@ class ShellViewModelTest {
     @Test
     fun `a swipe right leaves Theme and gestures for Home like any other settings screen`() {
         shell.open(Screen.Preferences)
+        shell.swipeRight()
+        assertEquals(Shell(), state)
+    }
+
+    @Test
+    fun `the screen is turned off over the Screen off page and wakes back onto it`() {
+        shell.open(Screen.ScreenOff)
+        shell.show(Overlay.ScreenOff)
+        assertEquals(Shell(screen = Screen.ScreenOff, overlay = Overlay.ScreenOff), state)
+        shell.closeOverlay()
+        assertEquals(Shell(screen = Screen.ScreenOff), state)
+
+        // Back wakes it too, and only then leaves the page.
+        shell.show(Overlay.ScreenOff)
+        shell.back()
+        assertEquals(Shell(screen = Screen.ScreenOff), state)
+        shell.back()
+        assertEquals(Shell(screen = Screen.Settings), state)
+    }
+
+    @Test
+    fun `a swipe never wakes the dark screen, and from its page a swipe right goes Home`() {
+        shell.open(Screen.ScreenOff)
+        shell.show(Overlay.ScreenOff)
+        shell.swipeRight()
+        shell.swipeLeft(pages = 1)
+        assertEquals(Shell(screen = Screen.ScreenOff, overlay = Overlay.ScreenOff), state)
+
+        shell.closeOverlay()
         shell.swipeRight()
         assertEquals(Shell(), state)
     }

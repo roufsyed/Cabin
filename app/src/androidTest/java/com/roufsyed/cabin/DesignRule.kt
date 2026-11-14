@@ -2,8 +2,13 @@ package com.roufsyed.cabin
 
 import android.Manifest
 import android.content.Intent
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.AndroidComposeTestRule
 import androidx.compose.ui.test.junit4.v2.AndroidComposeTestRule as composeRule
+import androidx.compose.ui.test.onRoot
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.rules.ActivityScenarioRule
 import androidx.test.platform.app.InstrumentationRegistry
@@ -38,3 +43,24 @@ fun cabinRule(): CabinRule = composeRule(
         activity!!
     },
 )
+
+/**
+ * Everything on screen, one number per pixel. The screen is read once, as plain numbers: going through
+ * it pixel by pixel as colours takes minutes.
+ */
+fun CabinRule.pixels(): IntArray {
+    val bitmap = onRoot().captureToImage().asAndroidBitmap()
+    val pixels = IntArray(bitmap.width * bitmap.height)
+    bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+    return pixels
+}
+
+/** How many pixels of what is on screen are exactly each of [colours], in the order given. */
+fun CabinRule.pixelsOf(colours: List<Color>): List<Int> {
+    val wanted = IntArray(colours.size) { colours[it].toArgb() }
+    val counts = IntArray(colours.size)
+    for (pixel in pixels()) {
+        for (i in wanted.indices) if (pixel == wanted[i]) counts[i]++
+    }
+    return counts.toList()
+}
