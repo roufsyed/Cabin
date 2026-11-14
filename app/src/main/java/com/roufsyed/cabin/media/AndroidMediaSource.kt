@@ -5,7 +5,6 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
-import android.graphics.Bitmap
 import android.media.AudioManager
 import android.media.MediaMetadata
 import android.media.session.MediaController
@@ -18,12 +17,12 @@ import android.os.Looper
 import android.service.media.MediaBrowserService
 import android.view.KeyEvent
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.core.graphics.scale
+import androidx.core.net.toUri
 import com.roufsyed.cabin.notify.CabinNotificationListener
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -34,7 +33,7 @@ import kotlinx.coroutines.withContext
  *
  * Everything here runs on the main thread from session callbacks, and does no work between them: each
  * session's details are cached as they arrive, so publishing a change costs no calls to other apps.
- * The one heavy step, scaling cover art, is done on a background thread.
+ * The heavy steps, scaling a track's cover or reading it from its player, are done on background threads.
  */
 class AndroidMediaSource(
     private val context: Context,
@@ -107,17 +106,28 @@ class AndroidMediaSource(
                 MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE,
             )
             durationMs = metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L
-            val cover = metadata?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
-                ?: metadata?.getBitmap(MediaMetadata.METADATA_KEY_ART)
-                ?: metadata?.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
-            artJob?.cancel()
-            if (cover == null) {
-                art = null
+            val cover = COVER_KEYS.firstNotNullOfOrNull { metadata?.getBitmap(it) }
+            val address = if (cover == null) {
+                MediaRules.coverAddress(COVER_ADDRESS_KEYS.map { metadata?.getString(it) })
             } else {
-                artJob = scope.launch(Dispatchers.Main.immediate) {
-                    art = withContext(Dispatchers.Default) { scaleCover(cover) }
-                    publish()
+                null
+            }
+            artJob?.cancel()
+            artJob = null
+            // Nothing on show, and nothing to fetch.
+            if (cover == null && address == null && art == null) return
+            artJob = scope.launch(Dispatchers.Main.immediate) {
+                val fresh = if (cover != null) {
+                    withContext(Dispatchers.Default) { Covers.scaled(cover) }
+                } else {
+                    // A player sends a new track's details first and its picture a moment later, and
+                    // that starts this again. So the picture on show is left up until one follows or
+                    // the wait is over, and only then is the address tried: no blink between tracks.
+                    delay(COVER_WAIT_MS)
+                    address?.let { withContext(Dispatchers.IO) { Covers.read(context.contentResolver, it.toUri()) } }
                 }
+                art = fresh
+                publish()
             }
         }
     }
@@ -448,8 +458,25 @@ class AndroidMediaSource(
     }
 
     private companion object {
-        /** The largest size cover art is drawn at is 150 design pixels; twice that covers any scale. */
-        const val COVER_PX = 300
+        /** Where a player puts a track's picture: the album's cover first, then any other. */
+        val COVER_KEYS = listOf(
+            MediaMetadata.METADATA_KEY_ALBUM_ART,
+            MediaMetadata.METADATA_KEY_ART,
+            MediaMetadata.METADATA_KEY_DISPLAY_ICON,
+        )
+
+        /** Where a player says a track's picture can be read instead, in the same order. */
+        val COVER_ADDRESS_KEYS = listOf(
+            MediaMetadata.METADATA_KEY_ALBUM_ART_URI,
+            MediaMetadata.METADATA_KEY_ART_URI,
+            MediaMetadata.METADATA_KEY_DISPLAY_ICON_URI,
+        )
+
+        /**
+         * How long a track's picture may take to follow its title before the old picture is taken
+         * down. Gramophone's came 12 to 25 ms behind on the emulator; this allows for a slower unit.
+         */
+        const val COVER_WAIT_MS = 500L
 
         /** How long a player that has been woken may take to come up with its session. */
         const val SESSION_WAIT_MS = 4_000L
@@ -467,19 +494,6 @@ class AndroidMediaSource(
                 if (!value.isNullOrBlank()) return value
             }
             return ""
-        }
-
-        fun scaleCover(source: Bitmap): ImageBitmap {
-            val side = minOf(source.width, source.height)
-            val square = if (source.width == source.height) {
-                source
-            } else {
-                Bitmap.createBitmap(source, (source.width - side) / 2, (source.height - side) / 2, side, side)
-            }
-            val scaled = if (side > COVER_PX) square.scale(COVER_PX, COVER_PX) else square
-            // An own copy, so the app that sent the cover can recycle its bitmap without affecting ours.
-            val owned = if (scaled === source) source.copy(Bitmap.Config.ARGB_8888, false) else scaled
-            return owned.asImageBitmap()
         }
     }
 }

@@ -1,7 +1,6 @@
 package com.roufsyed.cabin.ui.music
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -21,7 +20,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -31,6 +29,7 @@ import com.roufsyed.cabin.ui.components.Panel
 import com.roufsyed.cabin.ui.components.pressable
 import com.roufsyed.cabin.ui.icons.Icon
 import com.roufsyed.cabin.ui.icons.SlateIcons
+import com.roufsyed.cabin.ui.media.CoverArt
 import com.roufsyed.cabin.ui.media.ProgressBlock
 import com.roufsyed.cabin.ui.theme.Slate
 import com.roufsyed.cabin.ui.theme.Txt
@@ -135,19 +134,13 @@ private fun QueueRow(item: QueueItem, onClick: () -> Unit) {
 /** The cover the playing app supplies, or the design's plain stand-in when it supplies none. */
 @Composable
 private fun Cover(now: NowPlayingUi) {
-    val shape = RoundedCornerShape(14.dp)
     if (now.art != null) {
-        Image(
-            bitmap = now.art,
-            contentDescription = "Cover art",
-            modifier = Modifier.size(150.dp).clip(shape),
-            contentScale = ContentScale.Crop,
-        )
+        CoverArt(now.art, 150.dp, 14.dp)
     } else {
         Canvas(
             Modifier
                 .size(150.dp)
-                .clip(shape)
+                .clip(RoundedCornerShape(14.dp))
                 .semantics { contentDescription = "Cover art placeholder" },
         ) {
             // Drawn on the design's 232-unit square.

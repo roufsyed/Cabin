@@ -2,8 +2,11 @@ package com.roufsyed.cabin
 
 import android.Manifest
 import android.content.Intent
+import android.graphics.Bitmap
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.AndroidComposeTestRule
@@ -64,3 +67,7 @@ fun CabinRule.pixelsOf(colours: List<Color>): List<Int> {
     }
     return counts.toList()
 }
+
+/** A cover of one flat colour, the size Cabin keeps covers at, standing in for a player's own. */
+fun plainCover(colour: Color, side: Int = 300): ImageBitmap =
+    Bitmap.createBitmap(side, side, Bitmap.Config.ARGB_8888).apply { eraseColor(colour.toArgb()) }.asImageBitmap()

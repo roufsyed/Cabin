@@ -39,4 +39,16 @@ object MediaRules {
         if (paused >= 0) return paused
         return sessions.indexOfFirst { it.packageName == musicPackage }
     }
+
+    /**
+     * Where to read a track's picture when its player sent none: the first of the addresses the
+     * player gave that points at something on this unit. An address on the internet is never
+     * followed: Cabin does not go online.
+     */
+    fun coverAddress(addresses: List<String?>): String? = addresses.firstOrNull { address ->
+        address != null && LOCAL_ADDRESSES.any { address.startsWith(it, ignoreCase = true) }
+    }
+
+    /** Another app's own store of pictures, or a picture built into an app. */
+    private val LOCAL_ADDRESSES = listOf("content://", "android.resource://")
 }

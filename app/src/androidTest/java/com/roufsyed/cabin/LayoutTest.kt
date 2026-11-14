@@ -2,6 +2,7 @@ package com.roufsyed.cabin
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -10,7 +11,9 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.roufsyed.cabin.media.FixedMedia
 import com.roufsyed.cabin.model.NavUi
+import com.roufsyed.cabin.model.Samples
 import com.roufsyed.cabin.model.ScreenOffShows
 import com.roufsyed.cabin.nav.FixedNavigation
 import kotlinx.coroutines.runBlocking
@@ -72,6 +75,68 @@ class LayoutTest {
         at("Previous", 749f, 511f, 108f, 128f)
         at("Play or pause", 857f, 511f, 110f, 128f)
         at("Next", 967f, 511f, 108f, 128f)
+    }
+
+    /** The cover's own box in design pixels, wherever it sits inside a button. */
+    private fun cover(): Rect =
+        inDesign(cabin.onNodeWithContentDescription("Cover art", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot)
+
+    private fun assertBox(what: String, expected: Rect, actual: Rect) {
+        val worst = maxOf(
+            abs(actual.left - expected.left), abs(actual.top - expected.top),
+            abs(actual.right - expected.right), abs(actual.bottom - expected.bottom),
+        )
+        assertEquals("$what expected $expected but was $actual", 0f, worst, 1.01f)
+    }
+
+    @Test
+    fun theCoverHangsInTheCornerOfNowPlayingAndMovesNothing() {
+        val media = values.container.media as FixedMedia
+        val lines = listOf("Now playing", "Open Road", "Aster Lane", "1:24", "3:41")
+        val before = lines.map { line(it) }
+
+        media.set(Samples.playing.copy(art = plainCover(Color.Magenta)))
+        cabin.waitForIdle()
+
+        // 84 square, its top level with "Now playing" and its right edge on the panel's text margin.
+        assertBox("cover", Rect(959f, 69f, 1043f, 153f), cover())
+        assertEquals(before, lines.map { line(it) })
+        // The panel's buttons are where the design has them.
+        homeMatchesTheDesignGrid()
+    }
+
+    @Test
+    fun theLongestTitleAndArtistStillClearTheCover() {
+        val media = values.container.media as FixedMedia
+        val title = "A Title Long Enough To Fill All Three Of Its Lines And More"
+        val artist = "Several Artists Whose Names Run On To A Second Line"
+        media.set(Samples.playing.copy(title = title, artist = artist, art = plainCover(Color.Magenta)))
+        cabin.waitForIdle()
+
+        val cover = cover()
+        val titleBox = line(title)
+        val artistBox = line(artist)
+        // Three lines of title and two of artist, as without a cover.
+        assertEquals(152f, titleBox.height, 3f)
+        assertEquals(68f, artistBox.height, 3f)
+        // The first line runs under the cover, with room between them.
+        assertEquals(true, titleBox.right > cover.left)
+        assertEquals("gap between the cover and the title", true, titleBox.top - cover.bottom >= 12f)
+        // And the artist ends clear of the progress line.
+        assertEquals("gap between the artist and the progress line", true, line("1:24").top - 17f - artistBox.bottom >= 12f)
+    }
+
+    @Test
+    fun theCoverOnTheMusicScreenTakesTheStandInsPlace() {
+        cabin.onNodeWithContentDescription("Open music").performClick()
+        val standIn = inDesign(bounds("Cover art placeholder"))
+        assertEquals(150f, standIn.width, 1.01f)
+        assertEquals(150f, standIn.height, 1.01f)
+        assertEquals(73f, standIn.left, 1.01f)
+
+        (values.container.media as FixedMedia).set(Samples.playing.copy(art = plainCover(Color.Magenta)))
+        cabin.waitForIdle()
+        assertBox("cover", standIn, cover())
     }
 
     @Test

@@ -62,4 +62,23 @@ class MediaRulesTest {
         // Once that session has gone, the index no longer points at anything.
         assertEquals("player", shown(sessions.take(1), lastPlayed = 1, music = "player"))
     }
+
+    @Test
+    fun `a cover is read from the first address that is on this unit`() {
+        val inPlayer = "content://player.covers/track/7"
+        assertEquals(inPlayer, MediaRules.coverAddress(listOf(inPlayer, "content://player.covers/album/2")))
+        assertEquals(inPlayer, MediaRules.coverAddress(listOf(null, "", inPlayer)))
+        assertEquals("android.resource://player/drawable/cover", MediaRules.coverAddress(listOf("android.resource://player/drawable/cover")))
+        assertEquals("CONTENT://player.covers/1", MediaRules.coverAddress(listOf("CONTENT://player.covers/1")))
+    }
+
+    @Test
+    fun `an address on the internet or in a file is never followed`() {
+        val inPlayer = "content://player.covers/track/7"
+        assertEquals(inPlayer, MediaRules.coverAddress(listOf("https://covers.example/7.jpg", inPlayer)))
+        assertEquals(null, MediaRules.coverAddress(listOf("https://covers.example/7.jpg", "http://covers.example/7.jpg")))
+        assertEquals(null, MediaRules.coverAddress(listOf("file:///sdcard/Music/cover.jpg", "/sdcard/Music/cover.jpg")))
+        assertEquals(null, MediaRules.coverAddress(listOf(null, "", "   ")))
+        assertEquals(null, MediaRules.coverAddress(emptyList()))
+    }
 }

@@ -27,6 +27,7 @@ import com.roufsyed.cabin.ui.components.Panel
 import com.roufsyed.cabin.ui.components.pressable
 import com.roufsyed.cabin.ui.icons.Icon
 import com.roufsyed.cabin.ui.icons.SlateIcons
+import com.roufsyed.cabin.ui.media.CoverArt
 import com.roufsyed.cabin.ui.media.ProgressBlock
 import com.roufsyed.cabin.model.ClockUi
 import com.roufsyed.cabin.model.NavUi
@@ -218,19 +219,26 @@ private fun NowPlayingPanel(
 ) {
     Panel(Modifier.size(328.dp, 600.dp)) {
         Column(Modifier.fillMaxSize()) {
-            Column(
-                modifier = Modifier
+            Box(
+                Modifier
                     .size(326.dp, 470.dp)
                     .pressable("Open music", onClick = onOpen)
                     .padding(start = 32.dp, top = 28.dp, end = 32.dp),
-                verticalArrangement = Arrangement.SpaceBetween,
             ) {
-                Txt(nowPlaying.caption, 24, color = Slate.Muted)
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Txt(nowPlaying.title, 46, weight = Slate.SemiBold, lineHeight = 1.1f, maxLines = 3)
-                    Txt(nowPlaying.artist, 28, color = Slate.Muted, maxLines = 2)
+                Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
+                    Txt(nowPlaying.caption, 24, color = Slate.Muted)
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Txt(nowPlaying.title, 46, weight = Slate.SemiBold, lineHeight = 1.1f, maxLines = 3)
+                        Txt(nowPlaying.artist, 28, color = Slate.Muted, maxLines = 2)
+                    }
+                    ProgressBlock(nowPlaying.progress, gap = 14.dp)
                 }
-                ProgressBlock(nowPlaying.progress, gap = 14.dp)
+                // The playing track's own picture, where its player supplies one. It hangs in the top
+                // right corner, as the status marks do in the clock panel, and takes no room from the
+                // text: nothing moves when it comes and goes, and the longest title still clears it.
+                if (nowPlaying.art != null) {
+                    CoverArt(nowPlaying.art, 84.dp, 10.dp, Modifier.align(Alignment.TopEnd))
+                }
             }
             Row(Modifier.size(326.dp, 128.dp)) {
                 Box(

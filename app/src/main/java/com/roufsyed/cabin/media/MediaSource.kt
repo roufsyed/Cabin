@@ -56,6 +56,11 @@ class FixedMedia(
     var musicApp: String? = null
         private set
 
+    /** Replaces what is playing, as a player does when it moves to another track. */
+    fun set(now: NowPlaying?) {
+        state.value = now
+    }
+
     override fun hasSession(packageName: String): Boolean = state.value?.packageName == packageName
 
     override fun playPause(): Boolean {

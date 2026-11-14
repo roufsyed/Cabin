@@ -1,5 +1,6 @@
 package com.roufsyed.cabin
 
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onAllNodesWithText
@@ -9,6 +10,8 @@ import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.roufsyed.cabin.apps.FixedApps
 import com.roufsyed.cabin.media.FixedMedia
+import com.roufsyed.cabin.media.NowPlaying
+import com.roufsyed.cabin.model.Samples
 import com.roufsyed.cabin.model.Slot
 import com.roufsyed.cabin.model.SourceId
 import org.junit.Assert.assertEquals
@@ -35,6 +38,65 @@ class MediaAndSourcesTest {
     private fun shows(description: String) = cabin.onNodeWithContentDescription(description).assertIsDisplayed()
     private fun gone(description: String) = cabin.onNodeWithContentDescription(description).assertDoesNotExist()
     private fun text(text: String) = cabin.onNodeWithText(text).assertIsDisplayed()
+
+    /** The cover as its own node: on Home it sits inside the button that opens the Music screen. */
+    private fun cover() = cabin.onNodeWithContentDescription("Cover art", useUnmergedTree = true)
+
+    private fun play(track: NowPlaying?) {
+        media.set(track)
+        cabin.waitForIdle()
+    }
+
+    private fun pixelsOf(colour: Color): Int = cabin.pixelsOf(listOf(colour)).single()
+
+    @Test
+    fun homeShowsATracksCoverOnlyWhenItsPlayerSuppliesOne() {
+        // The design's own track comes without one, and Home is then exactly the design.
+        cover().assertDoesNotExist()
+
+        play(Samples.playing.copy(art = plainCover(Color.Magenta)))
+        cover().assertIsDisplayed()
+        // 84 x 84 less its rounded corners.
+        assertTrue("${pixelsOf(Color.Magenta)} magenta", pixelsOf(Color.Magenta) in 6750..7056)
+
+        // The next track brings its own.
+        play(Samples.playing.copy(title = "Night Signals", artist = "Vela North", art = plainCover(Color.Cyan)))
+        assertEquals(0, pixelsOf(Color.Magenta))
+        assertTrue("${pixelsOf(Color.Cyan)} cyan", pixelsOf(Color.Cyan) in 6750..7056)
+
+        // A track without one takes it down again, and so does the player going away.
+        play(Samples.playing)
+        cover().assertDoesNotExist()
+        assertEquals(0, pixelsOf(Color.Cyan))
+        play(Samples.playing.copy(art = plainCover(Color.Magenta)))
+        play(null)
+        cover().assertDoesNotExist()
+        text("Nothing playing")
+    }
+
+    @Test
+    fun theCoverIsPartOfTheButtonThatOpensMusic() {
+        play(Samples.playing.copy(art = plainCover(Color.Magenta)))
+        cover().performClick()
+        text("Up next")
+    }
+
+    @Test
+    fun musicScreenShowsTheCoverInPlaceOfTheDesignsStandIn() {
+        tap("Open music")
+        shows("Cover art placeholder")
+        gone("Cover art")
+
+        play(Samples.playing.copy(art = plainCover(Color.Magenta)))
+        shows("Cover art")
+        gone("Cover art placeholder")
+        // 150 x 150 less its rounded corners.
+        assertTrue("${pixelsOf(Color.Magenta)} magenta", pixelsOf(Color.Magenta) in 22000..22500)
+
+        play(Samples.playing)
+        shows("Cover art placeholder")
+        assertEquals(0, pixelsOf(Color.Magenta))
+    }
 
     @Test
     fun homeTransportControlsThePlayer() {
