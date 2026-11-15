@@ -4,7 +4,10 @@ import android.view.KeyEvent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -26,6 +29,7 @@ import com.roufsyed.cabin.model.HomePanel
 import com.roufsyed.cabin.model.LayoutRules
 import com.roufsyed.cabin.model.Slot
 import com.roufsyed.cabin.model.SourceId
+import com.roufsyed.cabin.model.TuckAfter
 import com.roufsyed.cabin.system.FixedHeadlights
 import com.roufsyed.cabin.system.FixedPermissions
 import com.roufsyed.cabin.system.Grant
@@ -246,6 +250,84 @@ class SettingsAndKeysTest {
         cabin.waitUntil(2_000) { settings.barHandle }
     }
 
+    private val tuckTile = "Side bar tucks away: immediate, 5 sec, 10 sec or never"
+
+    @Test
+    fun theSideBarTucksAwayAfterFiveSecondsUntilAnotherWaitIsPickedFromTheList() {
+        assertEquals(TuckAfter.FiveSeconds, settings.barTuck)
+        openLayout()
+        cabin.onNodeWithText("Tuck away").assertIsDisplayed()
+        cabin.onNodeWithContentDescription(tuckTile).assertTextContains("5 sec")
+        cabin.onNodeWithContentDescription(tuckTile).assertTextContains("After 5 seconds untouched")
+        // Nothing is listed until the tile is tapped.
+        gone("Tuck away: Immediate")
+
+        tap(tuckTile)
+        for (option in listOf("Immediate", "5 sec", "10 sec", "Never")) shows("Tuck away: $option")
+        // The one in use is marked.
+        cabin.onNodeWithContentDescription("Tuck away: 5 sec").assertIsSelected()
+        for (option in listOf("Immediate", "10 sec", "Never")) {
+            cabin.onNodeWithContentDescription("Tuck away: $option").assertIsNotSelected()
+        }
+
+        // A tap on one puts it in use and closes the list.
+        tap("Tuck away: Immediate")
+        cabin.waitUntil(2_000) { settings.barTuck == TuckAfter.Immediate }
+        gone("Tuck away: Immediate")
+        cabin.onNodeWithContentDescription(tuckTile).assertTextContains("Immediate")
+        cabin.onNodeWithContentDescription(tuckTile).assertTextContains("As soon as an app opens")
+
+        tap(tuckTile)
+        cabin.onNodeWithContentDescription("Tuck away: Immediate").assertIsSelected()
+        tap("Tuck away: 10 sec")
+        cabin.waitUntil(2_000) { settings.barTuck == TuckAfter.TenSeconds }
+        cabin.onNodeWithContentDescription(tuckTile).assertTextContains("10 sec")
+
+        tap(tuckTile)
+        tap("Tuck away: Never")
+        cabin.waitUntil(2_000) { settings.barTuck == TuckAfter.Never }
+        cabin.onNodeWithContentDescription(tuckTile).assertTextContains("Never")
+        cabin.onNodeWithContentDescription(tuckTile).assertTextContains("Only by a tap on its arrow")
+    }
+
+    @Test
+    fun theListOfWaitsClosesWithNothingChangedOnATapBesideItAndOnBack() {
+        openLayout()
+        tap(tuckTile)
+        shows("Tuck away: 10 sec")
+        // The list lies over the left-hand column; this is a tap in the right-hand one.
+        cabin.onNodeWithContentDescription("Close the list").performTouchInput { click(percentOffset(0.75f, 0.5f)) }
+        gone("Tuck away: 10 sec")
+        assertEquals(TuckAfter.FiveSeconds, settings.barTuck)
+        // The tile that was under the tap was not pressed.
+        assertEquals(BarSide.Right, settings.barSide)
+
+        tap(tuckTile)
+        shows("Tuck away: 10 sec")
+        cabin.runOnUiThread { cabin.activity.onBackPressedDispatcher.onBackPressed() }
+        gone("Tuck away: 10 sec")
+        // Back closed the list and went no further.
+        cabin.onNodeWithText("Layout").assertIsDisplayed()
+        shows(tuckTile)
+        assertEquals(TuckAfter.FiveSeconds, settings.barTuck)
+    }
+
+    @Test
+    fun withTheHandleSwitchedOffTheBarCannotTuckAwayAndTheTileSaysSo() {
+        openLayout()
+        tap("Side bar handle: on or off")
+        cabin.waitUntil(2_000) { !settings.barHandle }
+        cabin.onNodeWithContentDescription(tuckTile).assertTextContains("Off")
+        cabin.onNodeWithContentDescription(tuckTile).assertTextContains("Needs the side bar handle")
+        tap(tuckTile)
+        gone("Tuck away: 5 sec")
+        // What was chosen is kept for when the handle is switched back on.
+        assertEquals(TuckAfter.FiveSeconds, settings.barTuck)
+        tap("Side bar handle: on or off")
+        cabin.waitUntil(2_000) { settings.barHandle }
+        cabin.onNodeWithContentDescription(tuckTile).assertTextContains("5 sec")
+    }
+
     @Test
     fun theLayoutPageMovesTheSideBarAndHomesPanelsAndResetPutsThemBack() {
         openLayout()
@@ -275,6 +357,7 @@ class SettingsAndKeysTest {
         // Reset is about places only: the bar's own switches stay as they were.
         assertTrue(settings.sideBar)
         assertTrue(settings.barHandle)
+        assertEquals(TuckAfter.FiveSeconds, settings.barTuck)
     }
 
     @Test

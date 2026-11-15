@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -42,6 +43,9 @@ class SideBarTest {
     val compose = createComposeRule()
 
     private val calls = mutableListOf<String>()
+
+    /** What the bar has said about a finger on it: true as one comes down, false as the last one leaves. */
+    private val touches = mutableListOf<Boolean>()
     private var volume by mutableStateOf(VolumeUi(level = 7, muted = false))
 
     private companion object {
@@ -67,6 +71,7 @@ class SideBarTest {
                         onVolumeDown = { calls += "down" },
                         onTuck = if (handle) ({ calls += "tuck" }) else null,
                         onLeft = onLeft,
+                        onTouch = { touches += it },
                     )
                 }
             }
@@ -80,10 +85,10 @@ class SideBarTest {
     }
 
     /**
-     * Checks the buttons run from the top of the bar to the bottom, each [height] tall, with [gap]
-     * between Back and the volume buttons: the one rule on the bar, or the grip.
+     * Checks the buttons run from the top of the bar down, each [height] tall, with the bar's one
+     * rule between Back and the volume buttons, and stop [foot] short of the bottom: the grip's room.
      */
-    private fun assertStacked(buttons: List<String>, height: Float, gap: Float = 1f) {
+    private fun assertStacked(buttons: List<String>, height: Float, foot: Float = 0f) {
         var top = 0f
         for (button in buttons) {
             val box = box(button)
@@ -93,9 +98,9 @@ class SideBarTest {
             assertEquals("$button height", height, box.height, 1.5f)
             assertEquals("$button top", top, box.top, 1.5f)
             top = box.bottom
-            if (button == "Go back") top += gap
+            if (button == "Go back") top += 1f
         }
-        assertEquals(800f, top, 2f)
+        assertEquals(800f - foot, top, 2f)
     }
 
     @Test
@@ -114,19 +119,21 @@ class SideBarTest {
     }
 
     @Test
-    fun withTheHandleThereIsAGripBetweenTheTwoGroupsAndEveryButtonIs96Tall() {
+    fun withTheHandleThereIsAGripBelowTheVolumeButtonsAndEveryButtonIs96Tall() {
         show(split = true, handle = true)
-        assertStacked(buttons.take(2) + "Split screen" + buttons.drop(2), 96f, gap = 32f)
+        assertStacked(buttons.take(2) + "Split screen" + buttons.drop(2), 96f, foot = 31f)
+        // The grip is the last thing on the bar, under Volume down, and reaches the bottom.
         val grip = box("Tuck the side bar away")
-        assertEquals(480f, grip.top, 1.5f)
-        assertEquals(32f, grip.height, 1f)
+        assertEquals(box("Volume down").bottom, grip.top, 1f)
+        assertEquals(769f, grip.top, 1.5f)
+        assertEquals(800f, grip.bottom, 1.5f)
         assertEquals(65f, grip.width, 1f)
     }
 
     @Test
     fun withTheHandleAndNoSplitTheSevenButtonsShareWhatTheGripLeaves() {
         show(handle = true)
-        assertStacked(buttons, 109.7f, gap = 32f)
+        assertStacked(buttons, 109.7f, foot = 31f)
     }
 
     @Test
@@ -141,6 +148,27 @@ class SideBarTest {
         compose.onNodeWithContentDescription("Tuck the side bar away").performClick()
         compose.waitForIdle()
         assertEquals(listOf("tuck"), calls)
+    }
+
+    @Test
+    fun theBarSaysWhenAFingerComesDownOnItAndWhenItLeaves() {
+        show(split = true, handle = true)
+        compose.onNodeWithContentDescription("Volume up").performTouchInput { down(center) }
+        compose.waitForIdle()
+        assertEquals(listOf(true), touches)
+        compose.onNodeWithContentDescription("Volume up").performTouchInput { up() }
+        compose.waitForIdle()
+        assertEquals(listOf(true, false), touches)
+        // Watching takes nothing from the button: the tap was still a tap.
+        assertEquals(listOf("up"), calls)
+
+        // Every button counts, the grip too, and so does a hold.
+        compose.onNodeWithContentDescription("Go back").performTouchInput { click() }
+        compose.onNodeWithContentDescription("Home").performTouchInput { longClick() }
+        compose.onNodeWithContentDescription("Tuck the side bar away").performTouchInput { click() }
+        compose.waitForIdle()
+        assertEquals(listOf(true, false, true, false, true, false, true, false), touches)
+        assertEquals(listOf("up", "back", "recents", "tuck"), calls)
     }
 
     @Test

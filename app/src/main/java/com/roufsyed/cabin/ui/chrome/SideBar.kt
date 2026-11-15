@@ -14,8 +14,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import com.roufsyed.cabin.model.VolumeUi
 import com.roufsyed.cabin.ui.components.pressable
@@ -28,16 +32,15 @@ import com.roufsyed.cabin.ui.theme.Txt
 /** How wide the bar over other apps is, in design pixels: half the rail's 132. */
 const val SIDE_BAR_WIDTH = 66
 
-/** The grip on the bar that tucks it away: a strip this high between the bar's two groups of buttons. */
-const val SIDE_BAR_GRIP = 32
+/**
+ * The grip on the bar that tucks it away: a strip this high at the foot of the bar, under the volume
+ * buttons. With the bar's one rule it takes 32 of the height, which leaves eight buttons 96 each.
+ */
+const val SIDE_BAR_GRIP = 31
 
-/** The handle left at the screen's edge while the bar is tucked away. */
+/** The handle left at the screen's edge while the bar is tucked away, at the foot of the edge where the grip was. */
 const val SIDE_BAR_HANDLE_WIDTH = 28
 const val SIDE_BAR_HANDLE_HEIGHT = 96
-
-/** How many of the bar's buttons there are, and how many of them sit above the grip. */
-fun sideBarButtons(split: Boolean): Int = if (split) 8 else 7
-fun sideBarButtonsAboveGrip(split: Boolean): Int = if (split) 5 else 4
 
 /**
  * The rail as it stays on screen while another app is open: its buttons at half the width, down the
@@ -45,8 +48,10 @@ fun sideBarButtonsAboveGrip(split: Boolean): Int = if (split) 5 else 4
  * are icons alone. Home is always Home here, since this is only ever seen outside Cabin; held, it
  * shows the recent apps. Above it, where the unit can show two apps side by side, is Split.
  *
- * With [onTuck], a grip between the bar's two groups tucks the bar away, for when it lies over
+ * With [onTuck], a grip under the volume buttons tucks the bar away, for when it lies over
  * something that is wanted in the app beneath; [SideBarHandle] is then all that is left of it.
+ * [onTouch] is told when a finger comes down on the bar and when the last one leaves it, which is
+ * what the wait before the bar tucks itself away is counted from.
  *
  * At 66 wide the buttons are narrower than the 96 the design asks of anything touched. With the grip
  * they are 96 tall on the design's 800 where there is a Split button, and 110 where there is not;
@@ -70,11 +75,32 @@ fun SideBar(
     onTuck: (() -> Unit)? = null,
     /** True where the bar is down the screen's left edge. The design, and the default, is the right. */
     onLeft: Boolean = false,
+    onTouch: ((held: Boolean) -> Unit)? = null,
 ) {
+    val touched by rememberUpdatedState(onTouch)
+    val watched = if (onTouch == null) Modifier else Modifier.pointerInput(Unit) {
+        var held = false
+        try {
+            awaitPointerEventScope {
+                while (true) {
+                    // Seen on its way down to the buttons, and nothing is taken from them.
+                    val now = awaitPointerEvent(PointerEventPass.Initial).changes.any { it.pressed }
+                    if (now != held) {
+                        held = now
+                        touched?.invoke(now)
+                    }
+                }
+            }
+        } finally {
+            // The bar has gone from under the finger.
+            if (held) touched?.invoke(false)
+        }
+    }
     Row(
         modifier
             .width(SIDE_BAR_WIDTH.dp)
             .fillMaxHeight()
+            .then(watched)
             .background(Slate.Surface),
     ) {
         // The one edge that meets the app beside it has a hairline.
@@ -85,18 +111,8 @@ fun SideBar(
             if (onSplit != null) BarButton("Split screen", SlateIcons.Split, 1.3f, onSplit)
             BarButton("Home", SlateIcons.House, 1.3f, onHome, onLongClick = onRecents, onLongClickLabel = "Recent apps")
             BarButton("Go back", SlateIcons.Back, 1.3f, onBack)
-            if (onTuck == null) {
-                Box(Modifier.fillMaxWidth().height(1.dp).background(Slate.Hairline))
-            } else {
-                // The grip: it points the way the bar goes, off the screen's edge.
-                Column(Modifier.fillMaxWidth().height(SIDE_BAR_GRIP.dp).pressable("Tuck the side bar away", onClick = onTuck)) {
-                    Box(Modifier.fillMaxWidth().height(1.dp).background(Slate.Hairline))
-                    Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-                        Icon(if (onLeft) SlateIcons.ChevronLeft else SlateIcons.ChevronRight, 24.dp, Slate.Muted, 1.5f)
-                    }
-                    Box(Modifier.fillMaxWidth().height(1.dp).background(Slate.Hairline))
-                }
-            }
+            // The bar's one rule, between what goes somewhere and the volume.
+            Box(Modifier.fillMaxWidth().height(1.dp).background(Slate.Hairline))
             BarButton("Volume up", SlateIcons.Plus, 1.5f, onVolumeUp)
             // The level sits under the speaker here; side by side they are wider than the bar.
             Column(
@@ -116,6 +132,15 @@ fun SideBar(
                 )
             }
             BarButton("Volume down", SlateIcons.Minus, 1.5f, onVolumeDown)
+            if (onTuck != null) {
+                // The grip, at the foot of the bar: it points the way the bar goes, off the screen's edge.
+                Column(Modifier.fillMaxWidth().height(SIDE_BAR_GRIP.dp).pressable("Tuck the side bar away", onClick = onTuck)) {
+                    Box(Modifier.fillMaxWidth().height(1.dp).background(Slate.Hairline))
+                    Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                        Icon(if (onLeft) SlateIcons.ChevronLeft else SlateIcons.ChevronRight, 24.dp, Slate.Muted, 1.5f)
+                    }
+                }
+            }
         }
         if (onLeft) Box(Modifier.width(1.dp).fillMaxHeight().background(Slate.Hairline))
     }
@@ -140,17 +165,14 @@ private fun ColumnScope.BarButton(
 }
 
 /**
- * What is left of the bar while it is tucked away: a tab against the screen's edge, where the bar's
- * grip was. A tap brings the bar back. With [onLeft] it is the tab for the left edge.
+ * What is left of the bar while it is tucked away: a tab in the screen's bottom corner, where the
+ * bar's grip was. A tap brings the bar back. With [onLeft] it is the tab for the left edge.
  */
 @Composable
 fun SideBarHandle(onClick: () -> Unit, modifier: Modifier = Modifier, onLeft: Boolean = false) {
-    // Rounded on the side away from the screen's edge, with a chevron pointing the way the bar comes.
-    val shape = if (onLeft) {
-        RoundedCornerShape(topEnd = 12.dp, bottomEnd = 12.dp)
-    } else {
-        RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp)
-    }
+    // Rounded at its one corner that is not against an edge of the screen, with a chevron pointing
+    // the way the bar comes.
+    val shape = if (onLeft) RoundedCornerShape(topEnd = 12.dp) else RoundedCornerShape(topStart = 12.dp)
     Box(
         modifier
             .size(SIDE_BAR_HANDLE_WIDTH.dp, SIDE_BAR_HANDLE_HEIGHT.dp)

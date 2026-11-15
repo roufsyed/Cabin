@@ -1,6 +1,9 @@
 package com.roufsyed.cabin.bar
 
+import com.roufsyed.cabin.model.TuckAfter
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class SideBarRulesTest {
@@ -56,19 +59,49 @@ class SideBarRulesTest {
     }
 
     @Test
-    fun `the handle sits where the grip was`() {
-        // Eight buttons of 96 and a grip of 32 on a screen 800 high: the grip runs from 480 to 512,
-        // and a handle 96 high centred on it from 448.
-        assertEquals(448, SideBarRules.handleTop(screenHeight = 800, grip = 32f, handleHeight = 96f, buttons = 8, above = 5))
-        // Without Split there are seven, four of them above the grip.
-        assertEquals(406, SideBarRules.handleTop(screenHeight = 800, grip = 32f, handleHeight = 96f, buttons = 7, above = 4))
-        // A smaller screen draws everything at nine tenths.
-        assertEquals(403, SideBarRules.handleTop(screenHeight = 720, grip = 28.8f, handleHeight = 86.4f, buttons = 8, above = 5))
+    fun `under Immediate an app starts with the bar tucked away, and under nothing else`() {
+        assertEquals(true, SideBarRules.startsTucked(handle = true, after = TuckAfter.Immediate))
+        for (after in TuckAfter.entries - TuckAfter.Immediate) {
+            assertEquals(false, SideBarRules.startsTucked(handle = true, after = after))
+        }
     }
 
     @Test
-    fun `the handle never leaves the screen`() {
-        assertEquals(0, SideBarRules.handleTop(screenHeight = 60, grip = 32f, handleHeight = 96f, buttons = 8, above = 5))
-        assertEquals(4, SideBarRules.handleTop(screenHeight = 100, grip = 32f, handleHeight = 96f, buttons = 8, above = 8))
+    fun `left untouched the bar tucks itself away after the time chosen`() {
+        assertEquals(5_000L, SideBarRules.stayMs(handle = true, after = TuckAfter.FiveSeconds))
+        assertEquals(10_000L, SideBarRules.stayMs(handle = true, after = TuckAfter.TenSeconds))
+        // Brought out by its handle under Immediate, it stays as long as under the shortest wait.
+        assertEquals(5_000L, SideBarRules.stayMs(handle = true, after = TuckAfter.Immediate))
+    }
+
+    @Test
+    fun `under Never it stays until its grip is tapped`() {
+        assertNull(SideBarRules.stayMs(handle = true, after = TuckAfter.Never))
+    }
+
+    @Test
+    fun `without the handle the bar cannot be brought back, so it never tucks itself away`() {
+        for (after in TuckAfter.entries) {
+            assertEquals(false, SideBarRules.startsTucked(handle = false, after = after))
+            assertNull(SideBarRules.stayMs(handle = false, after = after))
+        }
+    }
+
+    @Test
+    fun `a finger that comes and goes unseen still counts as a change`() {
+        val state = SideBarState()
+        val before = state.touch.value
+        state.touched(true)
+        assertEquals(true, state.touch.value.held)
+        state.touched(false)
+        // Not held, as before, and yet not equal to what it was: whoever waits on it is told.
+        assertEquals(false, state.touch.value.held)
+        assertNotEquals(before, state.touch.value)
+    }
+
+    @Test
+    fun `the four waits are offered in the order asked for, each with a line that says it`() {
+        assertEquals(listOf("Immediate", "5 sec", "10 sec", "Never"), TuckAfter.entries.map { it.label })
+        assertEquals(TuckAfter.entries.size, TuckAfter.entries.map { it.hint }.toSet().size)
     }
 }

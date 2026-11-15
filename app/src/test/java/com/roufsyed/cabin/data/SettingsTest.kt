@@ -13,6 +13,7 @@ import com.roufsyed.cabin.model.ScreenOffShows
 import com.roufsyed.cabin.model.Slot
 import com.roufsyed.cabin.model.SourceId
 import com.roufsyed.cabin.model.ThemeId
+import com.roufsyed.cabin.model.TuckAfter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -75,6 +76,8 @@ class SettingsTest {
         // The bar over other apps is wanted from the start; it shows once Android allows it.
         assertTrue(settings.sideBar)
         assertTrue(settings.barHandle)
+        // Left untouched, it tucks itself away after five seconds.
+        assertEquals(TuckAfter.FiveSeconds, settings.barTuck)
         // The side bar is on the right and Home's panels are in the design's order.
         assertEquals(BarSide.Right, settings.barSide)
         assertEquals(listOf(HomePanel.Clock, HomePanel.Navigation, HomePanel.NowPlaying), settings.homeOrder)
@@ -112,6 +115,7 @@ class SettingsTest {
             screenOff = ScreenOffShows(clock = false, date = true, playing = true, turn = false, status = true),
             sideBar = false,
             barHandle = false,
+            barTuck = TuckAfter.Immediate,
             barSide = BarSide.Left,
             homeOrder = listOf(HomePanel.NowPlaying, HomePanel.Clock, HomePanel.Navigation),
             latitude = 12.97,
@@ -160,11 +164,13 @@ class SettingsTest {
                 it[stringPreferencesKey("theme")] = "Tartan"
                 it[stringPreferencesKey("gesture_two_finger")] = ""
                 it[stringPreferencesKey("side_bar_side")] = "Top"
+                it[stringPreferencesKey("side_bar_tuck")] = "Soon"
                 it[stringPreferencesKey("home_order")] = "Clock,Clock,Weather"
             }
         }
         val settings = SettingsCodec.decode(runBlocking { raw.data.first() })
         assertEquals(BarSide.Right, settings.barSide)
+        assertEquals(TuckAfter.FiveSeconds, settings.barTuck)
         assertEquals(listOf(HomePanel.Clock, HomePanel.Navigation, HomePanel.NowPlaying), settings.homeOrder)
         assertEquals(SideSwipe.Apps, settings.sideSwipe)
         assertEquals(TwoFingerDrag.Volume, settings.twoFingerDrag)

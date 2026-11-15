@@ -1,6 +1,8 @@
 package com.roufsyed.cabin.bar
 
+import com.roufsyed.cabin.model.TuckAfter
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
 
 /**
  * What the bar over other apps goes by. It is shared between the service that draws the bar, the
@@ -25,10 +27,17 @@ class SideBarState {
 
     /**
      * True while the bar is tucked away, with only its handle left at the screen's edge. The grip on
-     * the bar sets it and the handle clears it. It is not kept between runs, and it ends whenever
-     * Cabin's own screen has been shown: the bar is back for the next app.
+     * the bar sets it, and so does the bar being left untouched for as long as Settings says; the
+     * handle clears it. It is not kept between runs, and whenever Cabin's own screen has been shown
+     * it is put back to what the next app starts with (see [SideBarRules.startsTucked]).
      */
     val tucked = MutableStateFlow(false)
+
+    /** Whether a finger is on the bar, as the bar itself reports through [touched]. */
+    val touch = MutableStateFlow(BarTouch())
+
+    /** A finger has come down on the bar ([held]), or the last one has left it. */
+    fun touched(held: Boolean) = touch.update { BarTouch(held, it.changes + 1) }
 
     /**
      * Shows Android's list of recent apps. Set by the service while it runs: an accessibility service
@@ -46,10 +55,16 @@ class SideBarState {
     var openSplitChooser: ((onScreen: List<String>) -> Boolean)? = null
 }
 
+/**
+ * Whether a finger is on the bar. [changes] counts every time that has changed, so that a finger
+ * which comes down and leaves again before anyone has looked still reads as news.
+ */
+data class BarTouch(val held: Boolean = false, val changes: Int = 0)
+
 /** What is drawn over another app: nothing, the whole bar, or only the handle that brings it back. */
 enum class BarView { None, Bar, Handle }
 
-/** When the bar is drawn, and where its handle goes. Kept apart from Android so it can be tested. */
+/** When the bar is drawn, and when it tucks itself away. Kept apart from Android so it can be tested. */
 object SideBarRules {
     /**
      * [wanted] is the switch in Setup. The bar is for other apps, so it goes while Cabin is showing,
@@ -70,14 +85,23 @@ object SideBarRules {
         }
 
     /**
-     * How far down the screen the handle's top edge is, in pixels: it is centred on the grip that
-     * tucked the bar away, so that the same spot brings the bar back. The grip is [grip] high and
-     * the handle [handleHeight]; the bar's [buttons] share the rest of [screenHeight] between them,
-     * [above] of them over the grip.
+     * Whether an app starts with the bar tucked away. Under Immediate it does, wherever the bar can
+     * be tucked away at all, which takes the [handle].
      */
-    fun handleTop(screenHeight: Int, grip: Float, handleHeight: Float, buttons: Int, above: Int): Int {
-        val button = (screenHeight - grip) / buttons
-        val gripMiddle = above * button + grip / 2f
-        return (gripMiddle - handleHeight / 2f).toInt().coerceIn(0, (screenHeight - handleHeight).toInt().coerceAtLeast(0))
+    fun startsTucked(handle: Boolean, after: TuckAfter): Boolean = handle && after == TuckAfter.Immediate
+
+    /**
+     * How long the bar stays out with no finger on it before it tucks itself away, in milliseconds,
+     * or null where it stays until its grip is tapped. Under Immediate the bar is only ever out
+     * because its handle was tapped, and it then stays as long as under the shortest wait, which is
+     * long enough to reach a button and press it.
+     */
+    fun stayMs(handle: Boolean, after: TuckAfter): Long? = when {
+        !handle -> null
+        else -> when (after) {
+            TuckAfter.Immediate, TuckAfter.FiveSeconds -> 5_000L
+            TuckAfter.TenSeconds -> 10_000L
+            TuckAfter.Never -> null
+        }
     }
 }

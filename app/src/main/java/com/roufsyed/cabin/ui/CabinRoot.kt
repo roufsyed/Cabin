@@ -37,6 +37,7 @@ import com.roufsyed.cabin.model.ScreenOffShows
 import com.roufsyed.cabin.model.Slot
 import com.roufsyed.cabin.model.SourceId
 import com.roufsyed.cabin.model.ThemeId
+import com.roufsyed.cabin.model.TuckAfter
 import com.roufsyed.cabin.model.screenOffUi
 import com.roufsyed.cabin.nav.SavedPlace
 import com.roufsyed.cabin.sources.Opened
@@ -663,9 +664,10 @@ private fun ThemeAndGestureTiles(container: AppContainer, shellModel: ShellViewM
 }
 
 /**
- * Layout: the side bar's switches and which edge it is on, then the place of each of Home's three
- * panels, then the tile that puts every place back as the design has it. A tap on a panel's tile
- * moves that panel one place to the right, and from the right-hand place round to the left.
+ * Layout: the side bar's switches, how soon it tucks itself away and which edge it is on, then the
+ * place of each of Home's three panels, then the tile that puts every place back as the design has
+ * it. A tap on a panel's tile moves that panel one place to the right, and from the right-hand place
+ * round to the left. How soon the bar tucks away is one of four, so its tile drops a list instead.
  */
 @Composable
 private fun LayoutTiles(container: AppContainer, host: HostActions) {
@@ -688,6 +690,17 @@ private fun LayoutTiles(container: AppContainer, host: HostActions) {
                 "Side bar handle", "Tucks the bar away and back", "Side bar handle: on or off",
                 value = if (settings.barHandle) "On" else "Off", on = settings.barHandle,
                 onClick = { change { it.copy(barHandle = !it.barHandle) } },
+            ),
+            // How soon that bar tucks itself away. It takes the handle, which is what brings it back.
+            SettingsTile(
+                "Tuck away",
+                if (settings.barHandle) settings.barTuck.hint else "Needs the side bar handle",
+                "Side bar tucks away: immediate, 5 sec, 10 sec or never",
+                value = if (settings.barHandle) settings.barTuck.label else "Off",
+                on = settings.barHandle && settings.barTuck != TuckAfter.Never,
+                options = if (settings.barHandle) TuckAfter.entries.map { it.label } else emptyList(),
+                chosen = settings.barTuck.ordinal,
+                onPick = { option -> change { it.copy(barTuck = TuckAfter.entries[option]) } },
             ),
             // Cabin's own rail and the bar over other apps go to the same edge.
             SettingsTile(

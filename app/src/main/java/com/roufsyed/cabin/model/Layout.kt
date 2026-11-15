@@ -3,6 +3,20 @@ package com.roufsyed.cabin.model
 /** Which edge of the screen the side bar is on: Cabin's own rail, and the bar kept over other apps. */
 enum class BarSide(val label: String) { Right("Right"), Left("Left") }
 
+/**
+ * How soon the bar over other apps tucks itself away, leaving its handle at the screen's edge. The
+ * wait runs from when the bar comes up and again from each touch on it. [hint] says it in a line.
+ */
+enum class TuckAfter(val label: String, val hint: String) {
+    /** An app opens with the bar tucked away already; the handle brings it out for a while. */
+    Immediate("Immediate", "As soon as an app opens"),
+    FiveSeconds("5 sec", "After 5 seconds untouched"),
+    TenSeconds("10 sec", "After 10 seconds untouched"),
+
+    /** The bar stays until its own arrow is tapped. */
+    Never("Never", "Only by a tap on its arrow"),
+}
+
 /** The three panels of the Home screen, in the order the design has them from left to right. */
 enum class HomePanel(val label: String) {
     Clock("Clock and date"),

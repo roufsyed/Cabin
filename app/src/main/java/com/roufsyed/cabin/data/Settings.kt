@@ -19,6 +19,7 @@ import com.roufsyed.cabin.model.ScreenOffShows
 import com.roufsyed.cabin.model.Slot
 import com.roufsyed.cabin.model.SourceId
 import com.roufsyed.cabin.model.ThemeId
+import com.roufsyed.cabin.model.TuckAfter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -88,6 +89,8 @@ data class CabinSettings(
     val sideBar: Boolean = true,
     /** That bar has a grip that tucks it away, leaving a handle at the screen's edge to bring it back. */
     val barHandle: Boolean = true,
+    /** How soon that bar tucks itself away when it is left untouched. */
+    val barTuck: TuckAfter = TuckAfter.FiveSeconds,
     /** Which edge of the screen the side bar is on, in Cabin and over other apps. */
     val barSide: BarSide = BarSide.Right,
     /** The Home screen's three panels, from left to right. */
@@ -147,6 +150,7 @@ object SettingsCodec {
     private val theme = stringPreferencesKey("theme")
     private val sideBar = booleanPreferencesKey("side_bar")
     private val barHandle = booleanPreferencesKey("side_bar_handle")
+    private val barTuck = stringPreferencesKey("side_bar_tuck")
     private val barSide = stringPreferencesKey("side_bar_side")
     private val homeOrder = stringPreferencesKey("home_order")
     private val offClock = booleanPreferencesKey("off_clock")
@@ -196,6 +200,7 @@ object SettingsCodec {
             ),
             sideBar = prefs[sideBar] ?: defaults.sideBar,
             barHandle = prefs[barHandle] ?: defaults.barHandle,
+            barTuck = prefs[barTuck]?.let { enumOrNull<TuckAfter>(it) } ?: defaults.barTuck,
             barSide = prefs[barSide]?.let { enumOrNull<BarSide>(it) } ?: defaults.barSide,
             homeOrder = LayoutRules.valid(
                 prefs[homeOrder]?.split(',')?.mapNotNull { enumOrNull<HomePanel>(it) } ?: defaults.homeOrder,
@@ -235,6 +240,7 @@ object SettingsCodec {
         prefs[offStatus] = settings.screenOff.status
         prefs[sideBar] = settings.sideBar
         prefs[barHandle] = settings.barHandle
+        prefs[barTuck] = settings.barTuck.name
         prefs[barSide] = settings.barSide.name
         prefs[homeOrder] = settings.homeOrder.joinToString(",") { it.name }
         prefs.remove(retiredSwipe)
