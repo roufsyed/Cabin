@@ -1,14 +1,28 @@
 *.iml
 .gradle/
 .kotlin/
-.idea/
 .DS_Store
 local.properties
+*.log
 build/
 captures/
 .externalNativeBuild/
 .cxx/
 *.apk
 *.aab
+output-metadata.json
+.idea/
+misc.xml
+deploymentTargetDropDown.xml
+render.experimental.xml
+
+# Keystore files
+*.jks
 *.keystore
 dist/
+
+# Google Services (e.g. APIs or Firebase)
+google-services.json
+
+# Android Profiling
+*.hprof
