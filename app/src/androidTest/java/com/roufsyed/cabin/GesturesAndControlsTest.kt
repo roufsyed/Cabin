@@ -176,6 +176,36 @@ class GesturesAndControlsTest {
     }
 
     @Test
+    fun aBriskTwoFingerSwipeMovesTheVolumeThoughTheSecondFingerLandsLate() {
+        cabin.onRoot().performTouchInput {
+            down(0, at(500f, 300f))
+            moveTo(0, at(500f, 345f), delayMillis = 15)
+            moveTo(0, at(500f, 390f), delayMillis = 15)
+            down(1, at(560f, 380f))
+            updatePointerTo(0, at(500f, 462f))
+            updatePointerTo(1, at(560f, 452f))
+            move(delayMillis = 15)
+        }
+        shows("Volume 9")
+        cabin.onRoot().performTouchInput {
+            up(1)
+            up(0)
+        }
+        cabin.waitForIdle()
+        assertEquals(9, volume.level)
+        cabin.onNodeWithText("Notifications").assertDoesNotExist()
+        shows("Open Maps")
+    }
+
+    @Test
+    fun aQuickFlickOfOneFingerIsStillASwipe() {
+        cabin.onRoot().performTouchInput { swipe(at(900f, 340f), at(700f, 340f), durationMillis = 40) }
+        cabin.waitForIdle()
+        shows("Open music")
+        gone("Open Maps")
+    }
+
+    @Test
     fun sidewaysSwipesOnHomeCanChangeTheTrackInstead() {
         choose { it.copy(sideSwipe = SideSwipe.Tracks) }
         swipeLeft()

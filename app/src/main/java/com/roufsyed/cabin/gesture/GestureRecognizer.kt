@@ -40,9 +40,11 @@ class GestureRecognizer(
     private val swipeDistance: Float = 70f,
     private val volumeStep: Float = 24f,
     private val tapBlockMs: Long = 400L,
+    private val secondFingerMs: Long = 80L,
 ) {
-    private class Touch(val primary: Long, val startX: Float, val startY: Float, val blocked: Boolean) {
+    private class Touch(val primary: Long, val startX: Float, val startY: Float, val downAtMs: Long, val blocked: Boolean) {
         val pointers = ArrayList<Long>(2).also { it.add(primary) }
+        var x = startX
         var y = startY
         var moved = false
         var fired = false
@@ -66,7 +68,7 @@ class GestureRecognizer(
         val current = touch
         if (current == null || pointer in current.pointers) {
             // A first finger, or the system re-reporting one after losing track: start afresh.
-            touch = Touch(pointer, x, y, blocked = timeMs - swipedAtMs <= tapBlockMs)
+            touch = Touch(pointer, x, y, timeMs, blocked = timeMs - swipedAtMs <= tapBlockMs)
             return emptyList()
         }
         current.pointers.add(pointer)
@@ -81,10 +83,9 @@ class GestureRecognizer(
     fun move(pointer: Long, x: Float, y: Float, timeMs: Long): List<Gesture> {
         val current = touch ?: return emptyList()
         if (pointer != current.primary) return emptyList()
-        val dx = x - current.startX
-        val dy = y - current.startY
+        current.x = x
         current.y = y
-        if (abs(dx) > slop || abs(dy) > slop) current.moved = true
+        if (abs(x - current.startX) > slop || abs(y - current.startY) > slop) current.moved = true
         if (!current.moved || current.fired) return emptyList()
 
         if (current.twoFingers) {
@@ -101,18 +102,8 @@ class GestureRecognizer(
             return events
         }
 
-        val ax = abs(dx)
-        val ay = abs(dy)
-        if (maxOf(ax, ay) < swipeDistance) return emptyList()
-        current.fired = true
-        swipedAtMs = timeMs
-        return listOf(
-            when {
-                ay > ax -> if (dy > 0) Gesture.SwipeDown else Gesture.SwipeUp
-                dx < 0 -> Gesture.SwipeLeft
-                else -> Gesture.SwipeRight
-            },
-        )
+        if (!farEnough(current) || timeMs - current.downAtMs < secondFingerMs) return emptyList()
+        return listOf(fire(current, timeMs))
     }
 
     fun up(pointer: Long, timeMs: Long): List<Gesture> {
@@ -121,7 +112,9 @@ class GestureRecognizer(
         if (current.pointers.isNotEmpty()) return emptyList()
         touch = null
         if (current.moved) swipedAtMs = timeMs
-        return if (current.volumeShown) listOf(Gesture.VolumeEnd) else emptyList()
+        if (current.volumeShown) return listOf(Gesture.VolumeEnd)
+        val flick = !current.fired && !current.twoFingers && current.moved && farEnough(current)
+        return if (flick) listOf(fire(current, timeMs)) else emptyList()
     }
 
     /** The system took the touch away (for example to show its own bars). */
@@ -129,5 +122,20 @@ class GestureRecognizer(
         val current = touch ?: return emptyList()
         touch = null
         return if (current.volumeShown) listOf(Gesture.VolumeEnd) else emptyList()
+    }
+
+    private fun farEnough(touch: Touch): Boolean =
+        maxOf(abs(touch.x - touch.startX), abs(touch.y - touch.startY)) >= swipeDistance
+
+    private fun fire(touch: Touch, timeMs: Long): Gesture {
+        touch.fired = true
+        swipedAtMs = timeMs
+        val dx = touch.x - touch.startX
+        val dy = touch.y - touch.startY
+        return when {
+            abs(dy) > abs(dx) -> if (dy > 0) Gesture.SwipeDown else Gesture.SwipeUp
+            dx < 0 -> Gesture.SwipeLeft
+            else -> Gesture.SwipeRight
+        }
     }
 }
