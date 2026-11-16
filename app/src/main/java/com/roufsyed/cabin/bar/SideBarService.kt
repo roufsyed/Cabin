@@ -55,7 +55,8 @@ import kotlin.math.roundToInt
 
 /**
  * Keeps Cabin's rail on screen while another app is open, at half its width, and does there what
- * only this kind of service may: press Back, and show the recent apps.
+ * only this kind of service may: press Back, and show the recent apps. For Cabin's tray it also
+ * asks Android for a picture of the screen and for the power menu, which only it may do either.
  *
  * Android lets no other kind of app press Back in an app that is not its own or ask for the list of
  * recent apps, and an accessibility service may also draw over every app without a further
@@ -87,6 +88,8 @@ class SideBarService : AccessibilityService() {
         val saved = container.settings.settings
         state.allowed.value = true
         state.showRecents = ::showRecents
+        state.takeScreenshot = ::takeScreenshot
+        state.showPowerMenu = ::showPowerMenu
         // The bar is in the theme's colours. Cabin's own screen may not have been opened in this run.
         scope.launch {
             saved.map { it.theme }.distinctUntilChanged().collect { Slate.palette = Themes.palette(it) }
@@ -153,6 +156,8 @@ class SideBarService : AccessibilityService() {
             it.tucked.value = false
             it.touched(false)
             it.showRecents = null
+            it.takeScreenshot = null
+            it.showPowerMenu = null
         }
         container = null
     }
@@ -296,6 +301,22 @@ class SideBarService : AccessibilityService() {
     private fun showRecents(): Boolean = performGlobalAction(GLOBAL_ACTION_RECENTS)
 
     /**
+     * A picture of the screen, taken and saved by Android as by its own screenshot button; Cabin
+     * never sees it. The tray asks for it, so it waits until the tray has gone from the screen.
+     */
+    private fun takeScreenshot(): Boolean {
+        val scope = scope ?: return false
+        scope.launch {
+            delay(SCREENSHOT_WAIT_MS)
+            performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT)
+        }
+        return true
+    }
+
+    /** Android's power menu, wherever the unit has one. Restart is in it. */
+    private fun showPowerMenu(): Boolean = performGlobalAction(GLOBAL_ACTION_POWER_DIALOG)
+
+    /**
      * Split: the app in front keeps one half of the screen and the chooser for a second app opens in
      * the other. Cabin's activity has to be the one that asks Android for that. If it is not there,
      * as after Android has restarted Cabin behind another app, Cabin's Home comes up instead, and
@@ -333,6 +354,11 @@ class SideBarService : AccessibilityService() {
         } catch (e: RuntimeException) {
             performGlobalAction(GLOBAL_ACTION_HOME)
         }
+    }
+
+    private companion object {
+        /** How long the tray is given to go from the screen before the picture is taken. */
+        const val SCREENSHOT_WAIT_MS = 350L
     }
 
     /**

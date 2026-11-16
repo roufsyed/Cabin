@@ -37,8 +37,12 @@ interface TraySource {
     fun clearAll()
 }
 
-/** How many rows fit between the tray's heading and its buttons on an 800-high screen. */
-const val TRAY_ROWS = 6
+/**
+ * How many rows fit between the tray's heading and its buttons on an 800-high screen, under the two
+ * rows of controls at its top: with four the tray is exactly as high as the screen. The design's
+ * tray, which has no controls, had room for six.
+ */
+const val TRAY_ROWS = 4
 
 /** A fixed set of notifications: for the demo launch and for tests. */
 class FixedTray(initial: List<TrayItem> = emptyList()) : TraySource {

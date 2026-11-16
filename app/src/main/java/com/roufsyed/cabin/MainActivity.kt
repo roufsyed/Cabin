@@ -1,5 +1,7 @@
 package com.roufsyed.cabin
 
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothManager
 import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Intent
@@ -50,6 +52,12 @@ class MainActivity : ComponentActivity() {
             container.homeRole.refresh()
         }
 
+    /** Android's own question whether Bluetooth may be switched. Back from it, the marks are re-read. */
+    private val bluetoothQuestion =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            refreshFromSystem()
+        }
+
     /** Who is waiting to hear how Android's permission dialog was answered. */
     private var permissionAnswer: ((Boolean) -> Unit)? = null
     private val permissionRequest =
@@ -75,8 +83,16 @@ class MainActivity : ComponentActivity() {
             },
             withMicrophone = { answer -> withPermission(Grant.Microphone.permission, answer) },
             requestGrant = ::requestGrant,
+            withGrant = { grant, answer -> withPermission(grant.permission, answer) },
             openBluetooth = { open(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) },
             openWifi = { open(Intent(Settings.Panel.ACTION_WIFI), Intent(Settings.ACTION_WIFI_SETTINGS)) },
+            askBluetooth = ::askBluetooth,
+            // The hotspot page first, by the name Android's settings app answers to; a unit without
+            // it gets the network page that leads there, or failing that its settings.
+            openHotspot = {
+                open(Intent(HOTSPOT_SETTINGS), Intent(Settings.ACTION_WIRELESS_SETTINGS), Intent(Settings.ACTION_SETTINGS))
+            },
+            openUnitSettings = { open(Intent(Settings.ACTION_SETTINGS)) },
             openPair = ::openPair,
             openAccessibility = { open(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) },
         )
@@ -235,6 +251,29 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Has Android ask whether Bluetooth may be switched on or off, for a unit on which Cabin may not
+     * switch it itself (Android 13 and later). It is asked as a question that reports back, which is
+     * what lets Android name Cabin in it. Turning on is asked the documented way. Turning off is
+     * asked of the same screen of Android's settings app, by a name that is not a public one; a unit
+     * whose settings lack it, or refuse, gets its Bluetooth page instead. So does a unit whose
+     * Bluetooth is not Android's own, about which Android has nothing to ask.
+     */
+    private fun askBluetooth(on: Boolean) {
+        if (getSystemService(BluetoothManager::class.java)?.adapter == null) {
+            open(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
+            return
+        }
+        val question = Intent(if (on) BluetoothAdapter.ACTION_REQUEST_ENABLE else REQUEST_BLUETOOTH_OFF)
+        try {
+            bluetoothQuestion.launch(question)
+        } catch (e: ActivityNotFoundException) {
+            open(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
+        } catch (e: SecurityException) {
+            open(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
+        }
+    }
+
     /** The second step of a split-screen pair that is still to come, if any. */
     private var pairStep: Runnable? = null
 
@@ -314,5 +353,11 @@ class MainActivity : ComponentActivity() {
         /** `adb shell am start -n com.roufsyed.cabin/.MainActivity --ez design true` on a debug build. */
         const val EXTRA_DESIGN_VALUES = "design"
         private const val KEYS_TAG = "CabinKeys"
+
+        /** Android's settings app asks "turn Bluetooth off?" for this, as it does for the public "on". */
+        private const val REQUEST_BLUETOOTH_OFF = "android.bluetooth.adapter.action.REQUEST_DISABLE"
+
+        /** Android's hotspot and tethering page. The name is the settings app's own, not a public constant. */
+        private const val HOTSPOT_SETTINGS = "android.settings.TETHER_SETTINGS"
     }
 }

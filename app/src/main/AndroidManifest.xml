@@ -9,12 +9,25 @@
     <!-- Only the last position Android already has, to work out sunrise and sunset for Auto brightness. -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
-    <!-- The Wi-Fi and phone marks beside the clock. Neither changes anything; they only read state. -->
+    <!-- The Wi-Fi and phone marks beside the clock, which only read state. -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission
         android:name="android.permission.BLUETOOTH"
         android:maxSdkVersion="30" />
+
+    <!--
+        The tray's Bluetooth and Wi-Fi switches. Android 13 answers "no" to both for an app like
+        Cabin, which then opens the unit's own switch; an older or more lenient unit lets them work.
+        Bluetooth needs the first only before Android 12, and "nearby devices" above from then on.
+    -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_ADMIN"
+        android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+
+    <!-- The tray's Clear memory: closes what other apps have left running in the background. -->
+    <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
 
     <!-- "Where to?" listens for one spoken destination. Asked for the first time it is used. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />

@@ -259,17 +259,29 @@ class LayoutTest {
     }
 
     @Test
-    fun trayMatchesTheDesignGrid() {
+    fun trayKeepsTheDesignsGridUnderItsControls() {
         cabin.onRoot().performTouchInput {
             swipe(Offset(visibleSize.width * 0.4f, visibleSize.height * 0.15f), Offset(visibleSize.width * 0.4f, visibleSize.height * 0.45f), 200)
         }
-        // A 1200-wide sheet from the top edge at x = 40: a 76-high heading, 104-high rows, 96-high buttons.
-        at("Missed call. Meera · tap to call back", 41f, 76f, 1198f, 104f)
-        at("Kabir. Running ten minutes late", 41f, 180f, 1198f, 104f)
-        at("USB drive connected. Tap to play from USB", 41f, 284f, 1198f, 104f)
-        at("Clear all notifications", 41f, 389f, 398f, 96f)
-        at("Screen off", 440f, 389f, 398f, 96f)
-        at("Close notification tray", 839f, 389f, 400f, 96f)
+        // A 1200-wide sheet from the top edge at x = 40. The controls, which the design does not have,
+        // come first: two rows of five, each 96 high with a 1 px line under it, the first with 16 more
+        // at its top. The five share the sheet's 1198 with four 1 px dividers between them, 238.8 each.
+        at("Bluetooth: on", 41f, 0f, 238.8f, 112f)
+        at("Wi-Fi: on", 280.8f, 0f, 238.8f, 112f)
+        at("Recent apps: allow Cabin under Accessibility first", 1000.2f, 0f, 238.8f, 112f)
+        at("Split screen: choose two apps", 41f, 113f, 238.8f, 96f)
+        at("Unit settings", 520.6f, 113f, 238.8f, 96f)
+        at("Restart: allow Cabin under Accessibility first", 1000.2f, 113f, 238.8f, 96f)
+        // In the first row the names sit where they would in a 96-high button, clear of Android's own
+        // bar, which is 24 high when a swipe from the screen's edge brings it back for a moment.
+        assertEquals(line("Wi-Fi").bottom, line("Unit settings").bottom - 97f, 1.01f)
+        // Under them is the design's tray, 210 lower: a 76-high heading, 104-high rows, 96-high buttons.
+        at("Missed call. Meera · tap to call back", 41f, 286f, 1198f, 104f)
+        at("Kabir. Running ten minutes late", 41f, 390f, 1198f, 104f)
+        at("USB drive connected. Tap to play from USB", 41f, 494f, 1198f, 104f)
+        at("Clear all notifications", 41f, 599f, 398f, 96f)
+        at("Screen off", 440f, 599f, 398f, 96f)
+        at("Close notification tray", 839f, 599f, 400f, 96f)
     }
 
     @Test

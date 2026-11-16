@@ -214,7 +214,7 @@ class ShellViewModelTest {
     fun `holding an app opens the split chooser, and leaving it returns to the same page of apps`() {
         shell.appsPage(1)
         shell.splitWith("maps")
-        assertEquals(Shell(screen = Screen.Split, splitFirst = "maps", pickFromPage = 1), state)
+        assertEquals(Shell(screen = Screen.Split, splitFirst = "maps", pickFrom = Screen.Apps, pickFromPage = 1), state)
 
         shell.splitDone()
         assertEquals(Shell(screen = Screen.Apps, page = 1), state)
@@ -234,7 +234,68 @@ class ShellViewModelTest {
         assertEquals(1, state.page)
         shell.swipeRight()
         shell.swipeRight()
-        assertEquals(Shell(screen = Screen.Split, splitFirst = "maps"), state)
+        assertEquals(Shell(screen = Screen.Split, splitFirst = "maps", pickFrom = Screen.Apps), state)
+    }
+
+    @Test
+    fun `the tray's Split screen chooses the left app, then the right, and closes the tray`() {
+        shell.open(Screen.Music)
+        shell.show(Overlay.Tray)
+        shell.split()
+        assertEquals(Shell(screen = Screen.Split, pickFrom = Screen.Music), state)
+
+        // The second page of apps, then a tap: the chooser for the right starts from its first page.
+        shell.swipeLeft(pages = 2)
+        shell.splitLeft("maps")
+        assertEquals(Shell(screen = Screen.Split, splitFirst = "maps", pickFrom = Screen.Music), state)
+
+        // A second tap does not change the left app.
+        shell.splitLeft("radio")
+        assertEquals("maps", state.splitFirst)
+
+        shell.splitDone()
+        assertEquals(Shell(screen = Screen.Music), state)
+    }
+
+    @Test
+    fun `leaving the tray's split chooser returns to where the tray was opened`() {
+        shell.appsPage(1)
+        shell.show(Overlay.Tray)
+        shell.split()
+        shell.back()
+        assertEquals(Shell(screen = Screen.Apps, page = 1), state)
+
+        // From Home it leads back Home, at either step.
+        shell.home()
+        shell.split()
+        shell.splitLeft("maps")
+        shell.back()
+        assertEquals(Shell(), state)
+    }
+
+    @Test
+    fun `from the middle of arranging or of another chooser the split chooser is left for Home`() {
+        shell.arrangeApps()
+        shell.pick("a")
+        shell.show(Overlay.Tray)
+        shell.split()
+        assertEquals(Shell(screen = Screen.Split), state)
+        shell.splitDone()
+        assertEquals(Shell(), state)
+
+        shell.open(Screen.Setup)
+        shell.setupPage(1)
+        shell.pickApp(com.roufsyed.cabin.model.Slot.Maps)
+        shell.split()
+        shell.back()
+        assertEquals(Shell(), state)
+    }
+
+    @Test
+    fun `choosing the left app only works in the chooser`() {
+        shell.open(Screen.Apps)
+        shell.splitLeft("maps")
+        assertEquals(Shell(screen = Screen.Apps), state)
     }
 
     @Test

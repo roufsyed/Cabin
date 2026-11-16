@@ -47,6 +47,21 @@ class SideBarState {
     var showRecents: (() -> Boolean)? = null
 
     /**
+     * Has Android take a picture of the screen, as the unit's own screenshot button would, and save
+     * it where the unit keeps them. Set by the service while it runs. It is asked for from Cabin's
+     * tray, so the picture is taken a moment later, once the tray has gone from the screen.
+     */
+    @Volatile
+    var takeScreenshot: (() -> Boolean)? = null
+
+    /**
+     * Shows Android's power menu, which is where the unit is restarted from: an app cannot restart
+     * the unit itself. Set by the service while it runs.
+     */
+    @Volatile
+    var showPowerMenu: (() -> Boolean)? = null
+
+    /**
      * Opens the chooser for a second app in half the screen, beside what is on screen already, whose
      * packages it is given. Set by Cabin's activity while it exists: Android only puts one app beside
      * another when an activity asks.

@@ -3,6 +3,8 @@ package com.roufsyed.cabin.notify
 import android.app.Notification
 import com.roufsyed.cabin.model.Samples
 import com.roufsyed.cabin.model.StatusUi
+import com.roufsyed.cabin.ui.overlay.TRAY_CONTROL_HEIGHT
+import com.roufsyed.cabin.ui.overlay.TRAY_HEADROOM
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -31,10 +33,12 @@ class TrayTest {
     }
 
     @Test
-    fun `the tray has room for six rows on an 800-high screen`() {
-        // 76 heading + 6 x 104 rows + 97 buttons = 797.
-        assertEquals(6, TRAY_ROWS)
-        assertEquals(797, 76 + TRAY_ROWS * 104 + 97)
+    fun `the tray has room for four rows under its controls on an 800-high screen`() {
+        // Two rows of controls, each with its line, and the first row's headroom, + 76 heading
+        // + 4 x 104 rows + 97 buttons + 1 outline: the whole height and no more.
+        val controls = TRAY_HEADROOM + 2 * (TRAY_CONTROL_HEIGHT + 1)
+        assertEquals(4, TRAY_ROWS)
+        assertEquals(800, controls + 76 + TRAY_ROWS * 104 + 97 + 1)
     }
 
     @Test

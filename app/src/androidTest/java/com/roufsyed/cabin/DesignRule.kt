@@ -3,6 +3,7 @@ package com.roufsyed.cabin
 import android.Manifest
 import android.content.Intent
 import android.graphics.Bitmap
+import android.os.Build
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
@@ -23,11 +24,12 @@ class FreshDesignValues(private val configure: (AppContainer) -> AppContainer = 
         private set
 
     override fun before() {
-        // "Where to?" asks for the microphone on first use; a system dialog would stall a test.
-        InstrumentationRegistry.getInstrumentation().uiAutomation.grantRuntimePermission(
-            ApplicationProvider.getApplicationContext<CabinApp>().packageName,
-            Manifest.permission.RECORD_AUDIO,
-        )
+        // "Where to?" asks for the microphone on first use, and the tray's Bluetooth switch for nearby
+        // devices; a system dialog would stall a test.
+        val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+        val cabin = ApplicationProvider.getApplicationContext<CabinApp>().packageName
+        automation.grantRuntimePermission(cabin, Manifest.permission.RECORD_AUDIO)
+        if (Build.VERSION.SDK_INT >= 31) automation.grantRuntimePermission(cabin, Manifest.permission.BLUETOOTH_CONNECT)
         container = configure(AppContainer.design())
         ApplicationProvider.getApplicationContext<CabinApp>().replaceContainer(container)
     }

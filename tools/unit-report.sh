@@ -50,7 +50,8 @@ say "Cabin unit report, $(date '+%Y-%m-%d %H:%M')"
 # ---------------------------------------------------------------- 1. The unit
 say ""
 say "== 1. The unit"
-for prop in ro.build.version.release ro.build.version.sdk ro.product.manufacturer ro.product.brand \
+for prop in ro.build.version.release ro.build.version.sdk ro.build.version.security_patch \
+    ro.product.manufacturer ro.product.brand \
     ro.product.model ro.product.device ro.product.board ro.board.platform ro.hardware \
     ro.build.display.id ro.build.type ro.build.date; do
     say "$prop = $(sh_ getprop "$prop")"
@@ -67,6 +68,13 @@ say "split screen supported: ${split:-not reported}"
 # The side bar over other apps is switched on in the unit's Accessibility settings.
 access=$(sh_ cmd package resolve-activity --brief -a android.settings.ACCESSIBILITY_SETTINGS | tail -n 1)
 say "accessibility settings screen: ${access:-not reported}"
+# What the tray's switches hand over to, where Android does not let Cabin switch for itself: the
+# Wi-Fi panel, the hotspot page, and the question "turn Bluetooth off?".
+for action in android.settings.panel.action.WIFI android.settings.TETHER_SETTINGS \
+    android.bluetooth.adapter.action.REQUEST_DISABLE; do
+    screen=$(sh_ cmd package resolve-activity --brief -a "$action" | tail -n 1)
+    say "screen for $action: ${screen:-not reported}"
+done
 services=$(sh_ settings get secure enabled_accessibility_services)
 case "$services" in
     *com.roufsyed.cabin/*) say "Cabin's side bar: switched on" ;;

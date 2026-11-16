@@ -2,6 +2,8 @@ package com.roufsyed.cabin
 
 import android.content.Intent
 import android.os.ParcelFileDescriptor
+import androidx.activity.viewModels
+import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -12,6 +14,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.roufsyed.cabin.apps.FixedApps
 import com.roufsyed.cabin.apps.SplitScreen
+import com.roufsyed.cabin.ui.shell.Overlay
+import com.roufsyed.cabin.ui.shell.ShellViewModel
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -148,6 +152,13 @@ class NoSplitScreenTest {
         cabin.waitForIdle()
         cabin.onNodeWithText("Unit has no split screen").assertIsDisplayed()
         assertTrue(values.container.settings.settings.value.longPressSplit)
+    }
+
+    @Test
+    fun theTraysSplitScreenIsDimmedAndIsNoButton() {
+        cabin.runOnUiThread { cabin.activity.viewModels<ShellViewModel>().value.show(Overlay.Tray) }
+        cabin.onNodeWithContentDescription("Split screen: the unit has none").assertIsDisplayed().assertHasNoClickAction()
+        cabin.onNodeWithContentDescription("Split screen: choose two apps").assertDoesNotExist()
     }
 }
 

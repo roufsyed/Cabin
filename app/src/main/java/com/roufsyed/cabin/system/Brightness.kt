@@ -45,6 +45,9 @@ interface BrightnessControl {
     /** Auto, then Day, then Night, then Auto again. */
     fun cycleMode()
 
+    /** The tray's Night mode switch: the other look from the one showing. See [BrightnessRules.toggled]. */
+    fun toggleNight()
+
     /** Re-checks the permission and whether it is day or night. */
     fun refresh() = Unit
 }
@@ -72,6 +75,22 @@ object BrightnessRules {
         BrightnessMode.Auto -> dark
         BrightnessMode.Day -> false
         BrightnessMode.Night -> true
+    }
+
+    /**
+     * Night mode switched by one button, as in the tray: the look changes to the other one, night to
+     * day or day to night, every time. Where Auto would give the wanted look by itself the mode goes
+     * back to Auto; otherwise the look is forced. So a switch thrown by hand does not outlast its
+     * reason: forced on in the afternoon and switched off the next morning, it leaves Auto in charge.
+     */
+    fun toggled(settings: CabinSettings, dark: Boolean): CabinSettings {
+        val wantNight = !night(settings.brightnessMode, dark)
+        val mode = when {
+            wantNight == dark -> BrightnessMode.Auto
+            wantNight -> BrightnessMode.Night
+            else -> BrightnessMode.Day
+        }
+        return settings.copy(brightnessMode = mode)
     }
 
     fun ui(settings: CabinSettings, dark: Boolean): BrightnessUi {
@@ -126,6 +145,8 @@ private class BrightnessCore(
 
     fun cycleMode() = change { it.copy(brightnessMode = BrightnessRules.nextMode(it.brightnessMode)) }
 
+    fun toggleNight() = change { BrightnessRules.toggled(it, dark(it)) }
+
     private fun change(transform: (CabinSettings) -> CabinSettings) {
         scope.launch { settings.update(transform) }
     }
@@ -145,6 +166,7 @@ class FixedBrightness(
 
     override fun step(delta: Int) = core.step(delta)
     override fun cycleMode() = core.cycleMode()
+    override fun toggleNight() = core.toggleNight()
 }
 
 /**
@@ -185,6 +207,7 @@ class AndroidBrightness(
 
     override fun step(delta: Int) = core.step(delta)
     override fun cycleMode() = core.cycleMode()
+    override fun toggleNight() = core.toggleNight()
 
     override fun refresh() {
         writable.value = Settings.System.canWrite(context)

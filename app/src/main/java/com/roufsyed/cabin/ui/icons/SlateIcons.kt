@@ -105,6 +105,35 @@ object SlateIcons {
         dot(12f, 12f, 4f)
     }
 
+    // The tray's controls. None of these is in the design, whose tray has no controls; they are drawn
+    // on its grid, in its line weight, from its own shapes where it has them.
+    /** The Bluetooth mark: an upright with two points, crossed behind. */
+    val Bluetooth = icon { path("M7 7.5l10 9-5 4.5V3l5 4.5-10 9") }
+    /** A hotspot: the unit as a dot, sending both ways. */
+    val Hotspot = icon {
+        dot(12f, 12f, 1.6f)
+        path("M8.5 15.5a5 5 0 0 1 0-7"); path("M15.5 8.5a5 5 0 0 1 0 7")
+        path("M5.6 18.4a9 9 0 0 1 0-12.8"); path("M18.4 5.6a9 9 0 0 1 0 12.8")
+    }
+    /** Recent apps: one card over another. */
+    val Recents = icon {
+        rect(3.5f, 8f, 12f, 12.5f, 2f); path("M8.5 8V5.5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2V14a2 2 0 0 1-2 2h-3")
+    }
+    /** A picture of the screen: the four corners of a frame around a lens. */
+    val Screenshot = icon {
+        path("M4 9V6a2 2 0 0 1 2-2h3"); path("M15 4h3a2 2 0 0 1 2 2v3")
+        path("M20 15v3a2 2 0 0 1-2 2h-3"); path("M9 20H6a2 2 0 0 1-2-2v-3")
+        circle(12f, 12f, 3f)
+    }
+    /** Memory: a chip with its legs. */
+    val Memory = icon {
+        rect(7f, 7f, 10f, 10f, 1.5f)
+        path("M10 4v3"); path("M14 4v3"); path("M10 17v3"); path("M14 17v3")
+        path("M4 10h3"); path("M4 14h3"); path("M17 10h3"); path("M17 14h3")
+    }
+    /** The power mark, for the unit's power menu. */
+    val Power = icon { path("M12 3.5v8.5"); path("M7.2 7.3a7.5 7.5 0 1 0 9.6 0") }
+
     // Tray and keys
     val Message = icon { path("M4 5.5h16v10.5H10l-4.5 4v-4H4z") }
     val Mode = icon {

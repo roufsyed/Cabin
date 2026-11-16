@@ -36,11 +36,16 @@ data class Shell(
     /** The tile tapped while arranging. */
     val picked: String? = null,
     val overlay: Overlay = Overlay.None,
-    /** On the Pick screen: the slot an app is being chosen for, and where to go back to. */
+    /** On the Pick screen: the slot an app is being chosen for. */
     val pickSlot: Slot? = null,
+    /** On the Pick and Split screens: where to go back to. */
     val pickFrom: Screen = Screen.Home,
     val pickFromPage: Int = 0,
-    /** On the Split screen: the app that was held, for which a neighbour is being chosen. */
+    /**
+     * On the Split screen: the app for the left, for which a neighbour is being chosen. It is the app
+     * that was held in the grid, or, when the chooser was opened from the tray, null until the first
+     * of the two taps has chosen it.
+     */
     val splitFirst: String? = null,
 )
 
@@ -114,16 +119,36 @@ class ShellViewModel : ViewModel() {
      */
     fun splitWith(appId: String) = _state.update {
         if (it.screen == Screen.Apps && it.edit == null && it.overlay == Overlay.None) {
-            Shell(screen = Screen.Split, splitFirst = appId, pickFromPage = it.page)
+            Shell(screen = Screen.Split, splitFirst = appId, pickFrom = Screen.Apps, pickFromPage = it.page)
         } else {
             it
         }
     }
 
-    /** Leaves the split-screen chooser for the page of apps it was opened from. */
+    /**
+     * Starts choosing both apps of a split screen, the left one first: the tray's Split screen
+     * button. It closes the tray, and leaving the chooser leads back to the screen the tray was over.
+     */
+    fun split() = _state.update {
+        // There is no way back into the middle of arranging or of another chooser, so from those
+        // the chooser is left for Home.
+        val plain = it.edit == null && it.screen != Screen.Pick && it.screen != Screen.Split
+        Shell(
+            screen = Screen.Split,
+            pickFrom = if (plain) it.screen else Screen.Home,
+            pickFromPage = if (plain) it.page else 0,
+        )
+    }
+
+    /** In the chooser opened by [split]: [appId] is the app for the left, and the right one comes next. */
+    fun splitLeft(appId: String) = _state.update {
+        if (it.screen == Screen.Split && it.splitFirst == null) it.copy(splitFirst = appId, page = 0) else it
+    }
+
+    /** Leaves the split-screen chooser for the screen, and the page, it was opened from. */
     fun splitDone() = _state.update { if (it.screen == Screen.Split) afterSplit(it) else it }
 
-    private fun afterSplit(shell: Shell): Shell = Shell(screen = Screen.Apps, page = shell.pickFromPage)
+    private fun afterSplit(shell: Shell): Shell = Shell(screen = shell.pickFrom, page = shell.pickFromPage)
 
     /**
      * One finger swiped left: Home leads to the first page of apps, and a page of apps, of the app

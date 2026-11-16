@@ -13,6 +13,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -43,6 +44,7 @@ import com.roufsyed.cabin.nav.SavedPlace
 import com.roufsyed.cabin.sources.Opened
 import com.roufsyed.cabin.system.BrightnessRules
 import com.roufsyed.cabin.system.Grant
+import com.roufsyed.cabin.system.MemoryRules
 import com.roufsyed.cabin.ui.apps.APPS_PER_PAGE
 import com.roufsyed.cabin.ui.apps.AppsGrid
 import com.roufsyed.cabin.ui.apps.AppsUi
@@ -55,10 +57,13 @@ import com.roufsyed.cabin.ui.chrome.MiniPlayer
 import com.roufsyed.cabin.ui.chrome.Rail
 import com.roufsyed.cabin.ui.chrome.TopStrip
 import com.roufsyed.cabin.ui.home.HomePanels
+import com.roufsyed.cabin.ui.icons.SlateIcon
 import com.roufsyed.cabin.ui.icons.SlateIcons
 import com.roufsyed.cabin.ui.music.MusicScreen
 import com.roufsyed.cabin.ui.overlay.BrightnessHud
+import com.roufsyed.cabin.ui.overlay.ControlLook
 import com.roufsyed.cabin.ui.overlay.ScreenOffOverlay
+import com.roufsyed.cabin.ui.overlay.TrayControl
 import com.roufsyed.cabin.ui.overlay.TrayOverlay
 import com.roufsyed.cabin.ui.overlay.VoiceOverlay
 import com.roufsyed.cabin.ui.overlay.VolumeHud
@@ -76,6 +81,7 @@ import com.roufsyed.cabin.ui.shell.Shell
 import com.roufsyed.cabin.ui.shell.ShellViewModel
 import com.roufsyed.cabin.ui.sources.SourcesGrid
 import com.roufsyed.cabin.ui.theme.DesignSurface
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -90,8 +96,19 @@ class HostActions(
     val withMicrophone: ((Boolean) -> Unit) -> Unit = { it(true) },
     /** Shows Android's dialog for one of the optional permissions. */
     val requestGrant: (Grant) -> Unit = {},
+    /** Asks for one of them if it has not been granted, then reports whether it is held. */
+    val withGrant: (Grant, (Boolean) -> Unit) -> Unit = { _, answer -> answer(true) },
     val openBluetooth: () -> Unit = {},
     val openWifi: () -> Unit = {},
+    /**
+     * Has Android itself ask whether Bluetooth may be switched on or off, for a unit on which Cabin
+     * may not switch it. Where the unit has no such question its Bluetooth settings open instead.
+     */
+    val askBluetooth: (on: Boolean) -> Unit = {},
+    /** Opens the unit's hotspot settings: no app may switch a hotspot. */
+    val openHotspot: () -> Unit = {},
+    /** Opens the unit's own settings. */
+    val openUnitSettings: () -> Unit = {},
     /** Opens two apps side by side. The activity has to do it itself: see `AppsSource.launchPair`. */
     val openPair: (SplitPair) -> Boolean = { false },
     /** Opens the unit's Accessibility settings, where the bar over other apps is allowed. */
@@ -295,6 +312,7 @@ private fun TrayContent(container: AppContainer, shellModel: ShellViewModel, hos
     val items by container.tray.items.collectAsStateWithLifecycle()
     val access by container.media.access.collectAsStateWithLifecycle()
     TrayOverlay(
+        controls = trayControls(container, shellModel, host),
         items = items,
         needsAccess = !access,
         onOpen = { item ->
@@ -310,6 +328,121 @@ private fun TrayContent(container: AppContainer, shellModel: ShellViewModel, hos
         onClose = shellModel::closeOverlay,
     )
 }
+
+/**
+ * The tray's controls, in the order they are drawn: the four switches, then what is done in one tap.
+ *
+ * A switch leaves the tray open, so that what it did can be seen; anything that leads somewhere else
+ * closes it first. What each does on a unit that will not let Cabin do it outright:
+ *
+ * - Bluetooth and Wi-Fi are switched in place where Android allows. Where it does not, Bluetooth
+ *   becomes Android's own question, "turn Bluetooth off?", and Wi-Fi the unit's Wi-Fi panel.
+ * - No app may switch a hotspot, so that button opens the unit's hotspot settings.
+ * - Recent apps, Screenshot and Restart are asked of Android by the side bar's service, the only
+ *   kind of app that may. Until Cabin has been allowed as one they are dimmed and lead to where
+ *   that is done. Restart opens Android's power menu: an app cannot restart the unit itself.
+ * - Split screen is dimmed, and no button, where the unit has no split screen. So is Clear memory
+ *   where the unit's Android no longer lets an app close what others have left running.
+ */
+@Composable
+private fun trayControls(container: AppContainer, shellModel: ShellViewModel, host: HostActions): List<TrayControl> {
+    val status by container.status.status.collectAsStateWithLifecycle()
+    val bluetooth by container.status.bluetoothOn.collectAsStateWithLifecycle()
+    val hotspot by container.status.hotspotOn.collectAsStateWithLifecycle()
+    val brightness by container.brightness.state.collectAsStateWithLifecycle()
+    val serviceOn by container.sideBar.allowed.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
+    // What Clear memory left free, shown in place of its name for a few seconds afterwards, and
+    // whether it is at work or still showing that.
+    var freed by remember { mutableStateOf<String?>(null) }
+    var clearing by remember { mutableStateOf(false) }
+
+    fun switch(name: String, on: Boolean?, icon: SlateIcon, onClick: () -> Unit) = TrayControl(
+        label = name,
+        description = if (on == null) name else "$name: ${if (on) "on" else "off"}",
+        icon = icon,
+        look = when (on) {
+            true -> ControlLook.On
+            false -> ControlLook.Off
+            null -> ControlLook.Plain
+        },
+        onClick = onClick,
+    )
+
+    // Something only the side bar's service can ask Android for.
+    fun served(name: String, description: String, icon: SlateIcon, ask: () -> Unit) = TrayControl(
+        label = name,
+        description = if (serviceOn) description else "$name: allow Cabin under Accessibility first",
+        icon = icon,
+        look = if (serviceOn) ControlLook.Plain else ControlLook.Unavailable,
+        onClick = {
+            shellModel.closeOverlay()
+            if (serviceOn) ask() else host.openAccessibility()
+        },
+    )
+
+    return listOf(
+        switch("Bluetooth", bluetooth, SlateIcons.Bluetooth) {
+            val on = !bluetooth
+            // Android 12 and later want the "nearby devices" permission for any of this. Refused,
+            // there is still the unit's own Bluetooth page.
+            host.withGrant(Grant.NearbyDevices) { granted ->
+                when {
+                    !granted -> host.openBluetooth()
+                    !container.switches.setBluetooth(on) -> host.askBluetooth(on)
+                }
+            }
+        },
+        switch("Wi-Fi", status.wifi, SlateIcons.StatusWifi) {
+            if (!container.switches.setWifi(!status.wifi)) host.openWifi()
+        },
+        switch("Hotspot", hotspot, SlateIcons.Hotspot, host.openHotspot),
+        switch("Night mode", brightness.night, SlateIcons.Moon, container.brightness::toggleNight),
+        served("Recent apps", "Recent apps", SlateIcons.Recents) { container.sideBar.showRecents?.invoke() },
+        if (container.apps.splitScreen) {
+            TrayControl("Split screen", "Split screen: choose two apps", SlateIcons.Split, onClick = shellModel::split)
+        } else {
+            TrayControl(
+                "Split screen", "Split screen: the unit has none", SlateIcons.Split, ControlLook.Unavailable,
+                onClick = null,
+            )
+        },
+        served("Screenshot", "Take a screenshot", SlateIcons.Screenshot) { container.sideBar.takeScreenshot?.invoke() },
+        TrayControl("Unit settings", "Unit settings", SlateIcons.Settings) {
+            shellModel.closeOverlay()
+            host.openUnitSettings()
+        },
+        if (container.memory.allowed) {
+            TrayControl(freed ?: "Clear memory", "Clear memory", SlateIcons.Memory) {
+                // One at a time: a tap while the last result is still showing changes nothing.
+                if (!clearing) {
+                    clearing = true
+                    scope.launch {
+                        try {
+                            // Whatever is on show in Now playing is kept, paused or not: closing it
+                            // would lose its place.
+                            val playing = container.media.nowPlaying.value?.packageName
+                            freed = MemoryRules.label(container.memory.clear(setOfNotNull(playing)))
+                            delay(FREED_SHOWN_MS)
+                        } finally {
+                            freed = null
+                            clearing = false
+                        }
+                    }
+                }
+            }
+        } else {
+            TrayControl(
+                "Clear memory", "Clear memory: this Android does not let an app do it", SlateIcons.Memory,
+                ControlLook.Unavailable, onClick = null,
+            )
+        },
+        served("Restart", "Restart: opens the power menu", SlateIcons.Power) { container.sideBar.showPowerMenu?.invoke() },
+    )
+}
+
+/** How long Clear memory shows what it left free. */
+private const val FREED_SHOWN_MS = 4_000L
 
 /**
  * The dark screen, with as much on it as Settings > Screen off asks for. What it draws from is
@@ -451,26 +584,39 @@ private fun SplitBar(shell: Shell, apps: AppsViewModel, shellModel: ShellViewMod
     val first = ui.all.firstOrNull { it.app.id == shell.splitFirst }?.app
     TitleBar(
         title = "Split screen",
-        hint = if (first == null) "Tap the app for the right." else "${first.label} on the left. Tap the app for the right.",
+        hint = when {
+            // Opened from the tray, with both apps still to choose.
+            shell.splitFirst == null -> "Tap the app for the left."
+            first == null -> "Tap the app for the right."
+            else -> "${first.label} on the left. Tap the app for the right."
+        },
         action = "Back",
         actionDescription = "Cancel split screen",
         onAction = shellModel::splitDone,
     )
 }
 
-/** The second half of a split: the grid again, without the app that was held and without Cabin. */
+/**
+ * The chooser for a split: the grid again, without Cabin and without the app already chosen for the
+ * left. Reached by holding an app, that app is the left one and a tap chooses the right. Reached
+ * from the tray, the first tap chooses the left and the second the right.
+ */
 @Composable
 private fun SplitContent(shell: Shell, apps: AppsViewModel, shellModel: ShellViewModel, host: HostActions) {
-    val first = shell.splitFirst ?: return
+    val first = shell.splitFirst
     val ui by apps.ui.collectAsStateWithLifecycle()
-    val choices = ui.beside(first, apps.ownId)
+    val choices = ui.beside(first.orEmpty(), apps.ownId)
     val page = shell.page.coerceIn(0, choices.pageCount(editing = false) - 1)
     AppsGrid(
         tiles = choices.page(page, editing = false),
         picked = null,
-        onTap = { second ->
-            apps.launchPair(first, second.id, host.openPair)
-            shellModel.splitDone()
+        onTap = { app ->
+            if (first == null) {
+                shellModel.splitLeft(app.id)
+            } else {
+                apps.launchPair(first, app.id, host.openPair)
+                shellModel.splitDone()
+            }
         },
     )
 }

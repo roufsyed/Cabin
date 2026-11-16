@@ -32,8 +32,10 @@ import com.roufsyed.cabin.sources.SourceController
 import com.roufsyed.cabin.system.AndroidBrightness
 import com.roufsyed.cabin.system.AndroidClock
 import com.roufsyed.cabin.system.AndroidHomeRole
+import com.roufsyed.cabin.system.AndroidMemory
 import com.roufsyed.cabin.system.AndroidPermissions
 import com.roufsyed.cabin.system.AndroidStatus
+import com.roufsyed.cabin.system.AndroidSwitches
 import com.roufsyed.cabin.system.AndroidVolume
 import com.roufsyed.cabin.system.BrightnessControl
 import com.roufsyed.cabin.system.ClockSource
@@ -41,14 +43,18 @@ import com.roufsyed.cabin.system.FixedBrightness
 import com.roufsyed.cabin.system.FixedClock
 import com.roufsyed.cabin.system.FixedHeadlights
 import com.roufsyed.cabin.system.FixedHomeRole
+import com.roufsyed.cabin.system.FixedMemory
 import com.roufsyed.cabin.system.FixedPermissions
 import com.roufsyed.cabin.system.FixedStatus
+import com.roufsyed.cabin.system.FixedSwitches
 import com.roufsyed.cabin.system.FixedVolume
 import com.roufsyed.cabin.system.HeadlightSignal
 import com.roufsyed.cabin.system.HomeRole
+import com.roufsyed.cabin.system.MemoryControl
 import com.roufsyed.cabin.system.NoHeadlightSignal
 import com.roufsyed.cabin.system.PermissionsSource
 import com.roufsyed.cabin.system.StatusSource
+import com.roufsyed.cabin.system.UnitSwitches
 import com.roufsyed.cabin.system.VolumeControl
 import android.service.notification.NotificationListenerService
 import kotlinx.coroutines.CoroutineScope
@@ -74,6 +80,10 @@ class AppContainer(
     val tray: TraySource,
     val status: StatusSource,
     val permissions: PermissionsSource,
+    /** The unit's Bluetooth and Wi-Fi switches, for the tray. */
+    val switches: UnitSwitches,
+    /** Closes what other apps have left running, for the tray's Clear memory. */
+    val memory: MemoryControl,
     /** The car's headlights, where the unit reports them. Auto brightness follows it. */
     val headlights: HeadlightSignal = NoHeadlightSignal,
     val listenerHub: ListenerHub = ListenerHub(),
@@ -95,10 +105,12 @@ class AppContainer(
         status: StatusSource = this.status,
         homeRole: HomeRole = this.homeRole,
         permissions: PermissionsSource = this.permissions,
+        switches: UnitSwitches = this.switches,
+        memory: MemoryControl = this.memory,
         headlights: HeadlightSignal = this.headlights,
     ): AppContainer = AppContainer(
         scope, settings, apps, clock, homeRole, media, volume, brightness, navigation, voice, tray, status,
-        permissions, headlights, listenerHub, sideBar,
+        permissions, switches, memory, headlights, listenerHub, sideBar,
     )
 
     companion object {
@@ -131,6 +143,8 @@ class AppContainer(
                 tray = tray,
                 status = AndroidStatus(app),
                 permissions = AndroidPermissions(app),
+                switches = AndroidSwitches(app),
+                memory = AndroidMemory(app, apps),
                 headlights = headlights,
                 listenerHub = ListenerHub(
                     listOf(
@@ -160,6 +174,7 @@ class AppContainer(
             )
             // The design is drawn with the headlights off; its Settings has a switch to try them on.
             val headlights = FixedHeadlights(false)
+            val status = FixedStatus(Samples.status)
             return AppContainer(
                 scope = scope,
                 settings = settings,
@@ -174,8 +189,10 @@ class AppContainer(
                 navigation = FixedNavigation(Samples.nav),
                 voice = FixedVoice(),
                 tray = FixedTray(Samples.notifications),
-                status = FixedStatus(Samples.status),
+                status = status,
                 permissions = FixedPermissions(),
+                switches = FixedSwitches(status),
+                memory = FixedMemory(),
                 headlights = headlights,
             )
         }

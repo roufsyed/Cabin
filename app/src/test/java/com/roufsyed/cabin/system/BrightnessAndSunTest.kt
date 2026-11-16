@@ -79,6 +79,51 @@ class BrightnessAndSunTest {
     }
 
     @Test
+    fun `the tray's night switch changes the look every time, and hands back to Auto where Auto agrees`() {
+        fun mode(from: BrightnessMode, dark: Boolean) =
+            BrightnessRules.toggled(settings.copy(brightnessMode = from), dark).brightnessMode
+
+        // By day: Auto shows day, so on means forcing night, and off again is plain Auto.
+        assertEquals(BrightnessMode.Night, mode(BrightnessMode.Auto, dark = false))
+        assertEquals(BrightnessMode.Auto, mode(BrightnessMode.Night, dark = false))
+        assertEquals(BrightnessMode.Night, mode(BrightnessMode.Day, dark = false))
+        // By night: Auto shows night, so off means forcing day, and on again is plain Auto.
+        assertEquals(BrightnessMode.Day, mode(BrightnessMode.Auto, dark = true))
+        assertEquals(BrightnessMode.Auto, mode(BrightnessMode.Day, dark = true))
+        assertEquals(BrightnessMode.Day, mode(BrightnessMode.Night, dark = true))
+
+        // Whatever it starts from, the look that results is the other one, and the levels are untouched.
+        for (from in BrightnessMode.entries) {
+            for (dark in listOf(false, true)) {
+                val before = settings.copy(brightnessMode = from)
+                val after = BrightnessRules.toggled(before, dark)
+                assertEquals(
+                    "from $from, dark $dark",
+                    !BrightnessRules.night(from, dark), BrightnessRules.night(after.brightnessMode, dark),
+                )
+                assertEquals(before.copy(brightnessMode = after.brightnessMode), after)
+            }
+        }
+    }
+
+    @Test
+    fun `night forced on in the afternoon and switched off the next morning leaves Auto in charge`() {
+        val headlights = FixedHeadlights(false)
+        val store = InMemorySettings(settings.copy(loaded = true))
+        val brightness = FixedBrightness(store, headlights = headlights)
+
+        brightness.toggleNight()
+        assertEquals(BrightnessUi(3, night = true, mode = BrightnessMode.Night), brightness.state.value)
+        // Dusk comes and goes; the forced mode stands, as it does from the bottom row.
+        headlights.set(true)
+        headlights.set(false)
+        assertEquals(BrightnessMode.Night, brightness.state.value.mode)
+
+        brightness.toggleNight()
+        assertEquals(BrightnessUi(8, night = false, mode = BrightnessMode.Auto), brightness.state.value)
+    }
+
+    @Test
     fun `Auto follows whether it is dark, Day and Night ignore it`() {
         assertEquals(BrightnessUi(8, night = false, mode = BrightnessMode.Auto), BrightnessRules.ui(settings, dark = false))
         assertEquals(BrightnessUi(3, night = true, mode = BrightnessMode.Auto), BrightnessRules.ui(settings, dark = true))

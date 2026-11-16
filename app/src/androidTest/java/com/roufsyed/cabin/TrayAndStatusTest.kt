@@ -80,9 +80,10 @@ class TrayAndStatusTest {
         tap("Close notification tray")
         gone(missedCall)
         swipeDown()
+        // Below the sheet, which with three notifications ends at 696 of the 800.
         cabin.onNodeWithContentDescription("Close notifications").performTouchInput {
             advanceEventTime(1_000)
-            click(at(640f, 700f))
+            click(at(640f, 760f))
         }
         gone(missedCall)
     }
