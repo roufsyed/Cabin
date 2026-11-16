@@ -179,6 +179,19 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
         if (!container.settings.settings.first { it.loaded }.setupDone) shellModel.open(Screen.Setup)
     }
 
+    var welcoming by remember { mutableStateOf(false) }
+    LaunchedEffect(shell.screen) {
+        val settings = container.settings.settings.first { it.loaded }
+        when {
+            shell.screen == Screen.Setup -> if (!settings.setupDone) welcoming = true
+            shell.screen == Screen.Pick || shell.screen == Screen.Players -> Unit
+            welcoming -> {
+                welcoming = false
+                container.settings.update { it.copy(setupDone = true) }
+            }
+        }
+    }
+
     val wheel = WheelActions(
         volumeUp = dashboard::volumeUp,
         volumeDown = dashboard::volumeDown,

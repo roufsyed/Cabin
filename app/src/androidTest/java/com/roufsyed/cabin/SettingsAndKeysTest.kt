@@ -521,4 +521,26 @@ class FirstRunTest {
         cabin.onNodeWithContentDescription("Open Maps").assertIsDisplayed()
         cabin.waitUntil(2_000) { values.container.settings.settings.value.setupDone }
     }
+
+    @Test
+    fun theWelcomeScreenHasBeenSeenHoweverItIsLeft() {
+        cabin.onNodeWithText("Welcome to Cabin").assertIsDisplayed()
+        cabin.onNodeWithContentDescription("Home").performClick()
+        cabin.onNodeWithContentDescription("Open Maps").assertIsDisplayed()
+        cabin.waitUntil(2_000) { values.container.settings.settings.value.setupDone }
+    }
+
+    @Test
+    fun choosingAnAppFromTheWelcomeScreenIsNotLeavingIt() {
+        cabin.onNodeWithText("Welcome to Cabin").assertIsDisplayed()
+        cabin.onNodeWithContentDescription("Next setup page").performClick()
+        cabin.onNodeWithContentDescription("Choose the phone app").performClick()
+        cabin.onNodeWithText("Phone opens").assertIsDisplayed()
+        cabin.onNodeWithContentDescription("Maps").performClick()
+        cabin.onNodeWithText("Welcome to Cabin").assertIsDisplayed()
+        assertTrue(!values.container.settings.settings.value.setupDone)
+        cabin.onNodeWithContentDescription("Finish setup").performClick()
+        cabin.onNodeWithContentDescription("Open Maps").assertIsDisplayed()
+        cabin.waitUntil(2_000) { values.container.settings.settings.value.setupDone }
+    }
 }
