@@ -396,5 +396,34 @@ class ShellViewModelTest {
         shell.open(Screen.Settings)
         shell.preferencesPage(1)
         assertEquals(Shell(screen = Screen.Settings), state)
+        shell.playersPage(1)
+        assertEquals(Shell(screen = Screen.Settings), state)
+    }
+
+    @Test
+    fun `players has a page for each player, and back leads from any of them to setup's second page`() {
+        shell.open(Screen.Players)
+        assertEquals(Shell(screen = Screen.Players), state)
+        shell.playersPage(2)
+        assertEquals(2, state.page)
+        shell.back()
+        assertEquals(Shell(screen = Screen.Setup, page = 1), state)
+        shell.back()
+        assertEquals(Shell(screen = Screen.Setup), state)
+    }
+
+    @Test
+    fun `a swipe turns the pages of players, as many as there are, and from the first a swipe right goes Home`() {
+        shell.open(Screen.Players)
+        shell.swipeLeft(pages = 3)
+        shell.swipeLeft(pages = 3)
+        assertEquals(2, state.page)
+        shell.swipeLeft(pages = 3)
+        assertEquals(2, state.page)
+        shell.swipeRight()
+        shell.swipeRight()
+        assertEquals(Shell(screen = Screen.Players), state)
+        shell.swipeRight()
+        assertEquals(Shell(), state)
     }
 }

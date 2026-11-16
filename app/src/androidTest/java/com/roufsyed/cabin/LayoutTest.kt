@@ -322,6 +322,7 @@ class LayoutTest {
         at("Choose the phone app", 40f, 152f, 511.5f, 112f)
         at("Choose the maps app", 40f, 277f, 511.5f, 112f)
         at("Choose the music app", 564.5f, 277f, 511.5f, 112f)
+        at("What the players tell Cabin", 40f, 402f, 511.5f, 112f)
 
         cabin.onNodeWithContentDescription("Finish setup").performClick()
         cabin.onNodeWithContentDescription("Theme and gestures").performClick()

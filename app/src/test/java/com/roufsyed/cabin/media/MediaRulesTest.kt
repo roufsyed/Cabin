@@ -64,6 +64,20 @@ class MediaRulesTest {
     }
 
     @Test
+    fun `a track can be moved when its player gives its length and says it takes being moved`() {
+        val seek = PlayerRules.SEEK_TO
+        assertEquals(true, MediaRules.seekable(221_000, seek))
+        assertEquals(true, MediaRules.seekable(221_000, PlayerRules.TRANSPORT or seek))
+        // Either one alone is not enough: there is no line to put a knob on, or no one to tell.
+        assertEquals(false, MediaRules.seekable(0, PlayerRules.TRANSPORT or seek))
+        assertEquals(false, MediaRules.seekable(-1, seek))
+        assertEquals(false, MediaRules.seekable(221_000, PlayerRules.TRANSPORT))
+        // Winding is another thing a player can say, and is not the same as taking a position.
+        assertEquals(false, MediaRules.seekable(221_000, PlayerRules.FAST_FORWARD or PlayerRules.REWIND))
+        assertEquals(false, MediaRules.seekable(221_000, 0))
+    }
+
+    @Test
     fun `a cover is read from the first address that is on this unit`() {
         val inPlayer = "content://player.covers/track/7"
         assertEquals(inPlayer, MediaRules.coverAddress(listOf(inPlayer, "content://player.covers/album/2")))

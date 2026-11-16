@@ -11,9 +11,11 @@ import android.media.session.MediaController
 import android.media.session.MediaSession
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
+import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.SystemClock
 import android.service.media.MediaBrowserService
 import android.view.KeyEvent
 import androidx.compose.ui.graphics.ImageBitmap
@@ -57,6 +59,12 @@ class AndroidMediaSource(
         var artist = ""
         var durationMs = 0L
         var art: ImageBitmap? = null
+
+        // For the Players page only: the length exactly as it was given, if it was, the names of
+        // the track details the player gives, and the names of whatever else its session carries.
+        var durationGiven: Long? = null
+        var details: List<String> = emptyList()
+        var sessionExtras: List<String> = emptyList()
         var playback: PlaybackState? = null
         var queue: List<MediaSession.QueueItem> = emptyList()
         var queueTitle: String? = null
@@ -68,6 +76,12 @@ class AndroidMediaSource(
             playback = controller.playbackState
             queue = controller.queue.orEmpty()
             queueTitle = controller.queueTitle?.toString()
+            sessionExtras = try {
+                named(controller.extras)
+            } catch (e: RuntimeException) {
+                // The session went away as it was being read.
+                emptyList()
+            }
         }
 
         fun stop() {
@@ -95,6 +109,10 @@ class AndroidMediaSource(
             publish()
         }
 
+        override fun onExtrasChanged(extras: Bundle?) {
+            sessionExtras = named(extras)
+        }
+
         override fun onSessionDestroyed() {
             remove(this)
         }
@@ -105,7 +123,10 @@ class AndroidMediaSource(
                 MediaMetadata.METADATA_KEY_ARTIST, MediaMetadata.METADATA_KEY_ALBUM_ARTIST,
                 MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE,
             )
-            durationMs = metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L
+            durationGiven = metadata?.takeIf { it.containsKey(MediaMetadata.METADATA_KEY_DURATION) }
+                ?.getLong(MediaMetadata.METADATA_KEY_DURATION)
+            durationMs = durationGiven ?: 0L
+            details = detailsOf(metadata)
             val cover = COVER_KEYS.firstNotNullOfOrNull { metadata?.getBitmap(it) }
             val address = if (cover == null) {
                 MediaRules.coverAddress(COVER_ADDRESS_KEYS.map { metadata?.getString(it) })
@@ -358,6 +379,37 @@ class AndroidMediaSource(
         primary()?.controller?.transportControls?.skipToQueueItem(id)
     }
 
+    override fun seekTo(positionMs: Long) {
+        primary()?.controller?.transportControls?.seekTo(positionMs.coerceAtLeast(0L))
+    }
+
+    /** Like everything else here it is for the main thread only. It asks no other app anything. */
+    override fun players(): List<PlayerFacts> {
+        val shown = primary()
+        val now = SystemClock.elapsedRealtime()
+        return entries.map { entry ->
+            val playback = entry.playback
+            val told = playback?.lastPositionUpdateTime ?: 0L
+            val packageName = entry.controller.packageName
+            PlayerFacts(
+                packageName = packageName,
+                appLabel = labelOf(packageName),
+                shown = entry === shown,
+                state = playback?.state,
+                positionMs = playback?.position ?: -1L,
+                speed = playback?.playbackSpeed ?: 0f,
+                // Android reports zero for a player that has never said where its track is.
+                toldAgoMs = if (told > 0L) now - told else null,
+                actions = playback?.actions ?: 0L,
+                durationMs = entry.durationGiven,
+                details = entry.details,
+                queueSize = entry.queue.size,
+                // A player's own buttons first: they say the most in the least room.
+                extras = extrasOf(playback) + entry.sessionExtras,
+            )
+        }
+    }
+
     /** With no session to talk to, a media key lets Android wake the app that played last. */
     private fun mediaKey(code: Int) {
         audio.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, code))
@@ -428,6 +480,7 @@ class AndroidMediaSource(
                 speed = playback?.playbackSpeed ?: 0f,
                 playing = playback.isActive(),
                 atElapsedMs = playback?.lastPositionUpdateTime ?: 0L,
+                seekable = MediaRules.seekable(entry.durationMs, playback?.actions ?: 0L),
             ),
             art = entry.art,
             queueTitle = entry.queueTitle?.takeIf { it.isNotBlank() } ?: "Up next",
@@ -494,6 +547,66 @@ class AndroidMediaSource(
                 if (!value.isNullOrBlank()) return value
             }
             return ""
+        }
+
+        /** The start of the name of every track detail Android itself defines. */
+        const val ANDROID_DETAIL = "android.media.metadata."
+
+        /** How much of a value is put on the Players page. */
+        const val VALUE_SHOWN = 24
+
+        /**
+         * The names of the details a player gives for its track. A detail under a name of the
+         * player's own comes with its value, since that is where a player that does not use
+         * Android's names would put, say, the track's length.
+         */
+        fun detailsOf(metadata: MediaMetadata?): List<String> {
+            if (metadata == null) return emptyList()
+            return try {
+                metadata.keySet().sorted().map { key ->
+                    if (key.startsWith(ANDROID_DETAIL)) return@map key
+                    val text = metadata.getString(key)
+                    val number = if (text == null) metadata.getLong(key) else 0L
+                    when {
+                        text != null -> "$key=${text.take(VALUE_SHOWN)}"
+                        number != 0L -> "$key=$number"
+                        else -> key
+                    }
+                }
+            } catch (e: RuntimeException) {
+                listOf("something Cabin cannot read")
+            }
+        }
+
+        /**
+         * The names in a bundle another app sent, each with its value where that is a plain one.
+         * Such a bundle can hold things only its own app can read, hence the care.
+         */
+        fun named(bundle: Bundle?): List<String> {
+            if (bundle == null) return emptyList()
+            return try {
+                bundle.keySet().sorted().map { key ->
+                    @Suppress("DEPRECATION")
+                    when (val value = bundle.get(key)) {
+                        is String, is Number, is Boolean -> "$key=${value.toString().take(VALUE_SHOWN)}"
+                        else -> key
+                    }
+                }
+            } catch (e: RuntimeException) {
+                listOf("something Cabin cannot read")
+            }
+        }
+
+        /** A player's own buttons, and whatever it sends along with where its track is. */
+        fun extrasOf(playback: PlaybackState?): List<String> {
+            if (playback == null) return emptyList()
+            val buttons = try {
+                // By the name the player gives it for people, which says more than its own code for it.
+                playback.customActions.map { "button ${it.name?.toString()?.takeIf(String::isNotBlank) ?: it.action}" }
+            } catch (e: RuntimeException) {
+                emptyList()
+            }
+            return buttons + named(playback.extras)
         }
     }
 }

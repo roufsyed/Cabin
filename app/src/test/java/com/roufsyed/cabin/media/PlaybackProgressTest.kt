@@ -43,6 +43,26 @@ class PlaybackProgressTest {
     }
 
     @Test
+    fun `a finger along the line stands for a position in the track`() {
+        assertEquals(0, playing.positionFor(0f))
+        assertEquals(110_500, playing.positionFor(0.5f))
+        assertEquals(221_000, playing.positionFor(1f))
+        // Run past either end, the finger counts as on it.
+        assertEquals(0, playing.positionFor(-0.2f))
+        assertEquals(221_000, playing.positionFor(1.4f))
+        // An hour-long track is still placed to the millisecond.
+        assertEquals(2_700_000, playing.copy(durationMs = 3_600_000).positionFor(0.75f))
+        // A track of no known length has nowhere to be moved to.
+        assertEquals(0, playing.copy(durationMs = 0).positionFor(0.5f))
+    }
+
+    @Test
+    fun `a track is not a slider unless its player says so`() {
+        assertFalse(playing.seekable)
+        assertFalse(PlaybackProgress.None.seekable)
+    }
+
+    @Test
     fun `a stream of unknown length reads as live with a full bar`() {
         val radio = PlaybackProgress(positionMs = 5_000, durationMs = 0, speed = 1f, playing = true, atElapsedMs = 0)
         assertTrue(radio.live)

@@ -14,6 +14,9 @@ enum class Screen {
     /** The page that turns the screen off and chooses what the dark screen shows. */
     ScreenOff,
     Sources, Pick, Split, Setup,
+
+    /** What each of the unit's players tells Cabin, a player to a page. Reached from Setup. */
+    Players,
 }
 
 /** Setup has more tiles than fit at once: what Cabin may do on the first page, the apps it opens on the second. */
@@ -78,6 +81,11 @@ class ShellViewModel : ViewModel() {
     /** Turns to a page of "Theme and gestures". */
     fun preferencesPage(page: Int) = _state.update {
         if (it.screen == Screen.Preferences) it.copy(page = page.coerceIn(0, PREFERENCES_PAGES - 1)) else it
+    }
+
+    /** Turns to a page of Players. How many there are is the caller's to know: one for each player running. */
+    fun playersPage(page: Int) = _state.update {
+        if (it.screen == Screen.Players) it.copy(page = page.coerceAtLeast(0)) else it
     }
 
     fun arrangeApps() = _state.update { Shell(screen = Screen.Apps, edit = EditKind.Apps) }
@@ -179,7 +187,7 @@ class ShellViewModel : ViewModel() {
 
     private val Screen.paged: Boolean
         get() = this == Screen.Apps || this == Screen.Pick || this == Screen.Split || this == Screen.Setup ||
-            this == Screen.Preferences
+            this == Screen.Preferences || this == Screen.Players
 
     fun show(overlay: Overlay) = _state.update { it.copy(overlay = overlay) }
 
@@ -197,6 +205,8 @@ class ShellViewModel : ViewModel() {
             (it.screen == Screen.Setup || it.screen == Screen.Preferences) && it.page > 0 -> it.copy(page = it.page - 1)
             // The theme chooser is reached from the "Theme and gestures" screen.
             it.screen == Screen.Theme -> Shell(screen = Screen.Preferences)
+            // Players is reached from Setup's second page, whichever of its own pages is showing.
+            it.screen == Screen.Players -> Shell(screen = Screen.Setup, page = SETUP_PAGES - 1)
             it.screen == Screen.Keys || it.screen == Screen.Preferences || it.screen == Screen.ScreenOff ||
                 it.screen == Screen.Sources || it.screen == Screen.Setup -> Shell(screen = Screen.Settings)
             it.screen == Screen.Settings -> Shell(screen = Screen.Apps)

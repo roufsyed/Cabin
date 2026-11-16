@@ -16,6 +16,11 @@ data class PlaybackProgress(
     val atElapsedMs: Long,
     /** True when there is no track at all: the line is empty and no times are shown. */
     val empty: Boolean = false,
+    /**
+     * True when the track can be moved to another position: its player gives its length and says
+     * it takes being moved (see [MediaRules.seekable]). The progress line is then a slider.
+     */
+    val seekable: Boolean = false,
 ) {
     val live: Boolean get() = !empty && durationMs <= 0L
 
@@ -40,6 +45,13 @@ data class PlaybackProgress(
     }
 
     val durationLabel: String get() = if (empty || live) "" else formatTime(durationMs)
+
+    /**
+     * The position a finger at [fraction] of the way along the line stands for, 0 at its left end
+     * and 1 at its right. A finger that has run past either end counts as on it.
+     */
+    fun positionFor(fraction: Float): Long =
+        if (durationMs <= 0L) 0L else (fraction.coerceIn(0f, 1f).toDouble() * durationMs).toLong()
 
     companion object {
         /** Nothing is playing. */

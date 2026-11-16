@@ -172,6 +172,7 @@ class SettingsAndKeysTest {
         tap("Next setup page")
         for (tile in listOf(
             "Choose the phone app", "Choose the phone link app", "Choose the maps app", "Choose the music app",
+            "What the players tell Cabin",
         )) shows(tile)
         gone("Allow location")
         cabin.onNodeWithText("The apps Cabin opens. Tap one to change it.").assertIsDisplayed()

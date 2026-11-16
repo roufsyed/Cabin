@@ -12,13 +12,17 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
@@ -29,7 +33,10 @@ import com.roufsyed.cabin.data.SideSwipe
 import com.roufsyed.cabin.data.TwoFingerDrag
 import com.roufsyed.cabin.data.next
 import com.roufsyed.cabin.gesture.Gesture
-import com.roufsyed.cabin.gesture.cabinGestures
+import com.roufsyed.cabin.gesture.GestureLayer
+import com.roufsyed.cabin.media.MediaSource
+import com.roufsyed.cabin.media.PlayerReport
+import com.roufsyed.cabin.media.PlayerRules
 import com.roufsyed.cabin.model.AppTile
 import com.roufsyed.cabin.model.BarSide
 import com.roufsyed.cabin.model.HomePanel
@@ -68,6 +75,7 @@ import com.roufsyed.cabin.ui.overlay.TrayOverlay
 import com.roufsyed.cabin.ui.overlay.VoiceOverlay
 import com.roufsyed.cabin.ui.overlay.VolumeHud
 import com.roufsyed.cabin.ui.settings.KeysScreen
+import com.roufsyed.cabin.ui.settings.PlayerPage
 import com.roufsyed.cabin.ui.settings.SettingsGrid
 import com.roufsyed.cabin.ui.settings.SettingsTile
 import com.roufsyed.cabin.ui.settings.ThemeGrid
@@ -193,7 +201,8 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
             // On Home a sideways swipe does what was chosen. Everywhere else it turns pages and
             // leads back to Home, which the grids rely on to reach their further pages.
             Gesture.SwipeLeft -> when {
-                !onHome || chosen.sideSwipe == SideSwipe.Apps -> shellModel.swipeLeft(pageCount(shell, appsModel))
+                !onHome || chosen.sideSwipe == SideSwipe.Apps ->
+                    shellModel.swipeLeft(pageCount(shell, appsModel, container.media))
                 chosen.sideSwipe == SideSwipe.Tracks -> dashboard.next()
                 else -> Unit
             }
@@ -239,7 +248,7 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
     }.collectAsStateWithLifecycle(initialValue = Placing(loaded = false))
 
     DesignSurface {
-        if (placing.loaded) Box(Modifier.fillMaxSize().cabinGestures(onGesture)) {
+        if (placing.loaded) GestureLayer(onGesture) {
             CabinFrame(
                 railOnLeft = placing.barSide == BarSide.Left,
                 content = {
@@ -256,6 +265,7 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
                                 shell.screen == Screen.Preferences -> PreferencesBar(shell, shellModel)
                                 shell.screen == Screen.Theme -> ThemeBar(shellModel)
                                 shell.screen == Screen.ScreenOff -> ScreenOffBar(shellModel)
+                                shell.screen == Screen.Players -> PlayersBar(shell, container, shellModel)
                                 else -> Strip(dashboard, shellModel, host, showMini = shell.screen != Screen.Music)
                             }
                             Spacer(Modifier.height(16.dp))
@@ -269,6 +279,7 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
                                     Screen.Theme -> ThemeContent(container)
                                     Screen.ScreenOff -> ScreenOffOptions(container, shellModel)
                                     Screen.Setup -> SetupContent(shell, container, shellModel, host)
+                                    Screen.Players -> PlayersContent(shell, container)
                                     Screen.Sources -> SourcesContent(shell, container, shellModel)
                                     Screen.Pick -> SlotPickContent(shell, container, appsModel, shellModel)
                                     Screen.Split -> SplitContent(shell, appsModel, shellModel, host)
@@ -470,11 +481,13 @@ private data class Placing(
 )
 
 /** How many pages the grid on screen has, so a swipe left knows whether there is a next one. */
-private fun pageCount(shell: Shell, apps: AppsViewModel): Int {
+private fun pageCount(shell: Shell, apps: AppsViewModel, media: MediaSource): Int {
     val ui = apps.ui.value
     return when {
         shell.screen == Screen.Setup -> SETUP_PAGES
         shell.screen == Screen.Preferences -> PREFERENCES_PAGES
+        // A page for each player that is running.
+        shell.screen == Screen.Players -> media.players().size
         shell.screen == Screen.Pick -> AppsUi.pagesFor(ui.all.count { it.app.id != apps.ownId })
         shell.screen == Screen.Split -> ui.beside(shell.splitFirst.orEmpty(), apps.ownId).pageCount(editing = false)
         else -> ui.pageCount(editing = shell.edit == EditKind.Apps)
@@ -549,6 +562,7 @@ private fun MusicContent(dashboard: DashboardViewModel) {
         onPlayPause = dashboard::playPause,
         onNext = dashboard::next,
         onQueueItem = dashboard::playQueueItem,
+        onSeek = dashboard::seekTo,
     )
 }
 
@@ -1059,8 +1073,64 @@ private fun SetupApps(container: AppContainer, shellModel: ShellViewModel) {
             app("Maps app", Slot.Maps),
             // With none chosen, play wakes whichever app played last.
             app("Music app", Slot.Music, none = "Last one that played"),
+            // Not an app to choose: what the players that are running tell Cabin about themselves,
+            // which is where a unit's own players are looked into.
+            SettingsTile("Players", "What each one tells Cabin", "What the players tell Cabin") {
+                shellModel.open(Screen.Players)
+            },
         ),
     )
+}
+
+/** How often the Players page reads the players again: a player gives no sign when most of it changes. */
+private const val PLAYERS_READ_MS = 1_000L
+
+/** What each running player says of itself, kept fresh for as long as the page that shows it is up. */
+@Composable
+private fun rememberPlayers(media: MediaSource): List<PlayerReport> {
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val players by produceState(media.players().map(PlayerRules::report), media, lifecycle) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                value = media.players().map(PlayerRules::report)
+                delay(PLAYERS_READ_MS)
+            }
+        }
+    }
+    return players
+}
+
+/** The page of Players on show: the one asked for, or the last there is if players have gone since. */
+private fun playersPage(shell: Shell, players: List<PlayerReport>): Int =
+    shell.page.coerceIn(0, (players.size - 1).coerceAtLeast(0))
+
+@Composable
+private fun PlayersBar(shell: Shell, container: AppContainer, shellModel: ShellViewModel) {
+    val players = rememberPlayers(container.media)
+    val page = playersPage(shell, players)
+    val player = players.getOrNull(page)
+    TitleBar(
+        title = player?.appLabel ?: "Players",
+        hint = when {
+            player == null -> "What each player tells Cabin"
+            player.shown -> "Player ${page + 1} of ${players.size}, the one Cabin shows"
+            else -> "Player ${page + 1} of ${players.size}"
+        },
+        action = "Done",
+        actionDescription = "Back to setup",
+        onAction = shellModel::back,
+        // A page to each player; a swipe turns them as well, and the button goes round.
+        pageIcon = if (players.size > 1) SlateIcons.ChevronRight else null,
+        pageDescription = "Next player",
+        onPage = { shellModel.playersPage((page + 1) % players.size) },
+    )
+}
+
+@Composable
+private fun PlayersContent(shell: Shell, container: AppContainer) {
+    val players = rememberPlayers(container.media)
+    val access by container.media.access.collectAsStateWithLifecycle()
+    PlayerPage(players.getOrNull(playersPage(shell, players)), access)
 }
 
 @Composable

@@ -49,6 +49,7 @@ class DashboardViewModel(private val container: AppContainer) : ViewModel() {
     fun next() = container.media.next()
     fun previous() = container.media.previous()
     fun playQueueItem(id: Long) = container.media.playQueueItem(id)
+    fun seekTo(positionMs: Long) = container.media.seekTo(positionMs)
 
     fun volumeUp() = container.volume.up()
     fun volumeDown() = container.volume.down()

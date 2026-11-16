@@ -23,6 +23,18 @@ interface MediaSource {
     fun previous()
     fun playQueueItem(id: Long)
 
+    /**
+     * Moves the track on show to [positionMs]. Only worth asking while its progress says it is
+     * seekable: a player is free to take no notice.
+     */
+    fun seekTo(positionMs: Long)
+
+    /**
+     * What each of the unit's players tells Android about itself just now, in Android's own order:
+     * for the Players page, which is how a unit's own players are looked into.
+     */
+    fun players(): List<PlayerFacts>
+
     /** Starts playback in [packageName]'s session. False if it has none. */
     fun play(packageName: String): Boolean
 
@@ -46,6 +58,8 @@ class FixedMedia(
     hasAccess: Boolean = true,
     /** Packages that [start] can set playing without their app being opened. */
     private val startable: Set<String> = emptySet(),
+    /** The clock a moved track is timed from. It only matters for a track that is really advancing. */
+    private val elapsed: () -> Long = { 0L },
 ) : MediaSource {
     private val state = MutableStateFlow(initial)
     override val nowPlaying: StateFlow<NowPlaying?> = state
@@ -87,6 +101,41 @@ class FixedMedia(
         state.value = now.copy(
             title = item.title, artist = item.subtitle,
             queue = now.queue.map { it.copy(current = it.id == id) },
+        )
+    }
+
+    override fun seekTo(positionMs: Long) {
+        calls += "seek:$positionMs"
+        val now = state.value ?: return
+        // A player that cannot be moved takes no notice, as a real one would not.
+        if (!now.progress.seekable) return
+        state.value = now.copy(
+            progress = now.progress.copy(
+                positionMs = positionMs.coerceIn(0L, now.progress.durationMs),
+                atElapsedMs = elapsed(),
+            ),
+        )
+    }
+
+    override fun players(): List<PlayerFacts> {
+        val now = state.value ?: return emptyList()
+        val progress = now.progress
+        return listOf(
+            PlayerFacts(
+                packageName = now.packageName,
+                appLabel = now.appLabel,
+                shown = true,
+                state = if (progress.playing) PlayerRules.STATE_PLAYING else PlayerRules.STATE_PAUSED,
+                positionMs = progress.positionMs,
+                speed = progress.speed,
+                toldAgoMs = null,
+                actions = PlayerRules.TRANSPORT or (if (progress.seekable) PlayerRules.SEEK_TO else 0L),
+                durationMs = progress.durationMs.takeIf { !progress.live },
+                details = listOfNotNull("TITLE", "ARTIST", "DURATION".takeIf { !progress.live }, "ALBUM_ART".takeIf { now.art != null })
+                    .map { "android.media.metadata.$it" },
+                queueSize = now.queue.size,
+                extras = emptyList(),
+            ),
         )
     }
 

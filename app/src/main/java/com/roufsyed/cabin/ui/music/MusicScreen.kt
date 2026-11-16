@@ -36,7 +36,8 @@ import com.roufsyed.cabin.ui.theme.Txt
 
 /**
  * The Music screen: a remote control for whatever app is playing. On the left the track, its progress
- * and the transport; on the right the current item and the ones after it.
+ * and the transport; on the right the current item and the ones after it. The progress line is a
+ * slider wherever the player lets its track be moved, and [onSeek] is told where to.
  */
 @Composable
 fun MusicScreen(
@@ -45,6 +46,7 @@ fun MusicScreen(
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
     onQueueItem: (Long) -> Unit,
+    onSeek: (Long) -> Unit,
 ) {
     Row(Modifier.size(1036.dp, 488.dp), horizontalArrangement = Arrangement.spacedBy(13.dp)) {
         Panel(Modifier.size(480.dp, 488.dp)) {
@@ -62,7 +64,7 @@ fun MusicScreen(
                         Txt(now.artist, 26, color = Slate.Muted, ellipsis = true)
                     }
                 }
-                ProgressBlock(now.progress, gap = 12.dp)
+                ProgressBlock(now.progress, gap = 12.dp, onSeek = onSeek)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
