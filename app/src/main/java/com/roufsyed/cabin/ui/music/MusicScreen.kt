@@ -100,8 +100,26 @@ fun MusicScreen(
                     contentAlignment = Alignment.CenterStart,
                 ) { Txt(now.queueTitle, 24, color = Slate.Muted, ellipsis = true) }
                 for (item in now.queue) QueueRow(item) { onQueueItem(item.id) }
+                if (now.queue.isEmpty() && now.source.isNotBlank()) NoQueue(now.source)
             }
         }
+    }
+}
+
+@Composable
+private fun NoQueue(player: String) {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(96.dp),
+    ) {
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Slate.Hairline))
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(start = 28.dp, top = 1.dp, end = 28.dp),
+            contentAlignment = Alignment.CenterStart,
+        ) { Txt("$player shares no list of tracks.", 24, color = Slate.Muted, maxLines = 2) }
     }
 }
 

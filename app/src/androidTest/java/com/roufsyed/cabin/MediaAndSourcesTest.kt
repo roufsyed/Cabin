@@ -166,6 +166,21 @@ class MediaAndSourcesTest {
     }
 
     @Test
+    fun aPlayerThatGivesNoListIsNamedWhereItsListWouldBe() {
+        tap("Open music")
+        shows("Play Night Signals")
+        cabin.onNodeWithText("Bluetooth audio shares no list of tracks.").assertDoesNotExist()
+
+        play(Samples.playing.copy(appLabel = "Unit player", queue = emptyList()))
+        text("Up next")
+        text("Unit player shares no list of tracks.")
+        gone("Play Night Signals")
+
+        play(null)
+        cabin.onNodeWithText("Unit player shares no list of tracks.").assertDoesNotExist()
+    }
+
+    @Test
     fun activeSourceOpensItsAppAndAnotherIsResumedInPlace() {
         // The design's track plays in Music, which Bluetooth is set to; Bluetooth is therefore active.
         tap("Bluetooth source")
