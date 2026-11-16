@@ -72,6 +72,25 @@ class PlaybackProgressTest {
     }
 
     @Test
+    fun `a player that gives no length and is not playing is not called live`() {
+        // What a phone-link app leaves up while nothing plays: a name, no length, and stopped.
+        val idle = PlaybackProgress(positionMs = 0, durationMs = 0, speed = 0f, playing = false, atElapsedMs = 0)
+        assertTrue(idle.live)
+        assertFalse(idle.onAir)
+        assertEquals("", idle.positionLabel(60_000))
+        assertEquals("", idle.durationLabel)
+        assertEquals(0f, idle.fractionAt(60_000), 0f)
+        // The same goes for a stream that has been paused, until it plays again.
+        val radio = PlaybackProgress(positionMs = 5_000, durationMs = 0, speed = 1f, playing = true, atElapsedMs = 0)
+        val paused = radio.copy(playing = false)
+        assertEquals("", paused.positionLabel(60_000))
+        assertEquals(0f, paused.fractionAt(60_000), 0f)
+        assertTrue(radio.onAir)
+        // A track with a length is never a stream, playing or not.
+        assertFalse(playing.onAir)
+    }
+
+    @Test
     fun `with nothing playing the line is empty and no times are shown`() {
         val none = PlaybackProgress.None
         assertFalse(none.live)

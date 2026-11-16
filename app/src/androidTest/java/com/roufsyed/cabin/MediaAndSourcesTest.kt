@@ -11,9 +11,11 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.roufsyed.cabin.apps.FixedApps
 import com.roufsyed.cabin.media.FixedMedia
 import com.roufsyed.cabin.media.NowPlaying
+import com.roufsyed.cabin.media.PlaybackProgress
 import com.roufsyed.cabin.model.Samples
 import com.roufsyed.cabin.model.Slot
 import com.roufsyed.cabin.model.SourceId
+import com.roufsyed.cabin.ui.theme.Slate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -139,6 +141,28 @@ class MediaAndSourcesTest {
         assertTrue("next" in media.calls)
         tap("Open music")
         text("Up next")
+    }
+
+    @Test
+    fun aPlayerWithNoLengthIsOnlyCalledLiveWhileItPlays() {
+        // What a phone-link app leaves up while nothing plays: its name, no length, and stopped.
+        val idle = Samples.playing.copy(
+            title = "Android Auto", artist = "Connected", queue = emptyList(),
+            progress = PlaybackProgress(positionMs = 0, durationMs = 0, speed = 0f, playing = false, atElapsedMs = 0),
+        )
+        play(idle)
+        text("Connected")
+        cabin.onNodeWithText("Live").assertDoesNotExist()
+        tap("Open music")
+        text("Connected")
+        cabin.onNodeWithText("Live").assertDoesNotExist()
+        // The accent is on screen for the play button's ring and little else: the line is empty.
+        val idleAccent = pixelsOf(Slate.Accent)
+
+        // Something of no length that really is playing, as radio is, reads "Live" over a full line.
+        play(idle.copy(title = "Radio One", artist = "", progress = idle.progress.copy(playing = true, speed = 1f)))
+        text("Live")
+        assertTrue("the line should have filled", pixelsOf(Slate.Accent) > idleAccent + 1_000)
     }
 
     @Test
