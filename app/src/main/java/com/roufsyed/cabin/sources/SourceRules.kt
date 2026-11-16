@@ -74,6 +74,12 @@ object SourceRules {
     fun binding(slot: Slot, settings: CabinSettings, apps: List<AppEntry>): AppEntry? =
         settings.bindings[slot]?.let { id -> apps.firstOrNull { it.id == id } } ?: guess(slot, apps)
 
+    fun label(source: SourceId, settings: CabinSettings, bindings: Map<Slot, AppEntry>): String {
+        val slot = Slot.of(source)
+        val chosen = bindings[slot]?.takeIf { it.id == settings.bindings[slot] }
+        return chosen?.label?.trim()?.ifEmpty { null } ?: source.label
+    }
+
     /** The package part of a component id such as "com.example/.Main". */
     fun packageOf(appId: String): String = appId.substringBefore('/')
 

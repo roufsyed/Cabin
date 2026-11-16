@@ -105,6 +105,53 @@ class SourceRulesTest {
         assertEquals("YT Music", SourceRules.bindings(uninstalled, apps)[Slot.Usb]?.label)
     }
 
+    private fun rowName(source: SourceId, settings: CabinSettings, among: List<AppEntry> = apps) =
+        SourceRules.label(source, settings, SourceRules.bindings(settings, among))
+
+    @Test
+    fun `a source left to find its own app keeps its own name`() {
+        val untouched = CabinSettings()
+        assertEquals("RadioDroid", SourceRules.bindings(untouched, apps)[Slot.Radio]?.label)
+        assertEquals("Radio", rowName(SourceId.Radio, untouched))
+        assertEquals("Android Auto", rowName(SourceId.Auto, untouched))
+        assertNull(SourceRules.bindings(untouched, apps)[Slot.Bluetooth])
+        assertEquals("Bluetooth", rowName(SourceId.Bluetooth, untouched))
+    }
+
+    @Test
+    fun `a source the user has chosen an app for is called after that app`() {
+        val ytMusic = apps.first { it.label == "YT Music" }
+        val gramophone = apps.first { it.label == "Gramophone" }
+        val chosen = CabinSettings(bindings = mapOf(Slot.Radio to ytMusic.id, Slot.Usb to gramophone.id))
+        assertEquals("YT Music", rowName(SourceId.Radio, chosen))
+        assertEquals("Gramophone", rowName(SourceId.Usb, chosen))
+        assertEquals("Bluetooth", rowName(SourceId.Bluetooth, chosen))
+        assertEquals("Android Auto", rowName(SourceId.Auto, chosen))
+        val radioDroid = apps.first { it.label == "RadioDroid" }
+        assertEquals("RadioDroid", rowName(SourceId.Radio, CabinSettings(bindings = mapOf(Slot.Radio to radioDroid.id))))
+    }
+
+    @Test
+    fun `a chosen app that is no longer installed gives the source its own name back`() {
+        val gone = CabinSettings(bindings = mapOf(Slot.Usb to "com.gone/.Main"))
+        assertEquals("YT Music", SourceRules.bindings(gone, apps)[Slot.Usb]?.label)
+        assertEquals("USB", rowName(SourceId.Usb, gone))
+    }
+
+    @Test
+    fun `an app chosen for the rail or for music renames no source`() {
+        val gramophone = apps.first { it.label == "Gramophone" }
+        val chosen = CabinSettings(bindings = mapOf(Slot.Music to gramophone.id, Slot.Phone to gramophone.id))
+        for (source in SourceId.entries) assertEquals(source.label, rowName(source, chosen))
+    }
+
+    @Test
+    fun `an app with a blank name does not blank the source`() {
+        val nameless = AppEntry("com.nameless/.Main", "  ", Glyph.Letter)
+        val chosen = CabinSettings(bindings = mapOf(Slot.Usb to nameless.id))
+        assertEquals("USB", rowName(SourceId.Usb, chosen, apps + nameless))
+    }
+
     private val visible = listOf(SourceId.Radio, SourceId.Bluetooth, SourceId.Usb, SourceId.Auto)
     private val bound = mapOf(
         Slot.Radio to app("RadioDroid"),

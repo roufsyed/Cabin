@@ -42,6 +42,7 @@ class SourceController(
     private val apps: AppsSource,
     private val media: MediaSource,
     private val scope: CoroutineScope,
+    private val namedAfterApps: Boolean = true,
 ) {
     data class State(
         /** The visible sources, in order, for the bottom row. */
@@ -84,10 +85,11 @@ class SourceController(
         val bindings = SourceRules.bindings(settings, installed)
         val visible = SourceRules.visible(settings)
         val active = SourceRules.active(playing, bindings, settings.activeSource, visible)
+        fun label(id: SourceId) = if (namedAfterApps) SourceRules.label(id, settings, bindings) else id.label
         return State(
-            row = visible.map { SourceUi(it, active = it == active) },
+            row = visible.map { SourceUi(it, active = it == active, label = label(it)) },
             tiles = settings.sourceOrder.map { id ->
-                SourceTile(id, hidden = id in settings.sourceHidden, app = bindings[Slot.of(id)]?.label)
+                SourceTile(id, hidden = id in settings.sourceHidden, app = bindings[Slot.of(id)]?.label, label = label(id))
             },
             bindings = bindings,
         )

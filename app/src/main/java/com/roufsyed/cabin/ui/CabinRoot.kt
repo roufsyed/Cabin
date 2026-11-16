@@ -683,6 +683,7 @@ private fun SourcesEditBar(shell: Shell, container: AppContainer, shellModel: Sh
         hint = when {
             picked == null -> "Tap one, then move or hide it"
             picked.app == null -> "No app chosen yet"
+            picked.label != picked.id.label -> "${picked.id.label}: opens ${picked.app}"
             else -> "Opens ${picked.app}"
         },
         extraLabel = "App",

@@ -112,8 +112,8 @@ enum class SourceId(val label: String, val baseWidth: Int) {
 }
 
 @Immutable
-data class SourceUi(val id: SourceId, val active: Boolean)
+data class SourceUi(val id: SourceId, val active: Boolean, val label: String = id.label)
 
 /** A source while arranging: [app] is the name of the app it opens, or null if none is set. */
 @Immutable
-data class SourceTile(val id: SourceId, val hidden: Boolean, val app: String?)
+data class SourceTile(val id: SourceId, val hidden: Boolean, val app: String?, val label: String = id.label)

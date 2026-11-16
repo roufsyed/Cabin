@@ -89,8 +89,9 @@ class AppContainer(
     val listenerHub: ListenerHub = ListenerHub(),
     /** What the bar that stays over other apps goes by. */
     val sideBar: SideBarState = SideBarState(),
+    private val sourcesNamedAfterApps: Boolean = true,
 ) {
-    val sources = SourceController(settings, apps, media, scope)
+    val sources = SourceController(settings, apps, media, scope, sourcesNamedAfterApps)
 
     /** The same set with some parts swapped, for tests that need a particular unit. */
     fun copy(
@@ -108,9 +109,10 @@ class AppContainer(
         switches: UnitSwitches = this.switches,
         memory: MemoryControl = this.memory,
         headlights: HeadlightSignal = this.headlights,
+        sourcesNamedAfterApps: Boolean = this.sourcesNamedAfterApps,
     ): AppContainer = AppContainer(
         scope, settings, apps, clock, homeRole, media, volume, brightness, navigation, voice, tray, status,
-        permissions, switches, memory, headlights, listenerHub, sideBar,
+        permissions, switches, memory, headlights, listenerHub, sideBar, sourcesNamedAfterApps,
     )
 
     companion object {
@@ -194,6 +196,7 @@ class AppContainer(
                 switches = FixedSwitches(status),
                 memory = FixedMemory(),
                 headlights = headlights,
+                sourcesNamedAfterApps = false,
             )
         }
     }

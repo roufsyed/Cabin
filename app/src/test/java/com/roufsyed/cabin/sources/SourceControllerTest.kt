@@ -236,6 +236,37 @@ class SourceControllerTest {
         sources.await { it.bindings[Slot.Bluetooth] == null }
     }
 
+    private fun SourceController.State.names() = row.map { it.label }
+
+    @Test
+    fun `a source given an app of the user's choosing takes that app's name, in the row and while arranging`() {
+        val sources = controller(FixedMedia(null))
+        val start = sources.await { it.row.isNotEmpty() }
+        assertEquals(listOf("Radio", "Bluetooth", "USB", "Android Auto"), start.names())
+
+        sources.bind(Slot.Bluetooth, FixedApps.id("Video"))
+        val renamed = sources.await { it.bindings[Slot.Bluetooth]?.label == "Video" }
+        assertEquals(listOf("Radio", "Video", "USB", "Android Auto"), renamed.names())
+        val tile = renamed.tiles.first { it.id == SourceId.Bluetooth }
+        assertEquals("Video", tile.label)
+        assertEquals("Video", tile.app)
+        assertEquals(listOf(SourceId.Radio, SourceId.Bluetooth, SourceId.Usb, SourceId.Auto), renamed.row.map { it.id })
+
+        sources.bind(Slot.Bluetooth, null)
+        val back = sources.await { it.bindings[Slot.Bluetooth] == null }
+        assertEquals(listOf("Radio", "Bluetooth", "USB", "Android Auto"), back.names())
+    }
+
+    @Test
+    fun `in the design's own set every source keeps its name whatever it opens`() {
+        val sources = SourceController(settings, apps, FixedMedia(null), scope, namedAfterApps = false)
+        sources.await { it.row.isNotEmpty() }
+        sources.bind(Slot.Bluetooth, FixedApps.id("Music"))
+        val state = sources.await { it.bindings[Slot.Bluetooth]?.label == "Music" }
+        assertEquals(listOf("Radio", "Bluetooth", "USB", "Android Auto"), state.names())
+        assertEquals("Bluetooth", state.tiles.first { it.id == SourceId.Bluetooth }.label)
+    }
+
     @Test
     fun `rail buttons open their app or ask for one`() {
         val sources = controller(FixedMedia(null))

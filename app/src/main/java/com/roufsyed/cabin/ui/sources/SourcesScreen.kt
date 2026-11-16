@@ -24,7 +24,7 @@ fun SourcesGrid(tiles: List<SourceTile>, picked: SourceId?, onTap: (SourceId) ->
         Row(Modifier.fillMaxWidth().height(154.dp), horizontalArrangement = Arrangement.spacedBy(13.dp)) {
             for (tile in tiles) {
                 GridTile(
-                    label = tile.id.label,
+                    label = tile.label,
                     description = "Select ${tile.id.label}",
                     dimmed = tile.hidden,
                     outlined = tile.id == picked,
