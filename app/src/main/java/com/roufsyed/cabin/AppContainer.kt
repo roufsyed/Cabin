@@ -6,6 +6,10 @@ import androidx.datastore.preferences.preferencesDataStoreFile
 import com.roufsyed.cabin.apps.AndroidAppsSource
 import com.roufsyed.cabin.apps.AppsSource
 import com.roufsyed.cabin.apps.FixedApps
+import com.roufsyed.cabin.bar.AndroidSideBarAccess
+import com.roufsyed.cabin.bar.FixedSideBarAccess
+import com.roufsyed.cabin.bar.SideBarAccess
+import com.roufsyed.cabin.bar.SideBarRules
 import com.roufsyed.cabin.bar.SideBarState
 import com.roufsyed.cabin.data.CabinSettings
 import com.roufsyed.cabin.data.DataStoreSettings
@@ -60,6 +64,8 @@ import android.service.notification.NotificationListenerService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 /**
  * Everything the screens draw from, behind small interfaces. There is one live set, built from the
@@ -90,8 +96,16 @@ class AppContainer(
     /** What the bar that stays over other apps goes by. */
     val sideBar: SideBarState = SideBarState(),
     private val sourcesNamedAfterApps: Boolean = true,
+    private val sideBarAccess: SideBarAccess = FixedSideBarAccess(),
 ) {
     val sources = SourceController(settings, apps, media, scope, sourcesNamedAfterApps)
+
+    fun keepSideBar() {
+        scope.launch {
+            val saved = settings.settings.first { it.loaded }
+            sideBar.lost.value = SideBarRules.recover(saved.sideBar, saved.sideBarGranted, sideBarAccess)
+        }
+    }
 
     /** The same set with some parts swapped, for tests that need a particular unit. */
     fun copy(
@@ -110,9 +124,10 @@ class AppContainer(
         memory: MemoryControl = this.memory,
         headlights: HeadlightSignal = this.headlights,
         sourcesNamedAfterApps: Boolean = this.sourcesNamedAfterApps,
+        sideBarAccess: SideBarAccess = this.sideBarAccess,
     ): AppContainer = AppContainer(
         scope, settings, apps, clock, homeRole, media, volume, brightness, navigation, voice, tray, status,
-        permissions, switches, memory, headlights, listenerHub, sideBar, sourcesNamedAfterApps,
+        permissions, switches, memory, headlights, listenerHub, sideBar, sourcesNamedAfterApps, sideBarAccess,
     )
 
     companion object {
@@ -158,7 +173,8 @@ class AppContainer(
                         },
                     ),
                 ),
-            )
+                sideBarAccess = AndroidSideBarAccess(app),
+            ).also { it.keepSideBar() }
         }
 
         /** The design's own values, so a screenshot can be laid over the design. */

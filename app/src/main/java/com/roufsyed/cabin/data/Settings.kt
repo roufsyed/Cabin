@@ -87,6 +87,7 @@ data class CabinSettings(
     val screenOff: ScreenOffShows = ScreenOffShows(),
     /** The rail stays on screen, at half its width, while another app is open. */
     val sideBar: Boolean = true,
+    val sideBarGranted: Boolean = false,
     /** That bar has a grip that tucks it away, leaving a handle at the screen's edge to bring it back. */
     val barHandle: Boolean = true,
     /** How soon that bar tucks itself away when it is left untouched. */
@@ -149,6 +150,7 @@ object SettingsCodec {
     private val longPressSplit = booleanPreferencesKey("gesture_long_press")
     private val theme = stringPreferencesKey("theme")
     private val sideBar = booleanPreferencesKey("side_bar")
+    private val sideBarGranted = booleanPreferencesKey("side_bar_granted")
     private val barHandle = booleanPreferencesKey("side_bar_handle")
     private val barTuck = stringPreferencesKey("side_bar_tuck")
     private val barSide = stringPreferencesKey("side_bar_side")
@@ -199,6 +201,7 @@ object SettingsCodec {
                 status = prefs[offStatus] ?: defaults.screenOff.status,
             ),
             sideBar = prefs[sideBar] ?: defaults.sideBar,
+            sideBarGranted = prefs[sideBarGranted] ?: defaults.sideBarGranted,
             barHandle = prefs[barHandle] ?: defaults.barHandle,
             barTuck = prefs[barTuck]?.let { enumOrNull<TuckAfter>(it) } ?: defaults.barTuck,
             barSide = prefs[barSide]?.let { enumOrNull<BarSide>(it) } ?: defaults.barSide,
@@ -239,6 +242,7 @@ object SettingsCodec {
         prefs[offTurn] = settings.screenOff.turn
         prefs[offStatus] = settings.screenOff.status
         prefs[sideBar] = settings.sideBar
+        prefs[sideBarGranted] = settings.sideBarGranted
         prefs[barHandle] = settings.barHandle
         prefs[barTuck] = settings.barTuck.name
         prefs[barSide] = settings.barSide.name

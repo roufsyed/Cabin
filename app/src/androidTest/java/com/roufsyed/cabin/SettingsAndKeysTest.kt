@@ -19,6 +19,7 @@ import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.swipeRight
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.roufsyed.cabin.apps.FixedApps
+import com.roufsyed.cabin.bar.FixedSideBarAccess
 import com.roufsyed.cabin.data.CabinSettings
 import com.roufsyed.cabin.data.InMemorySettings
 import com.roufsyed.cabin.data.SideSwipe
@@ -33,6 +34,7 @@ import com.roufsyed.cabin.model.TuckAfter
 import com.roufsyed.cabin.system.FixedHeadlights
 import com.roufsyed.cabin.system.FixedPermissions
 import com.roufsyed.cabin.system.Grant
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -542,5 +544,84 @@ class FirstRunTest {
         cabin.onNodeWithContentDescription("Finish setup").performClick()
         cabin.onNodeWithContentDescription("Open Maps").assertIsDisplayed()
         cabin.waitUntil(2_000) { values.container.settings.settings.value.setupDone }
+    }
+}
+
+@RunWith(AndroidJUnit4::class)
+class SideBarSwitchedOffTest {
+
+    private val access = FixedSideBarAccess(isEnabled = false, canRestore = false, stopped = null)
+
+    @get:Rule(order = 0)
+    val values = FreshDesignValues { design ->
+        runBlocking { design.settings.update { it.copy(sideBarGranted = true) } }
+        design.copy(sideBarAccess = access)
+    }
+
+    @get:Rule(order = 1)
+    val cabin = cabinRule()
+
+    private val bar get() = values.container.sideBar
+    private fun tap(description: String) = cabin.onNodeWithContentDescription(description).performClick()
+
+    @Test
+    fun itIsNotAskedForAsIfForTheFirstTime() {
+        cabin.waitUntil(3_000) { bar.lost.value != null }
+        tap("All apps")
+        tap("Settings")
+        tap("Open setup")
+        cabin.onNodeWithText("The unit switched it off. Allow again").assertIsDisplayed()
+        cabin.onNodeWithText("Side bar off: the unit switched it off, not Cabin").assertIsDisplayed()
+        cabin.onNodeWithText("Allow Cabin under Accessibility").assertDoesNotExist()
+        tap("Next setup page")
+        cabin.onNodeWithText("The apps Cabin opens. Tap one to change it.").assertIsDisplayed()
+        tap("Previous setup page")
+
+        access.stopped = System.currentTimeMillis() - 60_000
+        values.container.keepSideBar()
+        cabin.waitUntil(3_000) { bar.lost.value?.stoppedAtMs != null }
+        cabin.onNodeWithText("Side bar off: the unit stopped Cabin at", substring = true).assertIsDisplayed()
+
+        tap("Finish setup")
+        tap("Theme and gestures")
+        tap("Layout page")
+        cabin.onNodeWithText("The unit switched it off. Allow again").assertIsDisplayed()
+
+        access.isEnabled = true
+        bar.allowed.value = true
+        values.container.keepSideBar()
+        cabin.waitUntil(3_000) { bar.lost.value == null }
+        cabin.onNodeWithText("The rail stays beside every app").assertIsDisplayed()
+        cabin.onNodeWithText("The unit switched it off. Allow again").assertDoesNotExist()
+    }
+}
+
+@RunWith(AndroidJUnit4::class)
+class SideBarKeptOnTest {
+
+    private val access = FixedSideBarAccess(isEnabled = false, canRestore = true)
+
+    @get:Rule(order = 0)
+    val values = FreshDesignValues { design ->
+        runBlocking { design.settings.update { it.copy(sideBarGranted = true) } }
+        design.copy(sideBarAccess = access)
+    }
+
+    @get:Rule(order = 1)
+    val cabin = cabinRule()
+
+    @Test
+    fun cabinSwitchesItsBarBackOnAndSaysNothing() {
+        cabin.waitUntil(3_000) { access.restored > 0 }
+        assertTrue(access.enabled())
+        assertEquals(null, values.container.sideBar.lost.value)
+        access.isEnabled = false
+        val before = access.restored
+        runBlocking { values.container.settings.update { it.copy(sideBar = false) } }
+        values.container.keepSideBar()
+        cabin.waitForIdle()
+        Thread.sleep(300)
+        assertEquals(before, access.restored)
+        assertTrue(!access.enabled())
     }
 }

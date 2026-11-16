@@ -151,6 +151,7 @@ class MainActivity : ComponentActivity() {
         container.volume.refresh()
         container.permissions.refresh()
         container.status.refresh()
+        container.keepSideBar()
     }
 
     /**

@@ -100,6 +100,63 @@ class SideBarRulesTest {
     }
 
     @Test
+    fun `a bar that was allowed and is found switched off at a start went while Cabin was not running`() {
+        assertEquals(true, SideBarRules.wentMissing(wanted = true, granted = true, enabled = false))
+        assertEquals(false, SideBarRules.wentMissing(wanted = true, granted = true, enabled = true))
+        assertEquals(false, SideBarRules.wentMissing(wanted = true, granted = false, enabled = false))
+        assertEquals(false, SideBarRules.wentMissing(wanted = false, granted = true, enabled = false))
+    }
+
+    @Test
+    fun `a Cabin that may switches its bar back on and says nothing`() {
+        val access = FixedSideBarAccess(isEnabled = false, canRestore = true, stopped = 1_000L)
+        assertNull(SideBarRules.recover(wanted = true, granted = true, access))
+        assertEquals(1, access.restored)
+        assertEquals(true, access.enabled())
+    }
+
+    @Test
+    fun `a Cabin that may not says what happened, with when the unit stopped it if Android knows`() {
+        val stopped = FixedSideBarAccess(isEnabled = false, canRestore = false, stopped = 1_000L)
+        assertEquals(SideBarLoss(stoppedAtMs = 1_000L), SideBarRules.recover(wanted = true, granted = true, stopped))
+        assertEquals(false, stopped.enabled())
+        val cleared = FixedSideBarAccess(isEnabled = false, canRestore = false, stopped = null)
+        assertEquals(SideBarLoss(stoppedAtMs = null), SideBarRules.recover(wanted = true, granted = true, cleared))
+    }
+
+    @Test
+    fun `a bar that is switched on, or is not wanted, is never touched`() {
+        val on = FixedSideBarAccess(isEnabled = true, canRestore = true)
+        assertNull(SideBarRules.recover(wanted = true, granted = true, on))
+        val unwanted = FixedSideBarAccess(isEnabled = false, canRestore = true)
+        assertNull(SideBarRules.recover(wanted = false, granted = true, unwanted))
+        assertEquals(0, on.restored + unwanted.restored)
+        assertEquals(false, unwanted.enabled())
+    }
+
+    @Test
+    fun `a Cabin with the means keeps a wanted bar on, allowed before or not`() {
+        val never = FixedSideBarAccess(isEnabled = false, canRestore = true)
+        assertNull(SideBarRules.recover(wanted = true, granted = false, never))
+        assertEquals(1, never.restored)
+    }
+
+    @Test
+    fun `a Cabin without the means says nothing about a bar that was never allowed or was switched off by hand`() {
+        val never = FixedSideBarAccess(isEnabled = false, canRestore = false, stopped = 1_000L)
+        assertNull(SideBarRules.recover(wanted = true, granted = false, never))
+        assertEquals(false, never.enabled())
+    }
+
+    @Test
+    fun `Setup says in one line why the bar is off again`() {
+        assertEquals("Side bar off: the unit stopped Cabin at 21:05", SideBarRules.lossText("21:05"))
+        assertEquals("Side bar off: the unit stopped Cabin at 15 Nov, 21:05", SideBarRules.lossText("15 Nov, 21:05"))
+        assertEquals("Side bar off: the unit switched it off, not Cabin", SideBarRules.lossText(null))
+        assertEquals(true, SideBarRules.lossText("15 Nov, 21:05").length <= 60)
+    }
+
+    @Test
     fun `the four waits are offered in the order asked for, each with a line that says it`() {
         assertEquals(listOf("Immediate", "5 sec", "10 sec", "Never"), TuckAfter.entries.map { it.label })
         assertEquals(TuckAfter.entries.size, TuckAfter.entries.map { it.hint }.toSet().size)

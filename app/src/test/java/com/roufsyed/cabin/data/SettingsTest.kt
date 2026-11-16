@@ -75,6 +75,7 @@ class SettingsTest {
         assertEquals(ScreenOffShows(clock = true, date = true, playing = false, turn = false, status = false), settings.screenOff)
         // The bar over other apps is wanted from the start; it shows once Android allows it.
         assertTrue(settings.sideBar)
+        assertFalse(settings.sideBarGranted)
         assertTrue(settings.barHandle)
         // Left untouched, it tucks itself away after five seconds.
         assertEquals(TuckAfter.FiveSeconds, settings.barTuck)
@@ -114,6 +115,7 @@ class SettingsTest {
             theme = ThemeId.Amber,
             screenOff = ScreenOffShows(clock = false, date = true, playing = true, turn = false, status = true),
             sideBar = false,
+            sideBarGranted = true,
             barHandle = false,
             barTuck = TuckAfter.Immediate,
             barSide = BarSide.Left,

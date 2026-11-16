@@ -87,6 +87,8 @@ class SideBarService : AccessibilityService() {
         val scope = MainScope().also { scope = it }
         val saved = container.settings.settings
         state.allowed.value = true
+        state.lost.value = null
+        container.scope.launch { container.settings.update { it.copy(sideBarGranted = true) } }
         state.showRecents = ::showRecents
         state.takeScreenshot = ::takeScreenshot
         state.showPowerMenu = ::showPowerMenu
@@ -150,6 +152,7 @@ class SideBarService : AccessibilityService() {
         scope?.cancel()
         scope = null
         close()
+        container?.let { cabin -> cabin.scope.launch { cabin.settings.update { it.copy(sideBarGranted = false) } } }
         container?.sideBar?.let {
             it.allowed.value = false
             it.keyboardUp.value = false

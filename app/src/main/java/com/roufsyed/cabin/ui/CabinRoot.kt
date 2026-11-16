@@ -1,5 +1,7 @@
 package com.roufsyed.cabin.ui
 
+import android.content.Context
+import android.text.format.DateUtils
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +19,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModel
@@ -28,6 +31,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.roufsyed.cabin.AppContainer
 import com.roufsyed.cabin.apps.SplitPair
+import com.roufsyed.cabin.bar.SideBarRules
 import com.roufsyed.cabin.data.CabinSettings
 import com.roufsyed.cabin.data.SideSwipe
 import com.roufsyed.cabin.data.TwoFingerDrag
@@ -847,6 +851,7 @@ private fun ThemeAndGestureTiles(container: AppContainer, shellModel: ShellViewM
 private fun LayoutTiles(container: AppContainer, host: HostActions) {
     val settings by container.settings.settings.collectAsStateWithLifecycle()
     val barAllowed by container.sideBar.allowed.collectAsStateWithLifecycle()
+    val barLost by container.sideBar.lost.collectAsStateWithLifecycle()
     fun change(transform: (CabinSettings) -> CabinSettings) {
         container.scope.launch { container.settings.update(transform) }
     }
@@ -858,7 +863,7 @@ private fun LayoutTiles(container: AppContainer, host: HostActions) {
     SettingsGrid(
         listOf(
             // The same switch as on Setup's first page, here with the other things about the bar.
-            sideBarTile(container, host, settings.sideBar, barAllowed, "Side bar over other apps: on or off"),
+            sideBarTile(container, host, settings.sideBar, barAllowed, barLost != null, "Side bar over other apps: on or off"),
             // The grip on that bar that tucks it away, and the handle that brings it back.
             SettingsTile(
                 "Side bar handle", "Tucks the bar away and back", "Side bar handle: on or off",
@@ -903,10 +908,15 @@ private fun sideBarTile(
     host: HostActions,
     wanted: Boolean,
     allowed: Boolean,
+    lost: Boolean,
     description: String,
 ) = SettingsTile(
     "Side bar in apps",
-    if (allowed) "The rail stays beside every app" else "Allow Cabin under Accessibility",
+    when {
+        allowed -> "The rail stays beside every app"
+        lost -> "The unit switched it off. Allow again"
+        else -> "Allow Cabin under Accessibility"
+    },
     description,
     value = if (allowed && wanted) "On" else "Off", on = allowed && wanted,
     onClick = {
@@ -991,9 +1001,19 @@ private fun SetupBar(shell: Shell, container: AppContainer, shellModel: ShellVie
     val settings by container.settings.settings.collectAsStateWithLifecycle()
     val firstRun = !settings.setupDone
     val onApps = shell.page > 0
+    val barLost by container.sideBar.lost.collectAsStateWithLifecycle()
+    val barAllowed by container.sideBar.allowed.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val lossHint = barLost?.takeIf { settings.sideBar && !barAllowed }?.let { loss ->
+        SideBarRules.lossText(loss.stoppedAtMs?.let { whenText(context, it) })
+    }
     TitleBar(
         title = if (firstRun) "Welcome to Cabin" else "Setup",
-        hint = if (onApps) "The apps Cabin opens. Tap one to change it." else "Tap each one to allow it. Each can be left off.",
+        hint = when {
+            onApps -> "The apps Cabin opens. Tap one to change it."
+            lossHint != null -> lossHint
+            else -> "Tap each one to allow it. Each can be left off."
+        },
         action = "Done",
         actionDescription = "Finish setup",
         onAction = {
@@ -1009,6 +1029,13 @@ private fun SetupBar(shell: Shell, container: AppContainer, shellModel: ShellVie
         pageDescription = if (onApps) "Previous setup page" else "Next setup page",
         onPage = { shellModel.setupPage(if (onApps) 0 else 1) },
     )
+}
+
+private fun whenText(context: Context, atMs: Long): String {
+    val today = DateUtils.isToday(atMs)
+    val flags = DateUtils.FORMAT_SHOW_TIME or
+        (if (today) 0 else DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_ABBREV_MONTH or DateUtils.FORMAT_NO_YEAR)
+    return DateUtils.formatDateTime(context, atMs, flags)
 }
 
 /**
@@ -1029,6 +1056,7 @@ private fun SetupPermissions(container: AppContainer, host: HostActions) {
     val headlights by container.headlights.on.collectAsStateWithLifecycle()
     val settings by container.settings.settings.collectAsStateWithLifecycle()
     val barAllowed by container.sideBar.allowed.collectAsStateWithLifecycle()
+    val barLost by container.sideBar.lost.collectAsStateWithLifecycle()
     val follow = settings.followHeadlights
 
     fun state(on: Boolean) = if (on) "On" else "Off"
@@ -1068,7 +1096,7 @@ private fun SetupPermissions(container: AppContainer, host: HostActions) {
             grant("Location", "Sunrise and sunset for Auto", Grant.Location),
             grant("Microphone", "Say a destination", Grant.Microphone),
             grant("Nearby devices", "Shows a connected phone", Grant.NearbyDevices),
-            sideBarTile(container, host, settings.sideBar, barAllowed, "Keep the side bar over other apps"),
+            sideBarTile(container, host, settings.sideBar, barAllowed, barLost != null, "Keep the side bar over other apps"),
         ),
     )
 }

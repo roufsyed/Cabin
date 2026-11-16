@@ -16,6 +16,8 @@ class SideBarState {
      */
     val allowed = MutableStateFlow(false)
 
+    val lost = MutableStateFlow<SideBarLoss?>(null)
+
     /** True while Cabin's own screen is showing. It has the whole rail, so the bar steps aside. */
     val cabinShowing = MutableStateFlow(false)
 
@@ -81,6 +83,22 @@ enum class BarView { None, Bar, Handle }
 
 /** When the bar is drawn, and when it tucks itself away. Kept apart from Android so it can be tested. */
 object SideBarRules {
+    fun wentMissing(wanted: Boolean, granted: Boolean, enabled: Boolean): Boolean = wanted && granted && !enabled
+
+    fun recover(wanted: Boolean, granted: Boolean, access: SideBarAccess): SideBarLoss? = when {
+        !wanted || access.enabled() -> null
+        access.restore() -> null
+        granted -> SideBarLoss(access.stoppedAt())
+        else -> null
+    }
+
+    fun lossText(stoppedAt: String?): String =
+        if (stoppedAt != null) {
+            "Side bar off: the unit stopped Cabin at $stoppedAt"
+        } else {
+            "Side bar off: the unit switched it off, not Cabin"
+        }
+
     /**
      * [wanted] is the switch in Setup. The bar is for other apps, so it goes while Cabin is showing,
      * and it gets out of the way of a keyboard.
