@@ -28,7 +28,18 @@ data class PlayerFacts(
     val queueSize: Int,
     /** Whatever else the player sends along: buttons of its own, and values under names of its own. */
     val extras: List<String>,
+    val library: PlayerLibrary = PlayerLibrary.None,
 )
+
+enum class PlayerLibrary {
+    None,
+
+    Asking,
+
+    Open,
+
+    Closed,
+}
 
 /** A row of a player's page. [lines] is how many lines of text its value may take there. */
 @Immutable
@@ -96,7 +107,7 @@ object PlayerRules {
             ReportLine("Length", length(facts.durationMs)),
             ReportLine("Can be told to", actions(facts.actions), lines = 3),
             ReportLine("Track details", details(facts.details), lines = 2),
-            ReportLine("Queue", queue(facts.queueSize)),
+            ReportLine("Lists", lists(facts)),
             ReportLine("Also sends", facts.extras.joinToString().ifEmpty { "Nothing" }, lines = 2),
         ),
     )
@@ -166,9 +177,14 @@ object PlayerRules {
         return words.replaceFirstChar { it.uppercase() } + " (0x" + java.lang.Long.toHexString(actions) + ")"
     }
 
-    fun queue(size: Int): String = when {
-        size <= 0 -> "None"
-        size == 1 -> "1 item"
-        else -> "$size items"
+    fun lists(facts: PlayerFacts): String = "${queue(facts.queueSize)}; ${library(facts.library)}"
+
+    fun queue(size: Int): String = if (size <= 0) "No queue" else "Queue of $size"
+
+    fun library(library: PlayerLibrary): String = when (library) {
+        PlayerLibrary.None -> "no library to browse"
+        PlayerLibrary.Asking -> "a library, which has not answered yet"
+        PlayerLibrary.Open -> "a library Cabin can browse"
+        PlayerLibrary.Closed -> "a library that turns Cabin away"
     }
 }

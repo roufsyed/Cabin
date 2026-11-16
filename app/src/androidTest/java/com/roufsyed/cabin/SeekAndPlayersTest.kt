@@ -20,6 +20,7 @@ import com.roufsyed.cabin.media.FixedMedia
 import com.roufsyed.cabin.media.MediaSource
 import com.roufsyed.cabin.media.PlaybackProgress
 import com.roufsyed.cabin.media.PlayerFacts
+import com.roufsyed.cabin.media.PlayerLibrary
 import com.roufsyed.cabin.media.PlayerRules
 import com.roufsyed.cabin.model.Samples
 import org.junit.Assert.assertEquals
@@ -336,6 +337,7 @@ private class TwoPlayers(inner: FixedMedia) : MediaSource by inner {
             packageName = "com.unit.media", appLabel = "Unit player", shown = false,
             state = PlayerRules.STATE_PAUSED, positionMs = 0, speed = 0f, actions = PlayerRules.TRANSPORT,
             durationMs = null, details = listOf("android.media.metadata.TITLE", "length=215"), queueSize = 0,
+            library = PlayerLibrary.Closed,
         ),
     )
 }
@@ -374,7 +376,7 @@ class PlayersPageTest {
         shows("Length: 3:41")
         shows("Can be told to: Play, pause, next, previous, move within the track (0x136)")
         shows("Track details: title, artist, duration")
-        shows("Queue: 4 items")
+        shows("Lists: Queue of 4; no library to browse")
         shows("Also sends: Nothing")
 
         tap("Next player")
@@ -387,7 +389,7 @@ class PlayersPageTest {
         shows("Length: Not given")
         shows("Can be told to: Play, pause, next, previous (0x36)")
         shows("Track details: title, length=215")
-        shows("Queue: None")
+        shows("Lists: No queue; a library that turns Cabin away")
 
         // The button goes round, and a swipe turns the pages as well.
         tap("Next player")

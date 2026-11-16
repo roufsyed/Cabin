@@ -41,7 +41,7 @@ class PlayersTest {
         assertEquals("Player", report.appLabel)
         assertTrue(report.shown)
         assertEquals(
-            listOf("App", "Slider", "State", "Length", "Can be told to", "Track details", "Queue", "Also sends"),
+            listOf("App", "Slider", "State", "Length", "Can be told to", "Track details", "Lists", "Also sends"),
             report.lines.map { it.label },
         )
         assertEquals("com.player", report.line("App"))
@@ -50,7 +50,7 @@ class PlayersTest {
         assertEquals("3:41", report.line("Length"))
         assertEquals("Play, pause, next, previous, move within the track (0x136)", report.line("Can be told to"))
         assertEquals("album art, artist, duration, title", report.line("Track details"))
-        assertEquals("12 items", report.line("Queue"))
+        assertEquals("Queue of 12; no library to browse", report.line("Lists"))
         assertEquals("Nothing", report.line("Also sends"))
     }
 
@@ -78,7 +78,7 @@ class PlayersTest {
         assertEquals("Not given", report.line("Length"))
         assertEquals("Nothing: it lists no actions", report.line("Can be told to"))
         assertEquals("None", report.line("Track details"))
-        assertEquals("None", report.line("Queue"))
+        assertEquals("No queue; no library to browse", report.line("Lists"))
     }
 
     @Test
@@ -139,10 +139,14 @@ class PlayersTest {
     }
 
     @Test
-    fun `the queue is counted`() {
-        assertEquals("None", PlayerRules.queue(0))
-        assertEquals("1 item", PlayerRules.queue(1))
-        assertEquals("4 items", PlayerRules.queue(4))
+    fun `the two places a list of tracks can come from are both reported`() {
+        assertEquals("No queue", PlayerRules.queue(0))
+        assertEquals("Queue of 1", PlayerRules.queue(1))
+        assertEquals("Queue of 4", PlayerRules.queue(4))
+        assertEquals("No queue; a library Cabin can browse", PlayerRules.lists(bare.copy(library = PlayerLibrary.Open)))
+        assertEquals("No queue; a library that turns Cabin away", PlayerRules.lists(bare.copy(library = PlayerLibrary.Closed)))
+        assertEquals("No queue; a library, which has not answered yet", PlayerRules.lists(bare.copy(library = PlayerLibrary.Asking)))
+        assertEquals("Queue of 12; a library that turns Cabin away", PlayerRules.lists(full.copy(library = PlayerLibrary.Closed)))
     }
 
     @Test
@@ -154,7 +158,7 @@ class PlayersTest {
         // The design's own track is drawn with a plain line, so its stand-in player takes no position.
         assertEquals("No: it does not say the track can be moved", report.line("Slider"))
         assertEquals("3:41", report.line("Length"))
-        assertEquals("4 items", report.line("Queue"))
+        assertEquals("Queue of 4; no library to browse", report.line("Lists"))
         assertEquals(emptyList<PlayerFacts>(), FixedMedia(null).players())
     }
 

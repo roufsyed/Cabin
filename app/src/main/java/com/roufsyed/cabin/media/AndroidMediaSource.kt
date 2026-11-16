@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.media.AudioManager
 import android.media.MediaMetadata
+import android.media.browse.MediaBrowser
 import android.media.session.MediaController
 import android.media.session.MediaSession
 import android.media.session.MediaSessionManager
@@ -406,7 +407,44 @@ class AndroidMediaSource(
                 queueSize = entry.queue.size,
                 // A player's own buttons first: they say the most in the least room.
                 extras = extrasOf(playback) + entry.sessionExtras,
+                library = libraryOf(packageName),
             )
+        }
+    }
+
+    private val libraries = HashMap<String, PlayerLibrary>()
+    private val asking = HashMap<String, MediaBrowser>()
+
+    private fun libraryOf(packageName: String): PlayerLibrary = libraries[packageName] ?: run {
+        val service = browserService(packageName)
+        val first = if (service == null) PlayerLibrary.None else PlayerLibrary.Asking
+        libraries[packageName] = first
+        if (service != null) ask(packageName, service)
+        first
+    }
+
+    private fun ask(packageName: String, service: ComponentName) {
+        fun answered(answer: PlayerLibrary) {
+            libraries[packageName] = answer
+            try {
+                asking.remove(packageName)?.disconnect()
+            } catch (e: RuntimeException) {
+            }
+        }
+        try {
+            val browser = MediaBrowser(
+                context, service,
+                object : MediaBrowser.ConnectionCallback() {
+                    override fun onConnected() = answered(PlayerLibrary.Open)
+                    override fun onConnectionFailed() = answered(PlayerLibrary.Closed)
+                    override fun onConnectionSuspended() = answered(PlayerLibrary.Closed)
+                },
+                null,
+            )
+            asking[packageName] = browser
+            browser.connect()
+        } catch (e: RuntimeException) {
+            answered(PlayerLibrary.Closed)
         }
     }
 
