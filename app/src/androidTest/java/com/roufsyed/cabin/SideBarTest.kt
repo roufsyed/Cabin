@@ -31,7 +31,7 @@ import org.junit.runner.RunWith
 /**
  * The bar that stays over other apps, drawn on its own at the size it has on the design's screen: 66
  * wide and 800 high. The window it lives in over other apps belongs to an accessibility service, which
- * Android switches off while tests run, so that part is checked by hand (see NOTES.md).
+ * Android switches off while tests run, so that part is checked by hand.
  *
  * The test's own window is a little under 800 high, so the bar is drawn at nine tenths and measured
  * back in design pixels.

@@ -281,7 +281,7 @@ class MainActivity : ComponentActivity() {
 
     /**
      * Starts the first of [intents] the unit has a screen for. Head units often ship a cut-down
-     * settings app, so a missing screen is expected; NOTES.md lists the adb command for each.
+     * settings app, so a missing screen is expected; each of these can be granted over adb instead.
      */
     private fun open(vararg intents: Intent) {
         for (intent in intents) {

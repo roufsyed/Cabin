@@ -25,8 +25,7 @@ import org.junit.runner.RunWith
 /**
  * The chooser the side bar's Split button opens, told that Maps is the app on screen. It is given the
  * design's fifteen apps and seventeen more, so that there is a second page. Here it has the whole
- * screen; that Android puts it in half of one, beside the app in front, is checked by hand (see
- * NOTES.md).
+ * screen; that Android puts it in half of one, beside the app in front, is checked by hand.
  */
 @RunWith(AndroidJUnit4::class)
 class SplitChooserTest {
