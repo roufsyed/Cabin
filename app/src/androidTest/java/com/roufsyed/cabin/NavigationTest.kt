@@ -51,7 +51,8 @@ class NavigationWithRouteTest {
 
         cabin.runOnUiThread { navigation.set(NavUi.Idle) }
         cabin.onNodeWithContentDescription("Where to?").assertIsDisplayed()
-        cabin.onNodeWithContentDescription("Open Maps").assertDoesNotExist()
+        cabin.onNodeWithContentDescription("Navigate home").assertIsDisplayed()
+        cabin.onNodeWithText("Airport Road").assertDoesNotExist()
     }
 }
 
@@ -78,6 +79,35 @@ class NavigationIdleTest {
         tap("Navigate to office")
         cabin.waitForIdle()
         assertEquals(listOf("saved:Home", "saved:Work"), navigation.calls)
+    }
+
+    @Test
+    fun theCardAroundTheMicOpensTheMap() {
+        cabin.onNodeWithText("Where to?", useUnmergedTree = true).performClick()
+        cabin.waitForIdle()
+        assertEquals(listOf("open"), navigation.calls)
+        cabin.onNodeWithText("Listening…").assertDoesNotExist()
+
+        cabin.onNodeWithText("Navigation", useUnmergedTree = true).performClick()
+        cabin.onNodeWithContentDescription("Open Maps").performTouchInput { click(Offset(width - 20f, height / 2f)) }
+        cabin.waitForIdle()
+        assertEquals(listOf("open", "open", "open"), navigation.calls)
+        assertTrue(!voice.listening)
+    }
+
+    @Test
+    fun onlyTheMicListens() {
+        tap("Where to?")
+        cabin.onNodeWithText("Listening…").assertIsDisplayed()
+        assertTrue(voice.listening)
+        assertEquals(emptyList<String>(), navigation.calls)
+    }
+
+    @Test
+    fun aTapJustBesideTheMicsRingIsStillTheMic() {
+        cabin.onNodeWithContentDescription("Where to?").performTouchInput { click(Offset(4f, 4f)) }
+        cabin.onNodeWithText("Listening…").assertIsDisplayed()
+        assertEquals(emptyList<String>(), navigation.calls)
     }
 
     @Test

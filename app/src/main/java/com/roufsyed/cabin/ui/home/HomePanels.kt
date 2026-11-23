@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
@@ -171,19 +172,28 @@ private fun NavigationPanel(
                 Column(
                     modifier = Modifier
                         .size(326.dp, 374.dp)
-                        .pressable("Where to?", onClick = onWhereTo)
+                        .pressable("Open Maps", onClick = onOpenMaps)
                         .padding(start = 32.dp, top = 28.dp, end = 32.dp, bottom = 36.dp),
                     verticalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Txt("Navigation", 24, color = Slate.Muted)
                     Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
-                        Box(
-                            modifier = Modifier
-                                .size(84.dp)
-                                .border(1.5.dp, Slate.Accent, CircleShape),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(SlateIcons.Mic, 42.dp, Slate.Text, 1.4f)
+                        Box(Modifier.size(84.dp), contentAlignment = Alignment.Center) {
+                            Box(
+                                modifier = Modifier
+                                    .requiredSize(108.dp)
+                                    .pressable("Where to?", onClick = onWhereTo),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(84.dp)
+                                        .border(1.5.dp, Slate.Accent, CircleShape),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Icon(SlateIcons.Mic, 42.dp, Slate.Text, 1.4f)
+                                }
+                            }
                         }
                         Txt("Where to?", 50, weight = Slate.Light, lineHeight = 1.1f)
                     }

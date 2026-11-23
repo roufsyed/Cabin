@@ -246,7 +246,8 @@ class LayoutTest {
     @Test
     fun idleNavigationPanelAndVoiceDialogMatchTheDesignGrid() {
         cabin.runOnUiThread { (values.container.navigation as FixedNavigation).set(NavUi.Idle) }
-        at("Where to?", 395f, 41f, 326f, 374f)
+        at("Open Maps", 395f, 41f, 326f, 374f)
+        at("Where to?", 415f, 204f, 108f, 108f)
         at("Navigate home", 395f, 415f, 326f, 112f)
         at("Navigate to office", 395f, 527f, 326f, 112f)
 
