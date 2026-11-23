@@ -66,7 +66,7 @@ Measured on version 0.1.0, release build, on a 1280×800 Android 13 emulator wit
 The constraints that keep it glanceable:
 
 - Sized for a moving car: touch targets about 96 px and up, text 24 px and up, on the 1280×800 canvas.
-- Dark and flat, with no blur and no animation.
+- Dark and flat, with no blur and no animation by default (can be toggled on from settings)
 - One accent colour at a time.
 - No third-party logos.
 - Primary controls on the driver's side.

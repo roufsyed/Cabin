@@ -83,7 +83,7 @@ data class CabinSettings(
     val longPressSplit: Boolean = true,
     /** The colour theme. */
     val theme: ThemeId = ThemeId.Blue,
-    val animations: Boolean = true,
+    val animations: Boolean = false,
     val dayColours: Boolean = true,
     /** Which lines the screen-off screen shows. */
     val screenOff: ScreenOffShows = ScreenOffShows(),

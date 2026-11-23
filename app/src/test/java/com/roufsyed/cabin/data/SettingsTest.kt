@@ -71,7 +71,7 @@ class SettingsTest {
         assertTrue(settings.longPressSplit)
         assertTrue(settings.followHeadlights)
         assertEquals(ThemeId.Blue, settings.theme)
-        assertTrue(settings.animations)
+        assertFalse(settings.animations)
         assertTrue(settings.dayColours)
         // The screen-off screen is the design's: the time and the date, and nothing else.
         assertEquals(ScreenOffShows(clock = true, date = true, playing = false, turn = false, status = false), settings.screenOff)
@@ -115,7 +115,7 @@ class SettingsTest {
             twoFingerDrag = TwoFingerDrag.Brightness,
             longPressSplit = false,
             theme = ThemeId.Amber,
-            animations = false,
+            animations = true,
             dayColours = false,
             screenOff = ScreenOffShows(clock = false, date = true, playing = true, turn = false, status = true),
             sideBar = false,
