@@ -42,6 +42,32 @@ class NavigationWithRouteTest {
     }
 
     @Test
+    fun aRoadNameTooLongForTheCardIsCutAndNeverRunsIntoTheLinesBelow() {
+        val road = "Bengaluru - Mumbai Hwy / Mumbai Hwy / Mumbai - Pandharpur Rd / Mumbai - Pune Hwy / " +
+            "Mumbai - Satara Hwy / NH 48 / Asian Highway 47"
+        val arrive = "Arrive 10:48 tomorrow morning after the long way round"
+        val remaining = "38 min · 17 km and a good deal more besides that"
+        cabin.runOnUiThread { navigation.set(NavUi.Active("500 m", road, arrive, remaining)) }
+        cabin.waitForIdle()
+
+        fun box(text: String) = cabin.onNodeWithText(text, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val card = cabin.onNodeWithContentDescription("Open Maps").fetchSemanticsNode().boundsInRoot
+        val scale = card.width / 326f
+        val name = box(road)
+        val distance = box("500 m")
+
+        assertTrue("road $name under distance $distance", name.top >= distance.bottom)
+        assertTrue("road $name over arrival ${box(arrive)}", name.bottom <= box(arrive).top)
+        assertTrue("three lines at most: ${name.height / scale}", name.height / scale <= 3 * 34 * 1.2f + 1f)
+        assertTrue("arrival ${box(arrive)} over remaining ${box(remaining)}", box(arrive).bottom <= box(remaining).top)
+        for (text in listOf(road, arrive, remaining)) {
+            val line = box(text)
+            assertTrue("$line inside $card", line.left >= card.left && line.right <= card.right && line.bottom <= card.bottom)
+        }
+        assertTrue("one line each", box(arrive).height / scale <= 34f && box(remaining).height / scale <= 34f)
+    }
+
+    @Test
     fun thePanelFollowsTheRouteAndGoesIdleWhenItEnds() {
         cabin.runOnUiThread {
             navigation.set(NavUi.Active("1.2 km", "Airport Road", "Arrive 11:02", "52 min · 34 km"))

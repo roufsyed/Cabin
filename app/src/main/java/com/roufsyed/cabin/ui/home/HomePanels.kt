@@ -160,11 +160,11 @@ private fun NavigationPanel(
                         Icon(SlateIcons.TurnRight, 84.dp, Slate.Accent, 0.5f)
                     }
                     Txt(nav.distance, 76, weight = Slate.Light, lineHeight = 1f, singleLine = true)
-                    Txt(nav.road, 34, color = Slate.TextSecondary)
+                    Txt(nav.road, 34, color = Slate.TextSecondary, maxLines = 3)
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Txt(nav.arrive, 26, weight = Slate.SemiBold)
-                    Txt(nav.remaining, 26, color = Slate.Muted)
+                    Txt(nav.arrive, 26, weight = Slate.SemiBold, ellipsis = true)
+                    Txt(nav.remaining, 26, color = Slate.Muted, ellipsis = true)
                 }
             }
 
