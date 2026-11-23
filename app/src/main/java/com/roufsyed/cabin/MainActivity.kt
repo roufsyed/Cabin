@@ -31,11 +31,14 @@ import com.roufsyed.cabin.notify.CabinNotificationListener
 import com.roufsyed.cabin.system.Grant
 import com.roufsyed.cabin.ui.CabinRoot
 import com.roufsyed.cabin.ui.HostActions
+import com.roufsyed.cabin.ui.Motion
 import com.roufsyed.cabin.ui.shell.Overlay
 import com.roufsyed.cabin.ui.shell.ShellViewModel
 import com.roufsyed.cabin.ui.split.SplitChooserActivity
 import com.roufsyed.cabin.ui.theme.Slate
 import com.roufsyed.cabin.ui.theme.Themes
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -179,7 +182,8 @@ class MainActivity : ComponentActivity() {
                 combine(container.brightness.windowBrightness, shell.state) { level, state ->
                     // The screen-off clock wants the backlight as low as it goes, whatever the level is.
                     if (state.overlay == Overlay.ScreenOff) 0.01f else level
-                }.distinctUntilChanged().collect { level ->
+                }.distinctUntilChanged().collectLatest { level ->
+                    if (level == 0.01f && container.settings.settings.value.animations) delay(Motion.SCREEN_OFF_MS.toLong())
                     window.attributes = window.attributes.apply {
                         screenBrightness = level ?: WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
                     }

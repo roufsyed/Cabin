@@ -5,12 +5,21 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.os.Build
+import android.provider.Settings
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityWindowInfo
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -32,6 +41,7 @@ import com.roufsyed.cabin.MainActivity
 import com.roufsyed.cabin.model.BarSide
 import com.roufsyed.cabin.model.Slot
 import com.roufsyed.cabin.sources.Opened
+import com.roufsyed.cabin.ui.Motion
 import com.roufsyed.cabin.ui.chrome.SIDE_BAR_HANDLE_HEIGHT
 import com.roufsyed.cabin.ui.chrome.SIDE_BAR_HANDLE_WIDTH
 import com.roufsyed.cabin.ui.chrome.SIDE_BAR_WIDTH
@@ -77,6 +87,7 @@ class SideBarService : AccessibilityService() {
     /** What is up over the app in front and on which edge, its window, and what its Compose content lives by. */
     private val showing = MutableStateFlow(BarView.None)
     private var side = BarSide.Right
+    private val leaving = MutableStateFlow(false)
     private var bar: View? = null
     private var owner: BarOwner? = null
 
@@ -113,7 +124,7 @@ class SideBarService : AccessibilityService() {
                     SideBarRules::view,
                 ).combine(saved.map { it.barSide }) { view, edge -> view to edge }
                     .distinctUntilChanged()
-                    .collect { (view, edge) -> show(view, edge, container) }
+                    .collectLatest { (view, edge) -> change(view, edge, container) }
             }
             // Tucked away is for the app in front. Whenever Cabin's own screen comes or goes, or the
             // setting is changed, the bar is put back to what an app starts with: whole, or under
@@ -192,10 +203,22 @@ class SideBarService : AccessibilityService() {
         }
     }
 
+    private suspend fun change(view: BarView, edge: BarSide, container: AppContainer) {
+        val was = showing.value
+        val slides = edge == side && container.settings.settings.value.animations
+        if (slides && was == BarView.Bar && view == BarView.Handle) {
+            leaving.value = true
+            val scale = Settings.Global.getFloat(contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
+            delay((Motion.BAR_MS * scale).toLong())
+        }
+        show(view, edge, container, slideIn = slides && was == BarView.Handle && view == BarView.Bar)
+    }
+
     /** Puts up the whole bar, only its handle, or nothing, on [edge], in place of whatever was up. */
-    private fun show(view: BarView, edge: BarSide, container: AppContainer) {
-        if (view == showing.value && edge == side) return
+    private fun show(view: BarView, edge: BarSide, container: AppContainer, slideIn: Boolean = false) {
+        if (view == showing.value && edge == side && !leaving.value) return
         close()
+        leaving.value = false
         side = edge
         val onLeft = edge == BarSide.Left
         // One design pixel is as large here as on Cabin's own screen.
@@ -206,7 +229,7 @@ class SideBarService : AccessibilityService() {
             BarView.Bar -> open(
                 scale, "Cabin side bar", onLeft,
                 width = (SIDE_BAR_WIDTH * scale).roundToInt(), height = WindowManager.LayoutParams.MATCH_PARENT,
-            ) { Bar(container, onLeft) }
+            ) { Bar(container, onLeft, slideIn) }
             // The handle is in the corner where the bar's grip was, so the same spot brings the bar back.
             BarView.Handle -> open(
                 scale, "Cabin side bar handle", onLeft,
@@ -277,7 +300,18 @@ class SideBarService : AccessibilityService() {
     }
 
     @Composable
-    private fun Bar(container: AppContainer, onLeft: Boolean) {
+    private fun Bar(container: AppContainer, onLeft: Boolean, slideIn: Boolean) {
+        val away by leaving.collectAsStateWithLifecycle()
+        var entered by remember { mutableStateOf(!slideIn) }
+        LaunchedEffect(Unit) { entered = true }
+        val shift by animateFloatAsState(if (entered && !away) 0f else 1f, tween(Motion.BAR_MS), label = "bar")
+        Box(Modifier.graphicsLayer { translationX = shift * size.width * (if (onLeft) -1f else 1f) }) {
+            BarButtons(container, onLeft)
+        }
+    }
+
+    @Composable
+    private fun BarButtons(container: AppContainer, onLeft: Boolean) {
         val volume by container.volume.volume.collectAsStateWithLifecycle()
         val handle by remember(container) {
             container.settings.settings.map { it.barHandle }.distinctUntilChanged()

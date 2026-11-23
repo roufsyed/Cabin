@@ -98,12 +98,14 @@ fun TrayOverlay(
     onClearAll: () -> Unit,
     onScreenOff: () -> Unit,
     onClose: () -> Unit,
+    scrim: Modifier = Modifier,
+    sheet: Modifier = Modifier,
 ) {
     Box(Modifier.fillMaxSize()) {
-        Box(Modifier.fillMaxSize().pressable("Close notifications", onClick = onClose).background(Slate.Scrim))
+        Box(scrim.fillMaxSize().pressable("Close notifications", onClick = onClose).background(Slate.Scrim))
         val shape = RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp)
         Column(
-            modifier = Modifier
+            modifier = sheet
                 .offset(x = 40.dp)
                 .width(1200.dp)
                 .pointerInput(Unit) { detectTapGestures { } }

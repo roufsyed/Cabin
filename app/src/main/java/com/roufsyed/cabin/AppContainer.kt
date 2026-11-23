@@ -188,6 +188,7 @@ class AppContainer(
                     activeSource = SourceId.Bluetooth,
                     bindings = mapOf(Slot.Bluetooth to FixedApps.id("Music")),
                     recentPlaces = listOf("Airport", "City Mall"),
+                    animations = false,
                 ),
             )
             // The design is drawn with the headlights off; its Settings has a switch to try them on.

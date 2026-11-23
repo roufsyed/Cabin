@@ -485,10 +485,10 @@ class SettingsAndKeysTest {
         cabin.waitUntil(2_000) { settings.twoFingerDrag == TwoFingerDrag.Brightness }
         awaitText("Brightness")
         // Swipe down and swipe sideways are both off now.
-        awaitText("Off", count = 2)
+        awaitText("Off", count = 3)
         tap("Long press on an app: split screen or off")
         cabin.waitUntil(2_000) { !settings.longPressSplit }
-        awaitText("Off", count = 3)
+        awaitText("Off", count = 4)
         tap("Long press on an app: split screen or off")
         cabin.waitUntil(2_000) { settings.longPressSplit }
         awaitText("Split")

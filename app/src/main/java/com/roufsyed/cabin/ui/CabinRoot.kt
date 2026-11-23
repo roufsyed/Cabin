@@ -3,6 +3,19 @@ package com.roufsyed.cabin.ui
 import android.content.Context
 import android.text.format.DateUtils
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -19,7 +32,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModel
@@ -210,6 +225,7 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
     var drag by remember { mutableStateOf<TwoFingerDrag?>(null) }
     var dragFrom by remember { mutableIntStateOf(0) }
     var dragAt by remember { mutableIntStateOf(0) }
+    var readout by remember { mutableStateOf(TwoFingerDrag.Volume) }
     val onGesture: (Gesture) -> Unit = { gesture ->
         // What each gesture does is the user's choice, in Settings > Gestures; read as it is now.
         val chosen = container.settings.settings.value
@@ -234,11 +250,13 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
                 TwoFingerDrag.Volume -> {
                     dragFrom = dashboard.volume.value.level
                     drag = TwoFingerDrag.Volume
+                    readout = TwoFingerDrag.Volume
                 }
                 TwoFingerDrag.Brightness -> {
                     dragFrom = dashboard.brightness.value.level
                     dragAt = dragFrom
                     drag = TwoFingerDrag.Brightness
+                    readout = TwoFingerDrag.Brightness
                 }
                 TwoFingerDrag.Off -> Unit
             }
@@ -261,49 +279,63 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
     // otherwise every start would show a frame of the default theme, order and levels first. Where
     // the rail and the Home panels go is read in the same piece, so they are right from that frame.
     val placing by remember(container) {
-        container.settings.settings.map { Placing(it.loaded, it.barSide, it.homeOrder) }.distinctUntilChanged()
+        container.settings.settings.map { Placing(it.loaded, it.barSide, it.homeOrder, it.animations) }.distinctUntilChanged()
     }.collectAsStateWithLifecycle(initialValue = Placing(loaded = false))
+
+    val pane: @Composable (Shell) -> Unit = { shown ->
+            if (shown.screen == Screen.Home) {
+                HomeContent(placing.homeOrder, dashboard, shellModel, host, whereTo, openMaps, navigateTo)
+            } else {
+                Column {
+                    when {
+                        shown.edit == EditKind.Apps -> AppsEditBar(shown, appsModel, shellModel)
+                        shown.edit == EditKind.Sources -> SourcesEditBar(shown, container, shellModel)
+                        shown.screen == Screen.Pick -> SlotPickBar(shown, container, shellModel)
+                        shown.screen == Screen.Split -> SplitBar(shown, appsModel, shellModel)
+                        shown.screen == Screen.Setup -> SetupBar(shown, container, shellModel)
+                        shown.screen == Screen.Preferences -> PreferencesBar(shown, shellModel)
+                        shown.screen == Screen.Theme -> ThemeBar(shellModel)
+                        shown.screen == Screen.ScreenOff -> ScreenOffBar(shellModel)
+                        shown.screen == Screen.Players -> PlayersBar(shown, container, shellModel)
+                        else -> Strip(dashboard, shellModel, host, showMini = shown.screen != Screen.Music)
+                    }
+                    Spacer(Modifier.height(16.dp))
+                    Box(Modifier.size(1036.dp, 488.dp)) {
+                        when (shown.screen) {
+                            Screen.Apps -> AppsContent(shown, appsModel, shellModel)
+                            Screen.Music -> MusicContent(dashboard)
+                            Screen.Settings -> SettingsContent(container, shellModel, host)
+                            Screen.Keys -> KeysScreen(wheel, onBack = { shellModel.open(Screen.Settings) })
+                            Screen.Preferences -> PreferencesContent(shown, container, shellModel, host)
+                            Screen.Theme -> ThemeContent(container)
+                            Screen.ScreenOff -> ScreenOffOptions(container, shellModel)
+                            Screen.Setup -> SetupContent(shown, container, shellModel, host)
+                            Screen.Players -> PlayersContent(shown, container)
+                            Screen.Sources -> SourcesContent(shown, container, shellModel)
+                            Screen.Pick -> SlotPickContent(shown, container, appsModel, shellModel)
+                            Screen.Split -> SplitContent(shown, appsModel, shellModel, host)
+                            else -> Unit
+                        }
+                    }
+                }
+            }
+    }
 
     DesignSurface {
         if (placing.loaded) GestureLayer(onGesture) {
             CabinFrame(
                 railOnLeft = placing.barSide == BarSide.Left,
                 content = {
-                    if (shell.screen == Screen.Home) {
-                        HomeContent(placing.homeOrder, dashboard, shellModel, host, whereTo, openMaps, navigateTo)
+                    if (placing.animations) {
+                        AnimatedContent(
+                            targetState = shell,
+                            modifier = Modifier.clipToBounds(),
+                            transitionSpec = { paneTransition(initialState, targetState) },
+                            contentKey = { it.screen to it.page },
+                            label = "pane",
+                        ) { shown -> pane(shown) }
                     } else {
-                        Column {
-                            when {
-                                shell.edit == EditKind.Apps -> AppsEditBar(shell, appsModel, shellModel)
-                                shell.edit == EditKind.Sources -> SourcesEditBar(shell, container, shellModel)
-                                shell.screen == Screen.Pick -> SlotPickBar(shell, container, shellModel)
-                                shell.screen == Screen.Split -> SplitBar(shell, appsModel, shellModel)
-                                shell.screen == Screen.Setup -> SetupBar(shell, container, shellModel)
-                                shell.screen == Screen.Preferences -> PreferencesBar(shell, shellModel)
-                                shell.screen == Screen.Theme -> ThemeBar(shellModel)
-                                shell.screen == Screen.ScreenOff -> ScreenOffBar(shellModel)
-                                shell.screen == Screen.Players -> PlayersBar(shell, container, shellModel)
-                                else -> Strip(dashboard, shellModel, host, showMini = shell.screen != Screen.Music)
-                            }
-                            Spacer(Modifier.height(16.dp))
-                            Box(Modifier.size(1036.dp, 488.dp)) {
-                                when (shell.screen) {
-                                    Screen.Apps -> AppsContent(shell, appsModel, shellModel)
-                                    Screen.Music -> MusicContent(dashboard)
-                                    Screen.Settings -> SettingsContent(container, shellModel, host)
-                                    Screen.Keys -> KeysScreen(wheel, onBack = { shellModel.open(Screen.Settings) })
-                                    Screen.Preferences -> PreferencesContent(shell, container, shellModel, host)
-                                    Screen.Theme -> ThemeContent(container)
-                                    Screen.ScreenOff -> ScreenOffOptions(container, shellModel)
-                                    Screen.Setup -> SetupContent(shell, container, shellModel, host)
-                                    Screen.Players -> PlayersContent(shell, container)
-                                    Screen.Sources -> SourcesContent(shell, container, shellModel)
-                                    Screen.Pick -> SlotPickContent(shell, container, appsModel, shellModel)
-                                    Screen.Split -> SplitContent(shell, appsModel, shellModel, host)
-                                    else -> Unit
-                                }
-                            }
-                        }
+                        pane(shell)
                     }
                 },
                 bottomRow = { BottomRowContent(dashboard, selectSource) },
@@ -324,19 +356,68 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
                     },
                 )
             }
-            if (shell.overlay == Overlay.Tray) TrayContent(container, shellModel, host)
-            if (shell.overlay == Overlay.ScreenOff) ScreenOffLayer(container, dashboard, shellModel)
-            when (drag) {
-                TwoFingerDrag.Volume -> VolumeReadout(dashboard)
-                TwoFingerDrag.Brightness -> BrightnessReadout(dashboard)
-                else -> Unit
+            if (placing.animations) {
+                AnimatedVisibility(
+                    visible = shell.overlay == Overlay.Tray,
+                    enter = EnterTransition.None,
+                    exit = ExitTransition.None,
+                ) {
+                    TrayContent(
+                        container, shellModel, host,
+                        scrim = Modifier.animateEnterExit(fadeIn(tween(Motion.TRAY_MS)), fadeOut(tween(Motion.TRAY_MS))),
+                        sheet = Modifier.animateEnterExit(
+                            slideInVertically(tween(Motion.TRAY_MS)) { -it },
+                            slideOutVertically(tween(Motion.TRAY_MS)) { -it },
+                        ),
+                    )
+                }
+                AnimatedVisibility(
+                    visible = shell.overlay == Overlay.ScreenOff,
+                    enter = fadeIn(tween(Motion.SCREEN_OFF_MS)),
+                    exit = fadeOut(tween(Motion.WAKE_MS)),
+                ) {
+                    ScreenOffLayer(container, dashboard, shellModel)
+                }
+                AnimatedVisibility(
+                    visible = drag != null,
+                    enter = fadeIn(tween(Motion.READOUT_MS)),
+                    exit = fadeOut(tween(Motion.READOUT_MS)),
+                ) {
+                    if (readout == TwoFingerDrag.Brightness) BrightnessReadout(dashboard) else VolumeReadout(dashboard)
+                }
+            } else {
+                if (shell.overlay == Overlay.Tray) TrayContent(container, shellModel, host)
+                if (shell.overlay == Overlay.ScreenOff) ScreenOffLayer(container, dashboard, shellModel)
+                when (drag) {
+                    TwoFingerDrag.Volume -> VolumeReadout(dashboard)
+                    TwoFingerDrag.Brightness -> BrightnessReadout(dashboard)
+                    else -> Unit
+                }
             }
         }
     }
 }
 
+private fun paneTransition(from: Shell, to: Shell): ContentTransform {
+    val forward = when {
+        from.screen == Screen.Home && to.screen == Screen.Apps -> true
+        from.screen == Screen.Apps && to.screen == Screen.Home -> false
+        from.screen == to.screen && from.page != to.page -> to.page > from.page
+        else -> return EnterTransition.None togetherWith ExitTransition.None
+    }
+    val spec = tween<IntOffset>(Motion.PAGE_MS)
+    return slideInHorizontally(spec) { if (forward) it else -it } togetherWith
+        slideOutHorizontally(spec) { if (forward) -it else it }
+}
+
 @Composable
-private fun TrayContent(container: AppContainer, shellModel: ShellViewModel, host: HostActions) {
+private fun TrayContent(
+    container: AppContainer,
+    shellModel: ShellViewModel,
+    host: HostActions,
+    scrim: Modifier = Modifier,
+    sheet: Modifier = Modifier,
+) {
     val items by container.tray.items.collectAsStateWithLifecycle()
     val access by container.media.access.collectAsStateWithLifecycle()
     TrayOverlay(
@@ -354,6 +435,8 @@ private fun TrayContent(container: AppContainer, shellModel: ShellViewModel, hos
         onClearAll = container.tray::clearAll,
         onScreenOff = { shellModel.show(Overlay.ScreenOff) },
         onClose = shellModel::closeOverlay,
+        scrim = scrim,
+        sheet = sheet,
     )
 }
 
@@ -495,6 +578,7 @@ private data class Placing(
     val loaded: Boolean,
     val barSide: BarSide = BarSide.Right,
     val homeOrder: List<HomePanel> = LayoutRules.DESIGN_ORDER,
+    val animations: Boolean = false,
 )
 
 /** How many pages the grid on screen has, so a swipe left knows whether there is a next one. */
@@ -836,6 +920,11 @@ private fun ThemeAndGestureTiles(container: AppContainer, shellModel: ShellViewM
                 value = if (canSplit && settings.longPressSplit) "Split" else "Off",
                 on = canSplit && settings.longPressSplit,
                 onClick = { if (canSplit) change { it.copy(longPressSplit = !it.longPressSplit) } },
+            ),
+            SettingsTile(
+                "Animations", "Slides and fades", "Animations: on or off",
+                value = if (settings.animations) "On" else "Off", on = settings.animations,
+                onClick = { change { it.copy(animations = !it.animations) } },
             ),
         ),
     )
