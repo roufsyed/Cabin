@@ -109,6 +109,7 @@ class AppContainer(
 
     /** The same set with some parts swapped, for tests that need a particular unit. */
     fun copy(
+        clock: ClockSource = this.clock,
         settings: SettingsStore = this.settings,
         apps: AppsSource = this.apps,
         media: MediaSource = this.media,

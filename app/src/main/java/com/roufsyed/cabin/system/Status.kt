@@ -31,7 +31,7 @@ interface StatusSource {
 }
 
 class FixedStatus(value: StatusUi, bluetooth: Boolean = true, hotspot: Boolean? = false) : StatusSource {
-    private val state = MutableStateFlow(value)
+    private val state = MutableStateFlow(value.copy(hotspot = hotspot == true))
     private val radio = MutableStateFlow(bluetooth)
     override val status: StateFlow<StatusUi> = state
     override val bluetoothOn: StateFlow<Boolean> = radio
@@ -83,13 +83,13 @@ class AndroidStatus(private val context: Context) : StatusSource {
     private val location = context.getSystemService(LocationManager::class.java)
     private val bluetooth: BluetoothAdapter? = context.getSystemService(BluetoothManager::class.java)?.adapter
 
+    private val hotspot = MutableStateFlow<Boolean?>(null)
     private val state = MutableStateFlow(read())
     override val status: StateFlow<StatusUi> = state
 
     private val radio = MutableStateFlow(bluetoothEnabled())
     override val bluetoothOn: StateFlow<Boolean> = radio
 
-    private val hotspot = MutableStateFlow<Boolean?>(null)
     override val hotspotOn: StateFlow<Boolean?> = hotspot
 
     init {
@@ -106,9 +106,8 @@ class AndroidStatus(private val context: Context) : StatusSource {
                 override fun onReceive(context: Context, intent: Intent) {
                     if (intent.action == HotspotRules.CHANGED) {
                         HotspotRules.on(intent.getIntExtra(HotspotRules.STATE, -1))?.let { hotspot.value = it }
-                    } else {
-                        refresh()
                     }
+                    refresh()
                 }
             },
             filter,
@@ -126,7 +125,7 @@ class AndroidStatus(private val context: Context) : StatusSource {
         false
     }
 
-    private fun read() = StatusUi(phone = phoneConnected(), wifi = wifiOn(), gps = gpsOn())
+    private fun read() = StatusUi(phone = phoneConnected(), wifi = wifiOn(), gps = gpsOn(), hotspot = hotspot.value == true)
 
     private fun wifiOn(): Boolean = try {
         wifi?.isWifiEnabled == true

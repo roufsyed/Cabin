@@ -1,7 +1,10 @@
 package com.roufsyed.cabin
 
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -10,10 +13,13 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.roufsyed.cabin.media.FixedMedia
+import com.roufsyed.cabin.model.Samples
 import com.roufsyed.cabin.model.StatusUi
 import com.roufsyed.cabin.notify.FixedTray
+import com.roufsyed.cabin.system.FixedClock
 import com.roufsyed.cabin.system.FixedStatus
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -138,12 +144,12 @@ class TrayAndStatusTest {
 
     @Test
     fun statusMarksFollowTheUnit() {
-        shows("Phone connected, Wi-Fi on, GPS ready")
+        shows("Phone connected, Wi-Fi on, Hotspot off, GPS ready")
         cabin.runOnUiThread { (values.container.status as FixedStatus).set(StatusUi(phone = false, wifi = false, gps = true)) }
-        shows("Phone not connected, Wi-Fi off, GPS ready")
+        shows("Phone not connected, Wi-Fi off, Hotspot off, GPS ready")
         tap("All apps")
         // The same marks sit under the date on every other screen.
-        shows("Phone not connected, Wi-Fi off, GPS ready")
+        shows("Phone not connected, Wi-Fi off, Hotspot off, GPS ready")
     }
 }
 
@@ -165,5 +171,34 @@ class TrayWithoutAccessTest {
         cabin.onNodeWithContentDescription("Allow notification access to see them here").assertIsDisplayed()
         cabin.onNodeWithContentDescription("Clear all notifications").assertDoesNotExist()
         cabin.onNodeWithText("No access yet").assertIsDisplayed()
+    }
+}
+
+@RunWith(AndroidJUnit4::class)
+class LongestWeekdayTest {
+
+    @get:Rule(order = 0)
+    val values = FreshDesignValues { it.copy(clock = FixedClock(Samples.clock.copy(weekday = "Wednesday"))) }
+
+    @get:Rule(order = 1)
+    val cabin = cabinRule()
+
+    @Test
+    fun theLongestWeekdayIsWholeBesideTheFourMarks() {
+        val day = cabin.onNodeWithText("Wednesday", useUnmergedTree = true)
+        day.assertIsDisplayed()
+        val text = day.fetchSemanticsNode()
+        val marks = cabin.onNodeWithContentDescription("Phone connected, Wi-Fi on, Hotspot off, GPS ready")
+            .fetchSemanticsNode().boundsInRoot
+        assertTrue("day ${text.boundsInRoot} beside marks $marks", text.boundsInRoot.right <= marks.left)
+        val layout = text.config.getOrNull(SemanticsActions.GetTextLayoutResult)
+        val results = mutableListOf<TextLayoutResult>()
+        layout?.action?.invoke(results)
+        assertTrue("layout read", results.isNotEmpty())
+        val line = results[0]
+        assertTrue(
+            "not cut short: needs ${line.multiParagraph.maxIntrinsicWidth} of ${line.size.width}, ellipsis ${line.isLineEllipsized(0)}",
+            !line.isLineEllipsized(0),
+        )
     }
 }

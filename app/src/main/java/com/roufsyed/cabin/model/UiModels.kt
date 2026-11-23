@@ -20,10 +20,11 @@ data class ClockUi(
 }
 
 @Immutable
-data class StatusUi(val phone: Boolean, val wifi: Boolean, val gps: Boolean) {
+data class StatusUi(val phone: Boolean, val wifi: Boolean, val gps: Boolean, val hotspot: Boolean = false) {
     val description: String
         get() = (if (phone) "Phone connected" else "Phone not connected") + ", " +
             (if (wifi) "Wi-Fi on" else "Wi-Fi off") + ", " +
+            (if (hotspot) "Hotspot on" else "Hotspot off") + ", " +
             (if (gps) "GPS ready" else "GPS off")
 }
 

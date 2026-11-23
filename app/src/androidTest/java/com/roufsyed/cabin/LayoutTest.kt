@@ -417,7 +417,7 @@ class LayoutTest {
         val rows = listOf(
             line("10:10"),
             line("Thursday 12 November"),
-            inDesign(bounds("Phone connected, Wi-Fi on, GPS ready")),
+            inDesign(bounds("Phone connected, Wi-Fi on, Hotspot off, GPS ready")),
             line("350 m · Ring Road"),
             line("Open Road · Aster Lane"),
             line("Tap to wake"),

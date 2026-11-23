@@ -46,6 +46,7 @@ object Slate {
     val Disabled: Color get() = palette.disabled
     val Accent: Color get() = palette.accent
     val Danger: Color get() = palette.danger
+    val Connected = Color(0xFF5FD08A)
     val Scrim: Color get() = palette.scrim
 
     val Figtree = FontFamily(

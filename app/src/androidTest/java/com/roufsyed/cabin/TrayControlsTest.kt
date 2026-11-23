@@ -94,7 +94,7 @@ class TrayControlsTest {
         tray.tap("Wi-Fi: on")
         tray.shows("Wi-Fi: off")
         // The mark beside the clock is the same Wi-Fi.
-        tray.shows("Phone connected, Wi-Fi off, GPS ready")
+        tray.shows("Phone connected, Wi-Fi off, Hotspot off, GPS ready")
         tray.tap("Bluetooth: off")
         tray.shows("Bluetooth: on")
         assertEquals(listOf("bluetooth off", "wifi off", "bluetooth on"), switches.asked)

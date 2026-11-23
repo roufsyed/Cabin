@@ -85,7 +85,7 @@ private fun ClockPanel(clock: ClockUi, status: StatusUi) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Txt(clock.weekday, 24, color = Slate.Muted)
+                Txt(clock.weekday, 24, Modifier.weight(1f).padding(end = 4.dp), color = Slate.Muted, ellipsis = true)
                 StatusIcons(status)
             }
             Column(Modifier.clearAndSetSemantics { contentDescription = "Time ${clock.time}" }) {
@@ -101,28 +101,20 @@ private fun ClockPanel(clock: ClockUi, status: StatusUi) {
 }
 
 /**
- * Phone, Wi-Fi and GPS marks. A mark that is off is dimmer and struck through. [on] and [off] are
+ * Phone, Wi-Fi, hotspot and GPS marks. A mark that is off is a faded grey. [on] and [off] are
  * the design's two greys unless the marks sit somewhere with greys of its own.
  */
 @Composable
-fun StatusIcons(status: StatusUi, on: Color = Slate.Muted, off: Color = Slate.Disabled) {
+fun StatusIcons(status: StatusUi, on: Color = Slate.Connected, off: Color = Slate.Disabled) {
     Row(
         modifier = Modifier.semantics(mergeDescendants = true) { contentDescription = status.description },
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(
-            if (status.phone) SlateIcons.StatusPhone else SlateIcons.StatusPhoneOff, 26.dp,
-            if (status.phone) on else off, 1.5f,
-        )
-        Icon(
-            if (status.wifi) SlateIcons.StatusWifi else SlateIcons.StatusWifiOff, 26.dp,
-            if (status.wifi) on else off, 1.5f,
-        )
-        Icon(
-            if (status.gps) SlateIcons.StatusGps else SlateIcons.StatusGpsOff, 26.dp,
-            if (status.gps) on else off, 1.5f,
-        )
+        Icon(SlateIcons.StatusBluetooth, 26.dp, if (status.phone) on else off, 1.5f)
+        Icon(SlateIcons.StatusWifi, 26.dp, if (status.wifi) on else off, 1.5f)
+        Icon(SlateIcons.StatusHotspot, 26.dp, if (status.hotspot) on else off, 1.5f)
+        Icon(SlateIcons.StatusGps, 26.dp, if (status.gps) on else off, 1.5f)
     }
 }
 

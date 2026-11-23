@@ -43,7 +43,7 @@ class TrayTest {
 
     @Test
     fun `the status marks are described in words for a screen reader`() {
-        assertEquals("Phone connected, Wi-Fi on, GPS ready", StatusUi(phone = true, wifi = true, gps = true).description)
-        assertEquals("Phone not connected, Wi-Fi off, GPS off", StatusUi(phone = false, wifi = false, gps = false).description)
+        assertEquals("Phone connected, Wi-Fi on, Hotspot off, GPS ready", StatusUi(phone = true, wifi = true, gps = true).description)
+        assertEquals("Phone not connected, Wi-Fi off, Hotspot off, GPS off", StatusUi(phone = false, wifi = false, gps = false).description)
     }
 }

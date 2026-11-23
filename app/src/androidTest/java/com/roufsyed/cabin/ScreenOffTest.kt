@@ -43,7 +43,7 @@ class ScreenOffTest {
     private val everything = ScreenOffShows(clock = true, date = true, playing = true, turn = true, status = true)
     private val track = "Open Road · Aster Lane"
     private val turn = "350 m · Ring Road"
-    private val marks = "Phone connected, Wi-Fi on, GPS ready"
+    private val marks = "Phone connected, Wi-Fi on, Hotspot off, GPS ready"
 
     private fun tap(description: String) = cabin.onNodeWithContentDescription(description).performClick()
     private fun shows(description: String) = cabin.onNodeWithContentDescription(description).assertIsDisplayed()
@@ -171,7 +171,7 @@ class ScreenOffTest {
         cabin.runOnUiThread {
             (values.container.status as FixedStatus).set(StatusUi(phone = false, wifi = true, gps = false))
         }
-        shows("Phone not connected, Wi-Fi on, GPS off")
+        shows("Phone not connected, Wi-Fi on, Hotspot off, GPS off")
         gone(marks)
     }
 

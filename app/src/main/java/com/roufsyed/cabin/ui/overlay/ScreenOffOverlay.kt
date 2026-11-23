@@ -27,7 +27,7 @@ import com.roufsyed.cabin.ui.theme.Txt
 /** The widest a line may be before it ends in an ellipsis: the screen, less a margin on each side. */
 private val LineWidth = 1040.dp
 
-/** How much of the text's strength a status mark that is off keeps. It is struck through as well. */
+/** How much of the text's strength a status mark that is off keeps. */
 private const val OFF_MARK = 0.5f
 
 /**

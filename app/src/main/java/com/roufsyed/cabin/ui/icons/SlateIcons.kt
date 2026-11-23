@@ -2,24 +2,20 @@ package com.roufsyed.cabin.ui.icons
 
 /** Every icon of the Slate design, on its 24 x 24 grid unless noted. Geometry is copied from the design. */
 object SlateIcons {
-    private const val STRIKE = "M4 4l16 16"
     private const val HANDSET =
         "M6 3.5h3.2l1.6 4.2-2.1 1.4a12 12 0 0 0 6.2 6.2l1.4-2.1 4.2 1.6V18a2.5 2.5 0 0 1-2.7 2.5C10.6 19.9 4.1 13.4 3.5 6.2A2.5 2.5 0 0 1 6 3.5z"
 
     // Status
-    val StatusPhone = icon { rect(7f, 3f, 10f, 18f, 2f); path("M11 17.5h2") }
-    val StatusPhoneOff = icon { rect(7f, 3f, 10f, 18f, 2f); path("M11 17.5h2"); path(STRIKE) }
+    val StatusBluetooth = icon { path("M7.5 7.5l9 9-4.5 4.5V3l4.5 4.5-9 9") }
     val StatusWifi = icon {
         path("M4 10a11.5 11.5 0 0 1 16 0"); path("M7.5 13.5a6.5 6.5 0 0 1 9 0"); dot(12f, 17.5f, 1.1f)
     }
-    val StatusWifiOff = icon {
-        path("M4 10a11.5 11.5 0 0 1 16 0"); path("M7.5 13.5a6.5 6.5 0 0 1 9 0"); dot(12f, 17.5f, 1.1f); path(STRIKE)
+    val StatusHotspot = icon {
+        dot(12f, 13f, 1.5f)
+        path("M8.55 15.9a4.5 4.5 0 1 1 6.9 0"); path("M5.5 18.45a8.5 8.5 0 1 1 13 0")
     }
     val StatusGps = icon {
         path("M12 21c-3.5-3.6-6-6.9-6-10a6 6 0 0 1 12 0c0 3.1-2.5 6.4-6 10z"); circle(12f, 11f, 2f)
-    }
-    val StatusGpsOff = icon {
-        path("M12 21c-3.5-3.6-6-6.9-6-10a6 6 0 0 1 12 0c0 3.1-2.5 6.4-6 10z"); circle(12f, 11f, 2f); path(STRIKE)
     }
 
     // Navigation
@@ -108,12 +104,11 @@ object SlateIcons {
     // The tray's controls. None of these is in the design, whose tray has no controls; they are drawn
     // on its grid, in its line weight, from its own shapes where it has them.
     /** The Bluetooth mark: an upright with two points, crossed behind. */
-    val Bluetooth = icon { path("M7 7.5l10 9-5 4.5V3l5 4.5-10 9") }
+    val Bluetooth = icon { path("M7.5 7.5l9 9-4.5 4.5V3l4.5 4.5-9 9") }
     /** A hotspot: the unit as a dot, sending both ways. */
     val Hotspot = icon {
-        dot(12f, 12f, 1.6f)
-        path("M8.5 15.5a5 5 0 0 1 0-7"); path("M15.5 8.5a5 5 0 0 1 0 7")
-        path("M5.6 18.4a9 9 0 0 1 0-12.8"); path("M18.4 5.6a9 9 0 0 1 0 12.8")
+        dot(12f, 13f, 1.5f)
+        path("M8.55 15.9a4.5 4.5 0 1 1 6.9 0"); path("M5.5 18.45a8.5 8.5 0 1 1 13 0")
     }
     /** Recent apps: one card over another. */
     val Recents = icon {
