@@ -46,6 +46,21 @@ Everything useful at a glance, each thing always in the same place:
 
 More screens are in [`docs/screenshots`](docs/screenshots).
 
+## Size and memory
+
+Measured on version 0.1.0, release build, on a 1280×800 Android 13 emulator with 4 GB of RAM. These are emulator figures; they have not been checked on the head unit yet.
+
+| What | Figure |
+|---|---|
+| APK size | ≈ 2.2 MB (2,205,326 bytes) |
+| Installed size | ≈ 10.3 MB, after a full ahead-of-time compile (the largest case) |
+| Memory | ≈ 37,124 KiB PSS (38.0 MB), Home showing, nothing playing |
+| Memory after restart | ≈ 61,477 KiB PSS (63.0 MB), sixteen seconds after the process restarted |
+| Start, first after boot | ≈ 1.4 s (1,371 ms) to the first frame |
+| Threads from the app | 5: the main thread, and 4 background workers that read the app list, settings and media details off the main thread and sleep when there is nothing to do |
+| Processes and activities | One process, two activities (the second is the split chooser) |
+| Internet permission | None, no network activity or telemetry |
+
 ## Design rules
 
 The constraints that keep it glanceable:
