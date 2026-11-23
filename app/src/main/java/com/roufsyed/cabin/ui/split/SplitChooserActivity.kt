@@ -35,7 +35,6 @@ import com.roufsyed.cabin.ui.apps.AppsViewModel
 import com.roufsyed.cabin.ui.chrome.SIDE_BAR_WIDTH
 import com.roufsyed.cabin.ui.theme.DESIGN_WIDTH
 import com.roufsyed.cabin.ui.theme.Slate
-import com.roufsyed.cabin.ui.theme.Themes
 import com.roufsyed.cabin.ui.theme.screenScale
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -58,8 +57,7 @@ class SplitChooserActivity : ComponentActivity() {
         onScreen = intent.getStringArrayListExtra(EXTRA_ON_SCREEN).orEmpty()
         val container = container
         lifecycleScope.launch {
-            container.settings.settings.map { it.theme }.distinctUntilChanged().collect { id ->
-                val palette = Themes.palette(id)
+            container.palette.collect { palette ->
                 Slate.palette = palette
                 window.setBackgroundDrawable(palette.ground.toArgb().toDrawable())
             }

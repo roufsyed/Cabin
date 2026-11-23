@@ -105,7 +105,7 @@ class SavedThemeTest {
 
     @get:Rule(order = 0)
     val values = FreshDesignValues {
-        it.copy(settings = InMemorySettings(CabinSettings(loaded = true, setupDone = true, theme = ThemeId.Emerald)))
+        it.copy(settings = InMemorySettings(CabinSettings(loaded = true, setupDone = true, theme = ThemeId.Emerald, dayColours = false)))
     }
 
     @get:Rule(order = 1)

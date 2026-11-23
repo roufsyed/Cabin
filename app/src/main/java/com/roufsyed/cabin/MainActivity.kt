@@ -36,7 +36,6 @@ import com.roufsyed.cabin.ui.shell.Overlay
 import com.roufsyed.cabin.ui.shell.ShellViewModel
 import com.roufsyed.cabin.ui.split.SplitChooserActivity
 import com.roufsyed.cabin.ui.theme.Slate
-import com.roufsyed.cabin.ui.theme.Themes
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
@@ -164,8 +163,7 @@ class MainActivity : ComponentActivity() {
      */
     private fun followTheme() {
         lifecycleScope.launch {
-            container.settings.settings.map { it.theme }.distinctUntilChanged().collect { id ->
-                val palette = Themes.palette(id)
+            container.palette.collect { palette ->
                 Slate.palette = palette
                 window.setBackgroundDrawable(palette.ground.toArgb().toDrawable())
             }

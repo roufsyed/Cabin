@@ -41,7 +41,7 @@ private const val OFF_MARK = 0.5f
  */
 @Composable
 fun ScreenOffOverlay(ui: ScreenOffUi, onWake: () -> Unit) {
-    val tone = if (ui.night) Slate.Disabled else Slate.Muted
+    val tone = if (ui.night) Slate.NightDisabled else Slate.NightMuted
     Column(
         modifier = Modifier
             .fillMaxSize()

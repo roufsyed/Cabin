@@ -84,6 +84,7 @@ data class CabinSettings(
     /** The colour theme. */
     val theme: ThemeId = ThemeId.Blue,
     val animations: Boolean = true,
+    val dayColours: Boolean = true,
     /** Which lines the screen-off screen shows. */
     val screenOff: ScreenOffShows = ScreenOffShows(),
     /** The rail stays on screen, at half its width, while another app is open. */
@@ -151,6 +152,7 @@ object SettingsCodec {
     private val longPressSplit = booleanPreferencesKey("gesture_long_press")
     private val theme = stringPreferencesKey("theme")
     private val animations = booleanPreferencesKey("animations")
+    private val dayColours = booleanPreferencesKey("day_colours")
     private val sideBar = booleanPreferencesKey("side_bar")
     private val sideBarGranted = booleanPreferencesKey("side_bar_granted")
     private val barHandle = booleanPreferencesKey("side_bar_handle")
@@ -196,6 +198,7 @@ object SettingsCodec {
             longPressSplit = prefs[longPressSplit] ?: defaults.longPressSplit,
             theme = prefs[theme]?.let { enumOrNull<ThemeId>(it) } ?: defaults.theme,
             animations = prefs[animations] ?: defaults.animations,
+            dayColours = prefs[dayColours] ?: defaults.dayColours,
             screenOff = ScreenOffShows(
                 clock = prefs[offClock] ?: defaults.screenOff.clock,
                 date = prefs[offDate] ?: defaults.screenOff.date,
@@ -240,6 +243,7 @@ object SettingsCodec {
         prefs[longPressSplit] = settings.longPressSplit
         prefs[theme] = settings.theme.name
         prefs[animations] = settings.animations
+        prefs[dayColours] = settings.dayColours
         prefs[offClock] = settings.screenOff.clock
         prefs[offDate] = settings.screenOff.date
         prefs[offPlaying] = settings.screenOff.playing

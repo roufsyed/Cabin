@@ -33,6 +33,8 @@ import com.roufsyed.cabin.notify.ListenerClient
 import com.roufsyed.cabin.notify.ListenerHub
 import com.roufsyed.cabin.notify.TraySource
 import com.roufsyed.cabin.sources.SourceController
+import com.roufsyed.cabin.ui.theme.Palette
+import com.roufsyed.cabin.ui.theme.Themes
 import com.roufsyed.cabin.system.AndroidBrightness
 import com.roufsyed.cabin.system.AndroidClock
 import com.roufsyed.cabin.system.AndroidHomeRole
@@ -64,6 +66,10 @@ import android.service.notification.NotificationListenerService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -99,6 +105,11 @@ class AppContainer(
     private val sideBarAccess: SideBarAccess = FixedSideBarAccess(),
 ) {
     val sources = SourceController(settings, apps, media, scope, sourcesNamedAfterApps)
+
+    val palette: Flow<Palette> = combine(
+        settings.settings.map { it.theme to it.dayColours },
+        brightness.state.map { it.night },
+    ) { (theme, dayColours), night -> Themes.palette(theme, day = dayColours && !night) }.distinctUntilChanged()
 
     fun keepSideBar() {
         scope.launch {
@@ -190,6 +201,7 @@ class AppContainer(
                     bindings = mapOf(Slot.Bluetooth to FixedApps.id("Music")),
                     recentPlaces = listOf("Airport", "City Mall"),
                     animations = false,
+                    dayColours = false,
                 ),
             )
             // The design is drawn with the headlights off; its Settings has a switch to try them on.

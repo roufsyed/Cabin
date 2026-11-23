@@ -48,7 +48,6 @@ import com.roufsyed.cabin.ui.chrome.SIDE_BAR_WIDTH
 import com.roufsyed.cabin.ui.chrome.SideBar
 import com.roufsyed.cabin.ui.chrome.SideBarHandle
 import com.roufsyed.cabin.ui.theme.Slate
-import com.roufsyed.cabin.ui.theme.Themes
 import com.roufsyed.cabin.ui.theme.screenScale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.MainScope
@@ -105,7 +104,7 @@ class SideBarService : AccessibilityService() {
         state.showPowerMenu = ::showPowerMenu
         // The bar is in the theme's colours. Cabin's own screen may not have been opened in this run.
         scope.launch {
-            saved.map { it.theme }.distinctUntilChanged().collect { Slate.palette = Themes.palette(it) }
+            container.palette.collect { Slate.palette = it }
         }
         scope.launch {
             // Nothing is drawn until the saved settings have been read, or a bar that was switched

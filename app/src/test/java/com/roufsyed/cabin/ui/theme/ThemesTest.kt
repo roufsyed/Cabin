@@ -100,4 +100,33 @@ class ThemesTest {
             }
         }
     }
+
+    @Test
+    fun `the colours for night are the same whether or not day colours are asked for`() {
+        for (id in ThemeId.entries) assertEquals(Themes.palette(id), Themes.palette(id, day = false))
+    }
+
+    @Test
+    fun `every theme by day is still dark, with cards that stand clear of the ground`() {
+        for (id in ThemeId.entries) {
+            val night = Themes.palette(id)
+            val day = Themes.palette(id, day = true)
+            assertTrue("$id is dark", day.surface.luminance() < 0.06f)
+            assertTrue("$id cards over ground", contrast(day.surface, day.ground) > 1.14f)
+            assertTrue("$id more than at night", contrast(day.surface, day.ground) > contrast(night.surface, night.ground) + 0.07f)
+            assertTrue("$id card edge", contrast(day.outline, day.surface) > 2f)
+        }
+    }
+
+    @Test
+    fun `every theme by day keeps its text, accent and marks readable on its cards`() {
+        for (id in ThemeId.entries) {
+            val day = Themes.palette(id, day = true)
+            assertEquals(Themes.palette(id).accent, day.accent)
+            assertTrue("$id text", contrast(day.text, day.surface) > 10f)
+            assertTrue("$id muted", contrast(day.muted, day.surface) > 4.5f)
+            assertTrue("$id accent ${contrast(day.accent, day.surface)}", contrast(day.accent, day.surface) > 4.5f)
+            assertTrue("$id faded mark", contrast(day.disabled, day.surface) in 2f..5.5f)
+        }
+    }
 }

@@ -922,6 +922,11 @@ private fun ThemeAndGestureTiles(container: AppContainer, shellModel: ShellViewM
                 onClick = { if (canSplit) change { it.copy(longPressSplit = !it.longPressSplit) } },
             ),
             SettingsTile(
+                "Day colours", "Lighter cards by day, for sunlight", "Day colours: on or off",
+                value = if (settings.dayColours) "On" else "Off", on = settings.dayColours,
+                onClick = { change { it.copy(dayColours = !it.dayColours) } },
+            ),
+            SettingsTile(
                 "Animations", "Slides and fades", "Animations: on or off",
                 value = if (settings.animations) "On" else "Off", on = settings.animations,
                 onClick = { change { it.copy(animations = !it.animations) } },

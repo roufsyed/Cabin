@@ -3,6 +3,7 @@ package com.roufsyed.cabin.ui.theme
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
 import com.roufsyed.cabin.model.ThemeId
+import kotlin.math.abs
 
 /** One complete set of Cabin's colours. The names are the design's token names. */
 @Immutable
@@ -20,6 +21,7 @@ data class Palette(
     val disabled: Color = Color(0xFF6E737B),
     val danger: Color = Color(0xFFC8423B),
     val scrim: Color = Color(0x9E000000),
+    val connected: Color = Color(0xFF5FD08A),
 )
 
 /**
@@ -47,5 +49,34 @@ object Themes {
         ThemeId.Platinum to palette(0xFF090909, 0xFF121313, 0xFF171818, 0xFF212223, 0xFF2C2E2F, 0xFFDBDEE2),
     )
 
+    private val dayPalettes: Map<ThemeId, Palette> = palettes.mapValues { day(it.value) }
+
     fun palette(id: ThemeId): Palette = palettes.getValue(id)
+
+    fun palette(id: ThemeId, day: Boolean): Palette = if (day) dayPalettes.getValue(id) else palettes.getValue(id)
+
+    private fun day(night: Palette): Palette {
+        val accent = night.accent
+        val high = maxOf(accent.red, accent.green, accent.blue)
+        val low = minOf(accent.red, accent.green, accent.blue)
+        val spread = high - low
+        val lightness = (high + low) / 2f
+        val saturation = if (spread == 0f) 0f else spread / (1f - abs(2f * lightness - 1f))
+        val hue = when {
+            spread == 0f -> 0f
+            high == accent.red -> 60f * (((accent.green - accent.blue) / spread).mod(6f))
+            high == accent.green -> 60f * ((accent.blue - accent.red) / spread + 2f)
+            else -> 60f * ((accent.red - accent.green) / spread + 4f)
+        }
+        val tint = if (saturation >= 0.12f) 0.10f else 0.02f
+        return night.copy(
+            ground = Color.hsl(hue, tint, 0.055f),
+            surface = Color.hsl(hue, tint, 0.13f),
+            raised = Color.hsl(hue, tint, 0.16f),
+            hairline = Color.hsl(hue, tint, 0.22f),
+            outline = Color.hsl(hue, tint, 0.35f),
+            muted = Color(0xFFB8BABD),
+            disabled = Color(0xFF8A8F97),
+        )
+    }
 }
