@@ -74,6 +74,9 @@ class SideBarState {
 
     @Volatile
     var openPair: ((SplitPair) -> Boolean)? = null
+
+    @Volatile
+    var offered: (() -> List<Int>?)? = null
 }
 
 /**

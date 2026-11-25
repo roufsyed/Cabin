@@ -74,6 +74,7 @@ import com.roufsyed.cabin.sources.SourceRules
 import com.roufsyed.cabin.system.BrightnessRules
 import com.roufsyed.cabin.system.Grant
 import com.roufsyed.cabin.system.MemoryRules
+import com.roufsyed.cabin.system.UnitRules
 import com.roufsyed.cabin.ui.apps.APPS_PER_PAGE
 import com.roufsyed.cabin.ui.apps.AppsGrid
 import com.roufsyed.cabin.ui.apps.AppsUi
@@ -100,6 +101,7 @@ import com.roufsyed.cabin.ui.settings.PlayerPage
 import com.roufsyed.cabin.ui.settings.SettingsGrid
 import com.roufsyed.cabin.ui.settings.SettingsTile
 import com.roufsyed.cabin.ui.settings.ThemeGrid
+import com.roufsyed.cabin.ui.settings.UnitPage
 import com.roufsyed.cabin.ui.settings.WheelActions
 import com.roufsyed.cabin.ui.shell.EditKind
 import com.roufsyed.cabin.ui.shell.Overlay
@@ -208,7 +210,7 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
         val settings = container.settings.settings.first { it.loaded }
         when {
             shell.screen == Screen.Setup -> if (!settings.setupDone) welcoming = true
-            shell.screen == Screen.Pick || shell.screen == Screen.Players -> Unit
+            shell.screen == Screen.Pick || shell.screen == Screen.Players || shell.screen == Screen.ThisUnit -> Unit
             welcoming -> {
                 welcoming = false
                 container.settings.update { it.copy(setupDone = true) }
@@ -302,6 +304,7 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
                         shown.screen == Screen.Theme -> ThemeBar(shellModel)
                         shown.screen == Screen.ScreenOff -> ScreenOffBar(shellModel)
                         shown.screen == Screen.Players -> PlayersBar(shown, container, shellModel)
+                        shown.screen == Screen.ThisUnit -> UnitBar(shellModel)
                         else -> Strip(dashboard, host, openPlayer)
                     }
                     Spacer(Modifier.height(16.dp))
@@ -315,6 +318,7 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
                             Screen.ScreenOff -> ScreenOffOptions(container, shellModel)
                             Screen.Setup -> SetupContent(shown, container, shellModel, host)
                             Screen.Players -> PlayersContent(shown, container)
+                            Screen.ThisUnit -> UnitContent(container)
                             Screen.Sources -> SourcesContent(shown, container, shellModel)
                             Screen.Pick -> SlotPickContent(shown, container, appsModel, shellModel)
                             Screen.Split -> SplitContent(shown, appsModel, shellModel, host)
@@ -1220,8 +1224,28 @@ private fun SetupApps(container: AppContainer, shellModel: ShellViewModel) {
             SettingsTile("Players", "What each one tells Cabin", "What the players tell Cabin") {
                 shellModel.open(Screen.Players)
             },
+            SettingsTile("This unit", "What Android says of it", "What Android says of this unit") {
+                shellModel.open(Screen.ThisUnit)
+            },
         ),
     )
+}
+
+@Composable
+private fun UnitBar(shellModel: ShellViewModel) {
+    TitleBar(
+        title = "This unit",
+        hint = "What Android says of it. Nothing here can be changed.",
+        action = "Done",
+        actionDescription = "Back to setup",
+        onAction = shellModel::back,
+    )
+}
+
+@Composable
+private fun UnitContent(container: AppContainer) {
+    val serviceOn by container.sideBar.allowed.collectAsStateWithLifecycle()
+    UnitPage(remember(container, serviceOn) { UnitRules.report(container.unit.facts()) })
 }
 
 /** How often the Players page reads the players again: a player gives no sign when most of it changes. */

@@ -14,6 +14,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.roufsyed.cabin.media.PlayerReport
+import com.roufsyed.cabin.media.ReportLine
 import com.roufsyed.cabin.ui.components.Panel
 import com.roufsyed.cabin.ui.theme.Slate
 import com.roufsyed.cabin.ui.theme.Txt
@@ -43,24 +44,34 @@ fun PlayerPage(report: PlayerReport?, access: Boolean) {
                 )
             }
         } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 30.dp, vertical = 22.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ReportTable(report.lines)
+        }
+    }
+}
+
+@Composable
+fun UnitPage(lines: List<ReportLine>) {
+    Panel(Modifier.size(1036.dp, 488.dp)) { ReportTable(lines) }
+}
+
+@Composable
+private fun ReportTable(lines: List<ReportLine>) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 30.dp, vertical = 22.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        for (line in lines) {
+            Row(
+                // One thing to read out, and one for a test to find: "Length: 3:41".
+                modifier = Modifier.semantics(mergeDescendants = true) {
+                    contentDescription = "${line.label}: ${line.value}"
+                },
+                horizontalArrangement = Arrangement.spacedBy(20.dp),
             ) {
-                for (line in report.lines) {
-                    Row(
-                        // One thing to read out, and one for a test to find: "Length: 3:41".
-                        modifier = Modifier.semantics(mergeDescendants = true) {
-                            contentDescription = "${line.label}: ${line.value}"
-                        },
-                        horizontalArrangement = Arrangement.spacedBy(20.dp),
-                    ) {
-                        Txt(line.label, 24, Modifier.width(196.dp), color = Slate.Muted, singleLine = true)
-                        Txt(line.value, 24, Modifier.weight(1f), maxLines = line.lines)
-                    }
-                }
+                Txt(line.label, 24, Modifier.width(196.dp), color = Slate.Muted, singleLine = true)
+                Txt(line.value, 24, Modifier.weight(1f), maxLines = line.lines)
             }
         }
     }

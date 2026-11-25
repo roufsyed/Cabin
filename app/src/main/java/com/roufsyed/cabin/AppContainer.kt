@@ -42,6 +42,7 @@ import com.roufsyed.cabin.system.AndroidMemory
 import com.roufsyed.cabin.system.AndroidPermissions
 import com.roufsyed.cabin.system.AndroidStatus
 import com.roufsyed.cabin.system.AndroidSwitches
+import com.roufsyed.cabin.system.AndroidUnit
 import com.roufsyed.cabin.system.AndroidVolume
 import com.roufsyed.cabin.system.BrightnessControl
 import com.roufsyed.cabin.system.ClockSource
@@ -53,6 +54,7 @@ import com.roufsyed.cabin.system.FixedMemory
 import com.roufsyed.cabin.system.FixedPermissions
 import com.roufsyed.cabin.system.FixedStatus
 import com.roufsyed.cabin.system.FixedSwitches
+import com.roufsyed.cabin.system.FixedUnit
 import com.roufsyed.cabin.system.FixedVolume
 import com.roufsyed.cabin.system.HeadlightSignal
 import com.roufsyed.cabin.system.HomeRole
@@ -60,6 +62,7 @@ import com.roufsyed.cabin.system.MemoryControl
 import com.roufsyed.cabin.system.NoHeadlightSignal
 import com.roufsyed.cabin.system.PermissionsSource
 import com.roufsyed.cabin.system.StatusSource
+import com.roufsyed.cabin.system.UnitSource
 import com.roufsyed.cabin.system.UnitSwitches
 import com.roufsyed.cabin.system.VolumeControl
 import android.service.notification.NotificationListenerService
@@ -103,6 +106,7 @@ class AppContainer(
     val sideBar: SideBarState = SideBarState(),
     private val sourcesNamedAfterApps: Boolean = true,
     private val sideBarAccess: SideBarAccess = FixedSideBarAccess(),
+    val unit: UnitSource = FixedUnit(Samples.unit),
 ) {
     val sources = SourceController(settings, apps, media, scope, sourcesNamedAfterApps)
 
@@ -137,9 +141,10 @@ class AppContainer(
         headlights: HeadlightSignal = this.headlights,
         sourcesNamedAfterApps: Boolean = this.sourcesNamedAfterApps,
         sideBarAccess: SideBarAccess = this.sideBarAccess,
+        unit: UnitSource = this.unit,
     ): AppContainer = AppContainer(
         scope, settings, apps, clock, homeRole, media, volume, brightness, navigation, voice, tray, status,
-        permissions, switches, memory, headlights, listenerHub, sideBar, sourcesNamedAfterApps, sideBarAccess,
+        permissions, switches, memory, headlights, listenerHub, sideBar, sourcesNamedAfterApps, sideBarAccess, unit,
     )
 
     companion object {
@@ -158,6 +163,7 @@ class AppContainer(
             // How this unit tells apps about its headlights is not known yet, so nothing is read:
             // Auto goes by sunrise and sunset until a reader for the real signal takes this place.
             val headlights = NoHeadlightSignal
+            val sideBar = SideBarState()
             return AppContainer(
                 scope = scope,
                 settings = settings,
@@ -185,7 +191,9 @@ class AppContainer(
                         },
                     ),
                 ),
+                sideBar = sideBar,
                 sideBarAccess = AndroidSideBarAccess(app),
+                unit = AndroidUnit(app, apps.split, sideBar),
             ).also { it.keepSideBar() }
         }
 

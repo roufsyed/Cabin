@@ -4,6 +4,8 @@ import com.roufsyed.cabin.media.NowPlaying
 import com.roufsyed.cabin.media.PlaybackProgress
 import com.roufsyed.cabin.notify.TrayItem
 import com.roufsyed.cabin.notify.TrayKind
+import com.roufsyed.cabin.apps.SplitWay
+import com.roufsyed.cabin.system.UnitFacts
 
 /**
  * The values the design itself is drawn with. They back the debug "design" launch, which makes the app
@@ -36,6 +38,13 @@ object Samples {
         artist = "Aster Lane",
         // 1:24 of 3:41, held still so a screenshot does not depend on when it is taken.
         progress = PlaybackProgress(positionMs = 84_000, durationMs = 221_000, speed = 0f, playing = true, atElapsedMs = 0),
+    )
+
+    val unit = UnitFacts(
+        release = "13", sdk = 33, patch = "2024-03-01", build = "DESIGN.1", maker = "Design", model = "Unit",
+        board = "", hardware = "", width = 1280, height = 800, dpi = 160,
+        memoryBytes = 4L * 1024 * 1024 * 1024, lowMemory = false, multiWindow = true, splitScreen = true,
+        split = SplitWay.Adjacent, serviceOn = false, offered = null,
     )
 
     val tracks = listOf(

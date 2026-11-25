@@ -113,6 +113,7 @@ class SideBarService : AccessibilityService() {
         state.takeScreenshot = ::takeScreenshot
         state.showPowerMenu = ::showPowerMenu
         state.openPair = ::openPair
+        state.offered = ::offered
         // The bar is in the theme's colours. Cabin's own screen may not have been opened in this run.
         scope.launch {
             container.palette.collect { Slate.palette = it }
@@ -183,6 +184,7 @@ class SideBarService : AccessibilityService() {
             it.takeScreenshot = null
             it.showPowerMenu = null
             it.openPair = null
+            it.offered = null
         }
         container = null
     }
@@ -454,6 +456,12 @@ class SideBarService : AccessibilityService() {
             apps.any { (it.isFocused || it.isActive) && it.root?.packageName?.toString() == packageName }
     } catch (e: RuntimeException) {
         false
+    }
+
+    private fun offered(): List<Int>? = try {
+        if (Build.VERSION.SDK_INT >= 30) systemActions.map { it.id } else null
+    } catch (e: RuntimeException) {
+        null
     }
 
     /**
