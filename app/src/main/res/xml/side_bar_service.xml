@@ -4,7 +4,8 @@
     other apps, pressing Back in them and asking for the recent apps. Beyond that it asks only to be
     told when windows open and close, so that the bar can get out of the way of a keyboard. Android
     ties the list of open windows to canRetrieveWindowContent. Cabin uses the list for the keyboard
-    and, when Split is pressed, for which apps are on screen. It never reads what a window shows.
+    and, for split screen, for which apps are on screen and how much of it each one fills. It never
+    reads what a window shows.
 -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:accessibilityEventTypes="typeWindowsChanged"

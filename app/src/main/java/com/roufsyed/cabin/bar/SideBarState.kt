@@ -1,5 +1,6 @@
 package com.roufsyed.cabin.bar
 
+import com.roufsyed.cabin.apps.SplitPair
 import com.roufsyed.cabin.model.TuckAfter
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
@@ -70,6 +71,9 @@ class SideBarState {
      */
     @Volatile
     var openSplitChooser: ((onScreen: List<String>) -> Boolean)? = null
+
+    @Volatile
+    var openPair: ((SplitPair) -> Boolean)? = null
 }
 
 /**

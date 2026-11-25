@@ -9,7 +9,22 @@ import android.os.Build
  * What to start to show two apps side by side: [first] at once, then [then] a moment later. See
  * [SplitScreen.pair].
  */
-class SplitPair(val first: Array<Intent>, val then: Intent)
+class SplitPair(val first: Array<Intent>, val then: Intent) {
+    val left: Intent get() = first.last()
+    val right: Intent get() = first.first()
+}
+
+enum class SplitWay { None, Adjacent, Toggle }
+
+class ToggleSteps(
+    val split: () -> Boolean,
+    val settled: () -> Boolean,
+    val toggle: () -> Boolean,
+    val within: suspend (Long, () -> Boolean) -> Boolean,
+    val leftInFront: () -> Boolean = { true },
+    val startLeft: () -> Boolean = { false },
+    val startRight: () -> Boolean = { false },
+)
 
 /**
  * Two apps side by side, using Android's own split screen. Since Android 12L an activity may start
@@ -25,21 +40,63 @@ object SplitScreen {
     const val STEP_GAP_MS = 400L
 
     /**
-     * Whether this unit can do it: Android 12L or later, with split screen left switched on by whoever
-     * built the firmware. The two switches are Android's own configuration values; a build that does
-     * not have one of them is taken to allow it.
+     * How this unit can do it, if at all. Split screen has to be left switched on by whoever built
+     * the firmware: the two switches are Android's own configuration values, and a build that does
+     * not have one of them is taken to allow it. From Android 12L an app is opened adjacent. Before
+     * that only Android itself splits the screen, and an accessibility service may ask it to.
      */
-    fun supported(): Boolean =
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S_V2 &&
-            systemSwitch("config_supportsMultiWindow") &&
-            systemSwitch("config_supportsSplitScreenMultiWindow")
+    fun way(): SplitWay = way(Build.VERSION.SDK_INT, multiWindow() != false, splitScreen() != false)
 
-    private fun systemSwitch(name: String): Boolean = try {
+    fun way(sdk: Int, multiWindow: Boolean, splitScreen: Boolean): SplitWay = when {
+        !multiWindow || !splitScreen -> SplitWay.None
+        sdk >= Build.VERSION_CODES.S_V2 -> SplitWay.Adjacent
+        else -> SplitWay.Toggle
+    }
+
+    fun ready(way: SplitWay, serviceOn: Boolean): Boolean =
+        way == SplitWay.Adjacent || (way == SplitWay.Toggle && serviceOn)
+
+    suspend fun toggledPair(steps: ToggleSteps): Boolean {
+        if (!shown(steps)) return false
+        if (steps.split()) {
+            if (!steps.toggle() || !steps.within(SETTLE_WAIT_MS) { !steps.split() }) return false
+            steps.within(REST_MS) { false }
+            if (!shown(steps)) return false
+        }
+        return docked(steps) && steps.startRight()
+    }
+
+    suspend fun toggledBeside(steps: ToggleSteps, openChooser: () -> Boolean): Boolean {
+        if (steps.split()) return steps.toggle()
+        return docked(steps) && openChooser()
+    }
+
+    private suspend fun shown(steps: ToggleSteps): Boolean =
+        steps.startLeft() && steps.within(OPEN_WAIT_MS, steps.leftInFront)
+
+    private suspend fun docked(steps: ToggleSteps): Boolean {
+        if (!steps.toggle() || !steps.within(SHOW_WAIT_MS, steps.split)) return false
+        if (steps.within(SETTLE_WAIT_MS, steps.settled) && !steps.within(HOLD_MS) { !steps.settled() }) return true
+        if (steps.split()) steps.toggle()
+        return false
+    }
+
+    const val OPEN_WAIT_MS = 8_000L
+    const val SHOW_WAIT_MS = 2_000L
+    const val SETTLE_WAIT_MS = 4_000L
+    const val HOLD_MS = 300L
+    const val REST_MS = 800L
+
+    fun multiWindow(): Boolean? = systemSwitch("config_supportsMultiWindow")
+
+    fun splitScreen(): Boolean? = systemSwitch("config_supportsSplitScreenMultiWindow")
+
+    private fun systemSwitch(name: String): Boolean? = try {
         val system = Resources.getSystem()
         val id = system.getIdentifier(name, "bool", "android")
-        id == 0 || system.getBoolean(id)
+        if (id == 0) null else system.getBoolean(id)
     } catch (e: RuntimeException) {
-        true
+        null
     }
 
     /**

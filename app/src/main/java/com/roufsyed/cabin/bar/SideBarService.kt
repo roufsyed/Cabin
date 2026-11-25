@@ -4,13 +4,16 @@ import android.accessibilityservice.AccessibilityService
 import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.PixelFormat
+import android.graphics.Rect
 import android.os.Build
 import android.provider.Settings
+import android.util.DisplayMetrics
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityWindowInfo
+import android.widget.Toast
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
@@ -38,6 +41,10 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.roufsyed.cabin.AppContainer
 import com.roufsyed.cabin.CabinApp
 import com.roufsyed.cabin.MainActivity
+import com.roufsyed.cabin.apps.SplitPair
+import com.roufsyed.cabin.apps.SplitScreen
+import com.roufsyed.cabin.apps.SplitWay
+import com.roufsyed.cabin.apps.ToggleSteps
 import com.roufsyed.cabin.model.BarSide
 import com.roufsyed.cabin.model.Slot
 import com.roufsyed.cabin.sources.Opened
@@ -47,9 +54,11 @@ import com.roufsyed.cabin.ui.chrome.SIDE_BAR_HANDLE_WIDTH
 import com.roufsyed.cabin.ui.chrome.SIDE_BAR_WIDTH
 import com.roufsyed.cabin.ui.chrome.SideBar
 import com.roufsyed.cabin.ui.chrome.SideBarHandle
+import com.roufsyed.cabin.ui.split.SplitChooserActivity
 import com.roufsyed.cabin.ui.theme.Slate
 import com.roufsyed.cabin.ui.theme.screenScale
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
@@ -60,6 +69,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.roundToInt
 
 /**
@@ -102,6 +112,7 @@ class SideBarService : AccessibilityService() {
         state.showRecents = ::showRecents
         state.takeScreenshot = ::takeScreenshot
         state.showPowerMenu = ::showPowerMenu
+        state.openPair = ::openPair
         // The bar is in the theme's colours. Cabin's own screen may not have been opened in this run.
         scope.launch {
             container.palette.collect { Slate.palette = it }
@@ -171,6 +182,7 @@ class SideBarService : AccessibilityService() {
             it.showRecents = null
             it.takeScreenshot = null
             it.showPowerMenu = null
+            it.openPair = null
         }
         container = null
     }
@@ -320,7 +332,11 @@ class SideBarService : AccessibilityService() {
             // With no app chosen for one of these, Cabin comes up, where the button leads to choosing one.
             onPhone = { if (container.sources.open(Slot.Phone) == Opened.NeedsApp) showCabin() },
             onLink = { if (container.sources.open(Slot.Link) == Opened.NeedsApp) showCabin() },
-            onSplit = if (container.apps.splitScreen) ({ split(container) }) else null,
+            onSplit = when (container.apps.split) {
+                SplitWay.Adjacent -> ({ split(container) })
+                SplitWay.Toggle -> ({ splitByToggle() })
+                SplitWay.None -> null
+            },
             onHome = ::showCabin,
             onRecents = { showRecents() },
             onBack = { performGlobalAction(GLOBAL_ACTION_BACK) },
@@ -363,10 +379,88 @@ class SideBarService : AccessibilityService() {
         if (open == null || !open(appsOnScreen())) showCabin()
     }
 
+    private var stepping: Job? = null
+
+    private fun toggleSteps(docked: String?, pair: SplitPair? = null) = ToggleSteps(
+        split = ::splitShowing,
+        settled = { splitShowing() && (docked == null || !fullSize(docked)) },
+        toggle = { performGlobalAction(GLOBAL_ACTION_TOGGLE_SPLIT_SCREEN) },
+        within = { wait, condition -> withTimeoutOrNull(wait) { while (!condition()) delay(STEP_LOOK_MS) } != null },
+        leftInFront = { docked != null && inFront(docked) },
+        startLeft = { pair != null && started(pair.left) },
+        startRight = { pair != null && started(pair.right) },
+    )
+
+    private fun openPair(pair: SplitPair): Boolean {
+        val scope = scope ?: return false
+        stepping?.cancel()
+        stepping = scope.launch {
+            if (!SplitScreen.toggledPair(toggleSteps(pair.left.component?.packageName, pair))) noSplit()
+        }
+        return true
+    }
+
+    private fun splitByToggle() {
+        val scope = scope ?: return
+        stepping?.cancel()
+        stepping = scope.launch {
+            val onScreen = appsOnScreen()
+            val opened = SplitScreen.toggledBeside(toggleSteps(onScreen.firstOrNull())) {
+                started(SplitChooserActivity.intent(this@SideBarService, onScreen).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            }
+            if (!opened) noSplit()
+        }
+    }
+
+    private fun noSplit() {
+        try {
+            Toast.makeText(this, "The unit did not split the screen", Toast.LENGTH_SHORT).show()
+        } catch (e: RuntimeException) {
+        }
+    }
+
+    private fun started(intent: Intent): Boolean = try {
+        startActivity(intent)
+        true
+    } catch (e: RuntimeException) {
+        false
+    }
+
+    private fun splitShowing(): Boolean = try {
+        windows.any { it.type == AccessibilityWindowInfo.TYPE_SPLIT_SCREEN_DIVIDER }
+    } catch (e: RuntimeException) {
+        false
+    }
+
+    private fun fullSize(packageName: String): Boolean = try {
+        val metrics = DisplayMetrics()
+        @Suppress("DEPRECATION")
+        getSystemService(WindowManager::class.java).defaultDisplay.getRealMetrics(metrics)
+        val most = metrics.widthPixels.toLong() * metrics.heightPixels * 3 / 4
+        val bounds = Rect()
+        windows.any { window ->
+            window.getBoundsInScreen(bounds)
+            window.type == AccessibilityWindowInfo.TYPE_APPLICATION &&
+                window.root?.packageName?.toString() == packageName &&
+                bounds.width().toLong() * bounds.height() >= most
+        }
+    } catch (e: RuntimeException) {
+        false
+    }
+
+    private fun inFront(packageName: String): Boolean = try {
+        val apps = windows.filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }
+        apps.firstOrNull()?.root?.packageName?.toString() == packageName ||
+            apps.any { (it.isFocused || it.isActive) && it.root?.packageName?.toString() == packageName }
+    } catch (e: RuntimeException) {
+        false
+    }
+
     /**
      * The packages of the apps on screen, one or, when the screen is already split, two, so that the
-     * chooser can leave them out. It is the one thing Cabin ever asks about another app's window,
-     * and only when Split is pressed.
+     * chooser can leave them out. Cabin asks about another app's window for split screen and nothing
+     * else: this when Split is pressed, and before Android 12L which app is in front and how much of
+     * the screen it fills while the screen is being split.
      */
     private fun appsOnScreen(): List<String> = try {
         val own = packageName
@@ -395,6 +489,8 @@ class SideBarService : AccessibilityService() {
     private companion object {
         /** How long the tray is given to go from the screen before the picture is taken. */
         const val SCREENSHOT_WAIT_MS = 350L
+
+        const val STEP_LOOK_MS = 80L
     }
 
     /**

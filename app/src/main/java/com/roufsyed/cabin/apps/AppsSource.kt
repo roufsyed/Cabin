@@ -46,8 +46,8 @@ interface AppsSource {
      */
     fun launchBeside(id: String, start: (Intent) -> Unit): Boolean
 
-    /** Whether the unit can show two apps side by side. */
-    val splitScreen: Boolean
+    /** How the unit can show two apps side by side, if at all. */
+    val split: SplitWay
 
     /**
      * Opens two apps side by side, [leftId] on the left. False if they could not be started.
@@ -75,7 +75,7 @@ class AndroidAppsSource(
 
     override val installed: StateFlow<List<AppEntry>> = state
     override val ownId: String = ComponentName(context, MainActivity::class.java).flattenToShortString()
-    override val splitScreen: Boolean = SplitScreen.supported()
+    override val split: SplitWay = SplitScreen.way()
 
     init {
         scope.launch {
@@ -194,7 +194,7 @@ class AndroidAppsSource(
 class FixedApps(
     apps: List<AppEntry> = designApps,
     override val ownId: String = id("Settings"),
-    override val splitScreen: Boolean = true,
+    override val split: SplitWay = SplitWay.Adjacent,
 ) : AppsSource {
     override val installed: StateFlow<List<AppEntry>> = MutableStateFlow(apps)
     val launched = mutableListOf<String>()

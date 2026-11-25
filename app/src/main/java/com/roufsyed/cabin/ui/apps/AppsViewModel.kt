@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.roufsyed.cabin.apps.AppsSource
 import com.roufsyed.cabin.apps.SplitPair
+import com.roufsyed.cabin.apps.SplitWay
 import com.roufsyed.cabin.data.Arrange
 import com.roufsyed.cabin.data.CabinSettings
 import com.roufsyed.cabin.data.SettingsStore
@@ -67,9 +68,9 @@ class AppsViewModel(
      * watched here, so the grid is not redrawn when any other one changes.
      */
     val holdToSplit: StateFlow<Boolean> = settings.settings
-        .map { apps.splitScreen && it.longPressSplit }
+        .map { apps.split != SplitWay.None && it.longPressSplit }
         .distinctUntilChanged()
-        .stateIn(viewModelScope, SharingStarted.Eagerly, apps.splitScreen && settings.settings.value.longPressSplit)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, apps.split != SplitWay.None && settings.settings.value.longPressSplit)
 
     fun launch(id: String): Boolean = apps.launch(id)
 

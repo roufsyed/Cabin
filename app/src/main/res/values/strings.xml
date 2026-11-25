@@ -3,5 +3,5 @@
     <!-- Shown by Android in its Accessibility settings, where the side bar is switched on. -->
     <string name="side_bar_service">Cabin side bar</string>
     <string name="side_bar_service_summary">Keeps Cabin\'s side bar beside other apps</string>
-    <string name="side_bar_service_description">Keeps Cabin\'s side bar on screen while other apps are open, and lets its Back, recent apps and Split buttons work in them. It also lets the Recent apps, Screenshot and Restart buttons in Cabin\'s tray work. Cabin does not read what is on the screen.</string>
+    <string name="side_bar_service_description">Keeps Cabin\'s side bar on screen while other apps are open, and lets its Back, recent apps and Split buttons work in them. It also lets the Recent apps, Screenshot and Restart buttons in Cabin\'s tray work and, on Android older than 12L, split screen from Cabin. Cabin does not read what is on the screen.</string>
 </resources>

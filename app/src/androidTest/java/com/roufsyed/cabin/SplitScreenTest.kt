@@ -14,6 +14,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.roufsyed.cabin.apps.FixedApps
 import com.roufsyed.cabin.apps.SplitScreen
+import com.roufsyed.cabin.apps.SplitWay
 import com.roufsyed.cabin.ui.shell.Overlay
 import com.roufsyed.cabin.ui.shell.ShellViewModel
 import kotlinx.coroutines.runBlocking
@@ -128,7 +129,7 @@ class SplitScreenTest {
 class NoSplitScreenTest {
 
     @get:Rule(order = 0)
-    val values = FreshDesignValues { it.copy(apps = FixedApps(splitScreen = false)) }
+    val values = FreshDesignValues { it.copy(apps = FixedApps(split = SplitWay.None)) }
 
     @get:Rule(order = 1)
     val cabin = cabinRule()
@@ -201,6 +202,76 @@ class SplitScreenIntentsTest {
         val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
         val pipe = automation.executeShellCommand("cmd activity supports-split-screen-multi-window")
         val answer = ParcelFileDescriptor.AutoCloseInputStream(pipe).bufferedReader().use { it.readText().trim() }
-        assertEquals("Android says: $answer", answer == "true", SplitScreen.supported())
+        assertEquals("Android says: $answer", answer == "true", SplitScreen.way() != SplitWay.None)
+    }
+}
+
+@RunWith(AndroidJUnit4::class)
+class OlderSplitScreenTest {
+
+    @get:Rule(order = 0)
+    val values = FreshDesignValues { it.copy(apps = FixedApps(split = SplitWay.Toggle)) }
+
+    @get:Rule(order = 1)
+    val cabin = cabinRule()
+
+    private val apps get() = values.container.apps as FixedApps
+    private val bar get() = values.container.sideBar
+    private fun tap(description: String) = cabin.onNodeWithContentDescription(description).performClick()
+    private fun hold(description: String) = cabin.onNodeWithContentDescription(description).performTouchInput { longClick() }
+    private fun allow(allowed: Boolean) = cabin.runOnUiThread { bar.allowed.value = allowed }
+
+    @Test
+    fun untilCabinIsAllowedUnderAccessibilityAHoldOpensTheAppAndGesturesSaysWhatToAllow() {
+        tap("All apps")
+        hold("Maps")
+        cabin.waitForIdle()
+        cabin.onNodeWithContentDescription("Cancel split screen").assertDoesNotExist()
+        assertEquals(listOf(FixedApps.id("Maps")), apps.launched)
+
+        tap("Settings")
+        tap("Theme and gestures")
+        cabin.onNodeWithText("Allow Cabin under Accessibility").assertIsDisplayed()
+        assertTrue(values.container.settings.settings.value.longPressSplit)
+    }
+
+    @Test
+    fun onceCabinIsAllowedAHoldChoosesASecondApp() {
+        allow(true)
+        try {
+            tap("All apps")
+            hold("Maps")
+            cabin.onNodeWithText("Maps on the left. Tap the app for the right.").assertIsDisplayed()
+            tap("Music")
+            cabin.waitForIdle()
+            assertEquals(listOf(FixedApps.id("Maps") to FixedApps.id("Music")), apps.pairs)
+            assertEquals(emptyList<String>(), apps.launched)
+
+            tap("Settings")
+            tap("Theme and gestures")
+            cabin.onNodeWithText("On an app").assertIsDisplayed()
+            cabin.onNodeWithText("Allow Cabin under Accessibility").assertDoesNotExist()
+        } finally {
+            allow(false)
+        }
+    }
+
+    @Test
+    fun theTraysSplitScreenAsksForAccessibilityFirstAndThenChoosesTwoApps() {
+        cabin.runOnUiThread { cabin.activity.viewModels<ShellViewModel>().value.show(Overlay.Tray) }
+        cabin.onNodeWithContentDescription("Split screen: allow Cabin under Accessibility first").assertIsDisplayed()
+        cabin.onNodeWithContentDescription("Split screen: choose two apps").assertDoesNotExist()
+
+        allow(true)
+        try {
+            tap("Split screen: choose two apps")
+            cabin.onNodeWithText("Tap the app for the left.").assertIsDisplayed()
+            tap("Maps")
+            tap("Music")
+            cabin.waitForIdle()
+            assertEquals(listOf(FixedApps.id("Maps") to FixedApps.id("Music")), apps.pairs)
+        } finally {
+            allow(false)
+        }
     }
 }

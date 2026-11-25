@@ -46,6 +46,8 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.roufsyed.cabin.AppContainer
 import com.roufsyed.cabin.apps.SplitPair
+import com.roufsyed.cabin.apps.SplitScreen
+import com.roufsyed.cabin.apps.SplitWay
 import com.roufsyed.cabin.bar.SideBarRules
 import com.roufsyed.cabin.data.CabinSettings
 import com.roufsyed.cabin.data.SideSwipe
@@ -305,7 +307,7 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
                     Spacer(Modifier.height(16.dp))
                     Box(Modifier.size(1036.dp, 488.dp)) {
                         when (shown.screen) {
-                            Screen.Apps -> AppsContent(shown, appsModel, shellModel)
+                            Screen.Apps -> AppsContent(shown, container, appsModel, shellModel)
                                 Screen.Settings -> SettingsContent(container, shellModel, host)
                             Screen.Keys -> KeysScreen(wheel, onBack = { shellModel.open(Screen.Settings) })
                             Screen.Preferences -> PreferencesContent(shown, container, shellModel, host)
@@ -512,10 +514,11 @@ private fun trayControls(container: AppContainer, shellModel: ShellViewModel, ho
         switch("Hotspot", hotspot, SlateIcons.Hotspot, host.openHotspot),
         switch("Night mode", brightness.night, SlateIcons.Moon, container.brightness::toggleNight),
         served("Recent apps", "Recent apps", SlateIcons.Recents) { container.sideBar.showRecents?.invoke() },
-        if (container.apps.splitScreen) {
-            TrayControl("Split screen", "Split screen: choose two apps", SlateIcons.Split, onClick = shellModel::split)
-        } else {
-            TrayControl(
+        when (container.apps.split) {
+            SplitWay.Adjacent ->
+                TrayControl("Split screen", "Split screen: choose two apps", SlateIcons.Split, onClick = shellModel::split)
+            SplitWay.Toggle -> served("Split screen", "Split screen: choose two apps", SlateIcons.Split) { shellModel.split() }
+            SplitWay.None -> TrayControl(
                 "Split screen", "Split screen: the unit has none", SlateIcons.Split, ControlLook.Unavailable,
                 onClick = null,
             )
@@ -657,11 +660,13 @@ private fun Strip(dashboard: DashboardViewModel, host: HostActions, onOpenPlayer
 }
 
 @Composable
-private fun AppsContent(shell: Shell, apps: AppsViewModel, shellModel: ShellViewModel) {
+private fun AppsContent(shell: Shell, container: AppContainer, apps: AppsViewModel, shellModel: ShellViewModel) {
     val ui by apps.ui.collectAsStateWithLifecycle()
     val editing = shell.edit == EditKind.Apps
     val page = shell.page.coerceIn(0, ui.pageCount(editing) - 1)
-    val holdToSplit by apps.holdToSplit.collectAsStateWithLifecycle()
+    val wanted by apps.holdToSplit.collectAsStateWithLifecycle()
+    val serviceOn by container.sideBar.allowed.collectAsStateWithLifecycle()
+    val holdToSplit = wanted && SplitScreen.ready(container.apps.split, serviceOn)
     AppsGrid(
         tiles = ui.page(page, editing),
         picked = shell.picked.takeIf { editing },
@@ -869,13 +874,15 @@ private fun PreferencesBar(shell: Shell, shellModel: ShellViewModel) {
  */
 @Composable
 private fun PreferencesContent(shell: Shell, container: AppContainer, shellModel: ShellViewModel, host: HostActions) {
-    if (shell.page > 0) LayoutTiles(container, host) else ThemeAndGestureTiles(container, shellModel)
+    if (shell.page > 0) LayoutTiles(container, host) else ThemeAndGestureTiles(container, shellModel, host)
 }
 
 @Composable
-private fun ThemeAndGestureTiles(container: AppContainer, shellModel: ShellViewModel) {
+private fun ThemeAndGestureTiles(container: AppContainer, shellModel: ShellViewModel, host: HostActions) {
     val settings by container.settings.settings.collectAsStateWithLifecycle()
-    val canSplit = container.apps.splitScreen
+    val serviceOn by container.sideBar.allowed.collectAsStateWithLifecycle()
+    val way = container.apps.split
+    val canSplit = SplitScreen.ready(way, serviceOn)
     fun change(transform: (CabinSettings) -> CabinSettings) {
         container.scope.launch { container.settings.update(transform) }
     }
@@ -904,11 +911,21 @@ private fun ThemeAndGestureTiles(container: AppContainer, shellModel: ShellViewM
             // Holding an app in the grid opens it beside a second one. Where the unit has no split
             // screen the tile says so and stays off.
             SettingsTile(
-                "Long press", if (canSplit) "On an app" else "Unit has no split screen",
+                "Long press",
+                when {
+                    canSplit -> "On an app"
+                    way == SplitWay.None -> "Unit has no split screen"
+                    else -> "Allow Cabin under Accessibility"
+                },
                 "Long press on an app: split screen or off",
                 value = if (canSplit && settings.longPressSplit) "Split" else "Off",
                 on = canSplit && settings.longPressSplit,
-                onClick = { if (canSplit) change { it.copy(longPressSplit = !it.longPressSplit) } },
+                onClick = {
+                    when {
+                        canSplit -> change { it.copy(longPressSplit = !it.longPressSplit) }
+                        way != SplitWay.None -> host.openAccessibility()
+                    }
+                },
             ),
             SettingsTile(
                 "Day colours", "Lighter cards by day, for sunlight", "Day colours: on or off",

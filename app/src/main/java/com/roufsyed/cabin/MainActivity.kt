@@ -27,6 +27,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.roufsyed.cabin.apps.SplitPair
 import com.roufsyed.cabin.apps.SplitScreen
+import com.roufsyed.cabin.apps.SplitWay
 import com.roufsyed.cabin.notify.CabinNotificationListener
 import com.roufsyed.cabin.system.Grant
 import com.roufsyed.cabin.ui.CabinRoot
@@ -283,9 +284,11 @@ class MainActivity : ComponentActivity() {
     /**
      * Opens two apps side by side, in the two steps [SplitPair] describes. Both steps have to come
      * from this activity: started from the application alone, Android opens the second app full
-     * screen instead of beside the first.
+     * screen instead of beside the first. Before Android 12L the side bar's service opens them
+     * instead, since only it may ask Android to split the screen.
      */
     private fun openPair(pair: SplitPair): Boolean {
+        if (container.apps.split == SplitWay.Toggle) return container.sideBar.openPair?.invoke(pair) ?: false
         pairStep?.let(window.decorView::removeCallbacks)
         pairStep = null
         try {
