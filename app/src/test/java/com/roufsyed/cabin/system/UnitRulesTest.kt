@@ -72,4 +72,36 @@ class UnitRulesTest {
             line(old.copy(serviceOn = true, offered = listOf(1, 2, 3, 6)), "Accessibility"),
         )
     }
+
+    private val online = old.copy(wifiAddress = "192.168.43.57")
+
+    @Test
+    fun `the network row is only there while the unit is on Wi-Fi, and the page still fits with it`() {
+        assertEquals(null, UnitRules.network(old))
+        assertTrue(UnitRules.report(old).none { it.label == "Network" })
+
+        val report = UnitRules.report(online.copy(debugging = true))
+        assertEquals("Network", report.last().label)
+        assertEquals(8, report.size)
+        assertTrue(report.sumOf { it.lines } <= UnitRules.PAGE_LINES)
+    }
+
+    @Test
+    fun `it gives the address, how USB debugging stands, and what to type on a computer`() {
+        assertEquals(
+            "192.168.43.57 on Wi-Fi. USB debugging is on: try adb connect 192.168.43.57:5555",
+            line(online.copy(debugging = true), "Network"),
+        )
+        assertEquals(
+            "192.168.43.57 on Wi-Fi. USB debugging is off; once on, try adb connect 192.168.43.57:5555",
+            line(online.copy(debugging = false), "Network"),
+        )
+        assertEquals("192.168.43.57 on Wi-Fi. Try adb connect 192.168.43.57:5555", line(online, "Network"))
+    }
+
+    @Test
+    fun `an address as Android's Wi-Fi gives it is written lowest byte first`() {
+        assertEquals("192.168.43.57", UnitRules.dotted(0x392BA8C0))
+        assertEquals("10.0.2.16", UnitRules.dotted(0x1002000A))
+    }
 }

@@ -1245,8 +1245,20 @@ private fun UnitBar(shellModel: ShellViewModel) {
 @Composable
 private fun UnitContent(container: AppContainer) {
     val serviceOn by container.sideBar.allowed.collectAsStateWithLifecycle()
-    UnitPage(remember(container, serviceOn) { UnitRules.report(container.unit.facts()) })
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val first = remember(container) { container.unit.facts() }
+    val facts by produceState(first, container, serviceOn, lifecycle) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                value = container.unit.facts()
+                delay(UNIT_READ_MS)
+            }
+        }
+    }
+    UnitPage(remember(facts) { UnitRules.report(facts) })
 }
+
+private const val UNIT_READ_MS = 2_000L
 
 /** How often the Players page reads the players again: a player gives no sign when most of it changes. */
 private const val PLAYERS_READ_MS = 1_000L

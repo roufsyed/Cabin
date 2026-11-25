@@ -4,7 +4,9 @@ import android.accessibilityservice.AccessibilityService
 import android.app.ActivityManager
 import android.content.Context
 import android.hardware.display.DisplayManager
+import android.net.wifi.WifiManager
 import android.os.Build
+import android.provider.Settings
 import android.util.DisplayMetrics
 import android.view.Display
 import com.roufsyed.cabin.apps.SplitScreen
@@ -32,6 +34,8 @@ data class UnitFacts(
     val split: SplitWay,
     val serviceOn: Boolean,
     val offered: List<Int>?,
+    val wifiAddress: String? = null,
+    val debugging: Boolean? = null,
 )
 
 interface UnitSource {
@@ -72,12 +76,29 @@ class AndroidUnit(private val context: Context, private val split: SplitWay, pri
             split = split,
             serviceOn = sideBar.allowed.value,
             offered = sideBar.offered?.invoke(),
+            wifiAddress = wifiAddress(),
+            debugging = debugging(),
         )
+    }
+
+    private fun wifiAddress(): String? = try {
+        @Suppress("DEPRECATION")
+        val raw = context.applicationContext.getSystemService(WifiManager::class.java).connectionInfo.ipAddress
+        if (raw == 0) null else UnitRules.dotted(raw)
+    } catch (e: RuntimeException) {
+        null
+    }
+
+    private fun debugging(): Boolean? = try {
+        Settings.Global.getInt(context.contentResolver, Settings.Global.ADB_ENABLED) == 1
+    } catch (e: Exception) {
+        null
     }
 }
 
 object UnitRules {
     const val PAGE_LINES = 12
+    const val ADB_PORT = 5555
 
     private val ACTIONS = listOf(
         AccessibilityService.GLOBAL_ACTION_BACK to "back",
@@ -87,14 +108,15 @@ object UnitRules {
         AccessibilityService.GLOBAL_ACTION_POWER_DIALOG to "power menu",
     )
 
-    fun report(facts: UnitFacts): List<ReportLine> = listOf(
+    fun report(facts: UnitFacts): List<ReportLine> = listOfNotNull(
         ReportLine("Android", android(facts)),
         ReportLine("Build", facts.build.ifBlank { "Not given" }),
         ReportLine("Device", device(facts), lines = 2),
         ReportLine("Screen", "${facts.width} x ${facts.height} at ${facts.dpi} dpi"),
         ReportLine("Memory", memory(facts)),
-        ReportLine("Split screen", split(facts), lines = 3),
-        ReportLine("Accessibility", accessibility(facts), lines = 3),
+        ReportLine("Split screen", split(facts), lines = 2),
+        ReportLine("Accessibility", accessibility(facts), lines = 2),
+        network(facts)?.let { ReportLine("Network", it, lines = 2) },
     )
 
     fun android(facts: UnitFacts): String {
@@ -134,6 +156,18 @@ object UnitRules {
         val has = if (names.isEmpty()) "nothing Cabin uses" else names.joinToString()
         return if (missing.isEmpty()) "On. Android offers $has" else "On. Android offers $has; not ${missing.joinToString()}"
     }
+
+    fun network(facts: UnitFacts): String? {
+        val address = facts.wifiAddress ?: return null
+        val connect = "adb connect $address:$ADB_PORT"
+        return when (facts.debugging) {
+            true -> "$address on Wi-Fi. USB debugging is on: try $connect"
+            false -> "$address on Wi-Fi. USB debugging is off; once on, try $connect"
+            null -> "$address on Wi-Fi. Try $connect"
+        }
+    }
+
+    fun dotted(raw: Int): String = listOf(raw, raw shr 8, raw shr 16, raw shr 24).joinToString(".") { (it and 0xff).toString() }
 
     private fun switch(value: Boolean?): String = when (value) {
         true -> "on"
