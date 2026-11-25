@@ -12,8 +12,8 @@ import java.io.IOException
 /** Cover art as Cabin keeps it: square, and no larger than it is ever drawn. */
 object Covers {
 
-    /** The largest size cover art is drawn at is 150 design pixels; twice that covers any scale. */
-    const val SIDE_PX = 300
+    /** The largest size cover art is drawn at is 84 design pixels; twice that covers any scale. */
+    const val SIDE_PX = 168
 
     /**
      * The picture a player sent with its track, cropped square and scaled down. The result is always

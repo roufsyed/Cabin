@@ -1,17 +1,18 @@
 package com.roufsyed.cabin.media
 
+import android.app.ActivityOptions
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.media.AudioManager
 import android.media.MediaMetadata
-import android.media.browse.MediaBrowser
 import android.media.session.MediaController
-import android.media.session.MediaSession
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
@@ -67,16 +68,12 @@ class AndroidMediaSource(
         var details: List<String> = emptyList()
         var sessionExtras: List<String> = emptyList()
         var playback: PlaybackState? = null
-        var queue: List<MediaSession.QueueItem> = emptyList()
-        var queueTitle: String? = null
         private var artJob: Job? = null
 
         fun start() {
             controller.registerCallback(this, main)
             readMetadata(controller.metadata)
             playback = controller.playbackState
-            queue = controller.queue.orEmpty()
-            queueTitle = controller.queueTitle?.toString()
             sessionExtras = try {
                 named(controller.extras)
             } catch (e: RuntimeException) {
@@ -97,16 +94,6 @@ class AndroidMediaSource(
 
         override fun onPlaybackStateChanged(state: PlaybackState?) {
             playback = state
-            publish()
-        }
-
-        override fun onQueueChanged(items: MutableList<MediaSession.QueueItem>?) {
-            queue = items.orEmpty()
-            publish()
-        }
-
-        override fun onQueueTitleChanged(title: CharSequence?) {
-            queueTitle = title?.toString()
             publish()
         }
 
@@ -376,12 +363,22 @@ class AndroidMediaSource(
         primary()?.controller?.transportControls?.skipToPrevious() ?: mediaKey(KeyEvent.KEYCODE_MEDIA_PREVIOUS)
     }
 
-    override fun playQueueItem(id: Long) {
-        primary()?.controller?.transportControls?.skipToQueueItem(id)
+    override fun openPlayer(): Boolean {
+        val screen = primary()?.controller?.let(::ownScreen) ?: return false
+        return try {
+            screen.send(context, 0, null, null, null, null, ActivityOptions.makeCustomAnimation(context, 0, 0).toBundle())
+            true
+        } catch (e: PendingIntent.CanceledException) {
+            false
+        } catch (e: RuntimeException) {
+            false
+        }
     }
 
-    override fun seekTo(positionMs: Long) {
-        primary()?.controller?.transportControls?.seekTo(positionMs.coerceAtLeast(0L))
+    private fun ownScreen(controller: MediaController): PendingIntent? = try {
+        controller.sessionActivity?.takeIf { Build.VERSION.SDK_INT < 31 || it.isActivity }
+    } catch (e: RuntimeException) {
+        null
     }
 
     /** Like everything else here it is for the main thread only. It asks no other app anything. */
@@ -404,47 +401,10 @@ class AndroidMediaSource(
                 actions = playback?.actions ?: 0L,
                 durationMs = entry.durationGiven,
                 details = entry.details,
-                queueSize = entry.queue.size,
                 // A player's own buttons first: they say the most in the least room.
                 extras = extrasOf(playback) + entry.sessionExtras,
-                library = libraryOf(packageName),
+                screen = ownScreen(entry.controller) != null,
             )
-        }
-    }
-
-    private val libraries = HashMap<String, PlayerLibrary>()
-    private val asking = HashMap<String, MediaBrowser>()
-
-    private fun libraryOf(packageName: String): PlayerLibrary = libraries[packageName] ?: run {
-        val service = browserService(packageName)
-        val first = if (service == null) PlayerLibrary.None else PlayerLibrary.Asking
-        libraries[packageName] = first
-        if (service != null) ask(packageName, service)
-        first
-    }
-
-    private fun ask(packageName: String, service: ComponentName) {
-        fun answered(answer: PlayerLibrary) {
-            libraries[packageName] = answer
-            try {
-                asking.remove(packageName)?.disconnect()
-            } catch (e: RuntimeException) {
-            }
-        }
-        try {
-            val browser = MediaBrowser(
-                context, service,
-                object : MediaBrowser.ConnectionCallback() {
-                    override fun onConnected() = answered(PlayerLibrary.Open)
-                    override fun onConnectionFailed() = answered(PlayerLibrary.Closed)
-                    override fun onConnectionSuspended() = answered(PlayerLibrary.Closed)
-                },
-                null,
-            )
-            asking[packageName] = browser
-            browser.connect()
-        } catch (e: RuntimeException) {
-            answered(PlayerLibrary.Closed)
         }
     }
 
@@ -504,8 +464,6 @@ class AndroidMediaSource(
             return
         }
         val playback = entry.playback
-        val activeId = playback?.activeQueueItemId ?: MediaSession.QueueItem.UNKNOWN_ID.toLong()
-        val currentIndex = entry.queue.indexOfFirst { it.queueId == activeId }
         val packageName = entry.controller.packageName
         state.value = NowPlaying(
             packageName = packageName,
@@ -518,18 +476,8 @@ class AndroidMediaSource(
                 speed = playback?.playbackSpeed ?: 0f,
                 playing = playback.isActive(),
                 atElapsedMs = playback?.lastPositionUpdateTime ?: 0L,
-                seekable = MediaRules.seekable(entry.durationMs, playback?.actions ?: 0L),
             ),
             art = entry.art,
-            queueTitle = entry.queueTitle?.takeIf { it.isNotBlank() } ?: "Up next",
-            queue = queueWindow(entry.queue, currentIndex).map { item ->
-                QueueItem(
-                    id = item.queueId,
-                    title = item.description.title?.toString().orEmpty(),
-                    subtitle = item.description.subtitle?.toString().orEmpty(),
-                    current = item.queueId == activeId,
-                )
-            },
         )
     }
 

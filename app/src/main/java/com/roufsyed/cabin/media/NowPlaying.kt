@@ -16,11 +16,6 @@ data class PlaybackProgress(
     val atElapsedMs: Long,
     /** True when there is no track at all: the line is empty and no times are shown. */
     val empty: Boolean = false,
-    /**
-     * True when the track can be moved to another position: its player gives its length and says
-     * it takes being moved (see [MediaRules.seekable]). The progress line is then a slider.
-     */
-    val seekable: Boolean = false,
 ) {
     /** True when there is something on show whose length is not known, playing or not. */
     val live: Boolean get() = !empty && durationMs <= 0L
@@ -55,13 +50,6 @@ data class PlaybackProgress(
 
     val durationLabel: String get() = if (empty || live) "" else formatTime(durationMs)
 
-    /**
-     * The position a finger at [fraction] of the way along the line stands for, 0 at its left end
-     * and 1 at its right. A finger that has run past either end counts as on it.
-     */
-    fun positionFor(fraction: Float): Long =
-        if (durationMs <= 0L) 0L else (fraction.coerceIn(0f, 1f).toDouble() * durationMs).toLong()
-
     companion object {
         /** Nothing is playing. */
         val None = PlaybackProgress(0L, 0L, 0f, playing = false, atElapsedMs = 0L, empty = true)
@@ -81,16 +69,6 @@ data class PlaybackProgress(
     }
 }
 
-@Immutable
-data class QueueItem(
-    val id: Long,
-    val title: String,
-    val subtitle: String,
-    val current: Boolean,
-    /** Blank when the app does not say how long the item is, which is usual. */
-    val duration: String = "",
-)
-
 /** What is playing, as published by whichever app holds the active media session. */
 @Immutable
 data class NowPlaying(
@@ -102,16 +80,6 @@ data class NowPlaying(
     val progress: PlaybackProgress,
     /** Cover art, already scaled down to the size it is drawn at. */
     val art: ImageBitmap? = null,
-    val queueTitle: String = "Up next",
-    /** The current item and the few after it: as many as the Music screen has rows for. */
-    val queue: List<QueueItem> = emptyList(),
 ) {
     val playing: Boolean get() = progress.playing
-}
-
-/** Picks the rows the Music screen shows: the current item and the next ones, [rows] in all. */
-fun <T> queueWindow(items: List<T>, currentIndex: Int, rows: Int = 4): List<T> {
-    if (items.size <= rows) return items
-    val start = currentIndex.coerceIn(0, items.size - rows)
-    return items.subList(start, start + rows)
 }

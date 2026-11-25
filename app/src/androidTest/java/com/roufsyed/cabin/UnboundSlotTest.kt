@@ -69,6 +69,18 @@ class UnboundSlotTest {
     }
 
     @Test
+    fun withNothingPlayingAndNoMusicAppATapOnNowPlayingLeadsToChoosingOne() {
+        tap("Open music")
+        cabin.onNodeWithText("Music opens").assertIsDisplayed()
+        tap("Tuner")
+        cabin.waitUntil(2_000) { values.container.sources.state.value.bindings[Slot.Music]?.id == "vendor.a/.Main" }
+
+        tap("Open music")
+        cabin.waitForIdle()
+        assertEquals(listOf("vendor.a/.Main"), unknownApps.launched)
+    }
+
+    @Test
     fun withNothingPlayingThePanelSaysSo() {
         cabin.onNodeWithText("Nothing playing").assertIsDisplayed()
     }

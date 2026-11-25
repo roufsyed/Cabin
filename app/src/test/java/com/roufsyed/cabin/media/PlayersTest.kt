@@ -2,6 +2,7 @@ package com.roufsyed.cabin.media
 
 import com.roufsyed.cabin.model.Samples
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -22,15 +23,15 @@ class PlayersTest {
             "android.media.metadata.ALBUM_ART", "android.media.metadata.ARTIST",
             "android.media.metadata.DURATION", "android.media.metadata.TITLE",
         ),
-        queueSize = 12,
         extras = emptyList(),
+        screen = true,
     )
 
-    /** What the unit's own player looked like from the Music screen: a title and a cover, and no length. */
+    /** What the unit's own player looked like: a title and a cover, no length, and no screen of its own. */
     private val bare = full.copy(
         packageName = "com.unit.media", appLabel = "Unit player", actions = PlayerRules.TRANSPORT, durationMs = null,
         details = listOf("android.media.metadata.ALBUM_ART", "android.media.metadata.ARTIST", "android.media.metadata.TITLE"),
-        queueSize = 0,
+        screen = false,
     )
 
     private fun PlayerReport.line(label: String) = lines.single { it.label == label }.value
@@ -41,16 +42,15 @@ class PlayersTest {
         assertEquals("Player", report.appLabel)
         assertTrue(report.shown)
         assertEquals(
-            listOf("App", "Slider", "State", "Length", "Can be told to", "Track details", "Lists", "Also sends"),
+            listOf("App", "A tap opens", "State", "Length", "Can be told to", "Track details", "Also sends"),
             report.lines.map { it.label },
         )
         assertEquals("com.player", report.line("App"))
-        assertEquals("Yes", report.line("Slider"))
+        assertEquals("Its own screen", report.line("A tap opens"))
         assertEquals("Playing, at 1:24, speed 1.0, said 3 s ago", report.line("State"))
         assertEquals("3:41", report.line("Length"))
         assertEquals("Play, pause, next, previous, move within the track (0x136)", report.line("Can be told to"))
         assertEquals("album art, artist, duration, title", report.line("Track details"))
-        assertEquals("Queue of 12; no library to browse", report.line("Lists"))
         assertEquals("Nothing", report.line("Also sends"))
     }
 
@@ -60,15 +60,13 @@ class PlayersTest {
     }
 
     @Test
-    fun `the page says which of the two things a slider needs is missing`() {
-        assertEquals("No: it gives no length for the track", PlayerRules.slider(bare))
-        assertEquals("No: it gives no length for the track", PlayerRules.slider(full.copy(durationMs = 0)))
-        // A length alone is not enough either: the player has to say it takes being moved.
-        assertEquals(
-            "No: it does not say the track can be moved",
-            PlayerRules.slider(full.copy(actions = PlayerRules.TRANSPORT)),
-        )
-        assertEquals("Yes", PlayerRules.slider(full))
+    fun `the page says what a tap on Now playing opens for the player`() {
+        assertEquals("Its own screen", PlayerRules.opens(full, inApps = false))
+        assertEquals("Its own screen", PlayerRules.opens(full, inApps = true))
+        assertEquals("Its app", PlayerRules.opens(bare, inApps = true))
+        assertEquals("The music app from Setup: it has no screen of its own", PlayerRules.opens(bare, inApps = false))
+        assertEquals("Its app", PlayerRules.report(bare, inApps = true).line("A tap opens"))
+        assertEquals("The music app from Setup: it has no screen of its own", PlayerRules.report(bare).line("A tap opens"))
     }
 
     @Test
@@ -78,7 +76,6 @@ class PlayersTest {
         assertEquals("Not given", report.line("Length"))
         assertEquals("Nothing: it lists no actions", report.line("Can be told to"))
         assertEquals("None", report.line("Track details"))
-        assertEquals("No queue; no library to browse", report.line("Lists"))
     }
 
     @Test
@@ -139,46 +136,32 @@ class PlayersTest {
     }
 
     @Test
-    fun `the two places a list of tracks can come from are both reported`() {
-        assertEquals("No queue", PlayerRules.queue(0))
-        assertEquals("Queue of 1", PlayerRules.queue(1))
-        assertEquals("Queue of 4", PlayerRules.queue(4))
-        assertEquals("No queue; a library Cabin can browse", PlayerRules.lists(bare.copy(library = PlayerLibrary.Open)))
-        assertEquals("No queue; a library that turns Cabin away", PlayerRules.lists(bare.copy(library = PlayerLibrary.Closed)))
-        assertEquals("No queue; a library, which has not answered yet", PlayerRules.lists(bare.copy(library = PlayerLibrary.Asking)))
-        assertEquals("Queue of 12; a library that turns Cabin away", PlayerRules.lists(full.copy(library = PlayerLibrary.Closed)))
-    }
-
-    @Test
     fun `the stand-in player reports the track it holds`() {
         val media = FixedMedia(Samples.playing)
         val report = PlayerRules.report(media.players().single())
         assertEquals("Bluetooth audio", report.appLabel)
         assertEquals("design.music", report.line("App"))
-        // The design's own track is drawn with a plain line, so its stand-in player takes no position.
-        assertEquals("No: it does not say the track can be moved", report.line("Slider"))
+        assertEquals("Its own screen", report.line("A tap opens"))
         assertEquals("3:41", report.line("Length"))
-        assertEquals("Queue of 4; no library to browse", report.line("Lists"))
+        assertEquals("Play, pause, next, previous (0x36)", report.line("Can be told to"))
         assertEquals(emptyList<PlayerFacts>(), FixedMedia(null).players())
     }
 
     @Test
-    fun `the stand-in player can be moved only when its track says so`() {
-        val still = FixedMedia(Samples.playing)
-        still.seekTo(120_000)
-        assertEquals(84_000L, still.nowPlaying.value?.progress?.positionMs)
-        assertEquals(listOf("seek:120000"), still.calls)
+    fun `the stand-in player moves through its tracks, and opens its own screen when it has one`() {
+        val media = FixedMedia(Samples.playing, tracks = Samples.tracks)
+        media.next()
+        assertEquals("Night Signals", media.nowPlaying.value?.title)
+        assertEquals("Vela North", media.nowPlaying.value?.artist)
+        media.previous()
+        media.previous()
+        assertEquals("Slow Tide", media.nowPlaying.value?.title)
+        assertTrue(media.openPlayer())
+        assertEquals(listOf("next", "previous", "previous", "open"), media.calls)
 
-        val seekable = Samples.playing.copy(progress = Samples.playing.progress.copy(seekable = true, speed = 1f))
-        val media = FixedMedia(seekable, elapsed = { 5_000 })
-        media.seekTo(120_000)
-        val progress = media.nowPlaying.value!!.progress
-        assertEquals(120_000, progress.positionMs)
-        // Timed from the moment it was moved, so it carries on from there.
-        assertEquals(121_000, progress.positionAt(6_000))
-        assertEquals("Yes", PlayerRules.slider(media.players().single()))
-        // Past the end is the end.
-        media.seekTo(999_000)
-        assertEquals(221_000L, media.nowPlaying.value?.progress?.positionMs)
+        val bare = FixedMedia(Samples.playing, ownScreen = false)
+        assertFalse(bare.openPlayer())
+        assertEquals("The music app from Setup: it has no screen of its own", PlayerRules.report(bare.players().single()).line("A tap opens"))
+        assertFalse(FixedMedia(null).openPlayer())
     }
 }

@@ -43,26 +43,6 @@ class PlaybackProgressTest {
     }
 
     @Test
-    fun `a finger along the line stands for a position in the track`() {
-        assertEquals(0, playing.positionFor(0f))
-        assertEquals(110_500, playing.positionFor(0.5f))
-        assertEquals(221_000, playing.positionFor(1f))
-        // Run past either end, the finger counts as on it.
-        assertEquals(0, playing.positionFor(-0.2f))
-        assertEquals(221_000, playing.positionFor(1.4f))
-        // An hour-long track is still placed to the millisecond.
-        assertEquals(2_700_000, playing.copy(durationMs = 3_600_000).positionFor(0.75f))
-        // A track of no known length has nowhere to be moved to.
-        assertEquals(0, playing.copy(durationMs = 0).positionFor(0.5f))
-    }
-
-    @Test
-    fun `a track is not a slider unless its player says so`() {
-        assertFalse(playing.seekable)
-        assertFalse(PlaybackProgress.None.seekable)
-    }
-
-    @Test
     fun `a stream of unknown length reads as live with a full bar`() {
         val radio = PlaybackProgress(positionMs = 5_000, durationMs = 0, speed = 1f, playing = true, atElapsedMs = 0)
         assertTrue(radio.live)
@@ -111,18 +91,6 @@ class PlaybackProgressTest {
         assertEquals("0:00", PlaybackProgress.formatTime(-50))
     }
 
-    @Test
-    fun `the queue shows the current item and the ones after it`() {
-        val items = (0 until 10).toList()
-        assertEquals(listOf(3, 4, 5, 6), queueWindow(items, currentIndex = 3))
-        assertEquals(listOf(0, 1, 2, 3), queueWindow(items, currentIndex = 0))
-        // Near the end the last rows are shown, so the list is never short while more exist.
-        assertEquals(listOf(6, 7, 8, 9), queueWindow(items, currentIndex = 9))
-        // Unknown current item: start from the top.
-        assertEquals(listOf(0, 1, 2, 3), queueWindow(items, currentIndex = -1))
-        assertEquals(listOf(0, 1), queueWindow(listOf(0, 1), currentIndex = 1))
-    }
-
     private val track = NowPlaying(
         packageName = "com.player", appLabel = "Player", title = "Open Road", artist = "Aster Lane", progress = playing,
     )
@@ -144,11 +112,10 @@ class PlaybackProgressTest {
     }
 
     @Test
-    fun `a playing track is shown with its app name as the source`() {
+    fun `a playing track is shown with its title and artist`() {
         val ui = nowPlayingUi(track, access = true)
         assertEquals("Open Road", ui.title)
         assertEquals("Aster Lane", ui.artist)
-        assertEquals("Player", ui.source)
         assertTrue(ui.playing)
     }
 

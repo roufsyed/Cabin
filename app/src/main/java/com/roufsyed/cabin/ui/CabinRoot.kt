@@ -68,6 +68,7 @@ import com.roufsyed.cabin.model.TuckAfter
 import com.roufsyed.cabin.model.screenOffUi
 import com.roufsyed.cabin.nav.SavedPlace
 import com.roufsyed.cabin.sources.Opened
+import com.roufsyed.cabin.sources.SourceRules
 import com.roufsyed.cabin.system.BrightnessRules
 import com.roufsyed.cabin.system.Grant
 import com.roufsyed.cabin.system.MemoryRules
@@ -85,7 +86,6 @@ import com.roufsyed.cabin.ui.chrome.TopStrip
 import com.roufsyed.cabin.ui.home.HomePanels
 import com.roufsyed.cabin.ui.icons.SlateIcon
 import com.roufsyed.cabin.ui.icons.SlateIcons
-import com.roufsyed.cabin.ui.music.MusicScreen
 import com.roufsyed.cabin.ui.overlay.BrightnessHud
 import com.roufsyed.cabin.ui.overlay.ControlLook
 import com.roufsyed.cabin.ui.overlay.ScreenOffOverlay
@@ -164,6 +164,9 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
     }
     val openSlot: (Slot) -> Unit = { slot ->
         if (dashboard.open(slot) == Opened.NeedsApp) shellModel.pickApp(slot)
+    }
+    val openPlayer: () -> Unit = {
+        if (dashboard.openPlayer() == Opened.NeedsApp) shellModel.pickApp(Slot.Music)
     }
 
     // The Navigation panel works through the maps app chosen in Setup. With none on the unit that
@@ -284,7 +287,7 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
 
     val pane: @Composable (Shell) -> Unit = { shown ->
             if (shown.screen == Screen.Home) {
-                HomeContent(placing.homeOrder, dashboard, shellModel, host, whereTo, openMaps, navigateTo)
+                HomeContent(placing.homeOrder, dashboard, host, openPlayer, whereTo, openMaps, navigateTo)
             } else {
                 Column {
                     when {
@@ -297,14 +300,13 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
                         shown.screen == Screen.Theme -> ThemeBar(shellModel)
                         shown.screen == Screen.ScreenOff -> ScreenOffBar(shellModel)
                         shown.screen == Screen.Players -> PlayersBar(shown, container, shellModel)
-                        else -> Strip(dashboard, shellModel, host, showMini = shown.screen != Screen.Music)
+                        else -> Strip(dashboard, host, openPlayer)
                     }
                     Spacer(Modifier.height(16.dp))
                     Box(Modifier.size(1036.dp, 488.dp)) {
                         when (shown.screen) {
                             Screen.Apps -> AppsContent(shown, appsModel, shellModel)
-                            Screen.Music -> MusicContent(dashboard)
-                            Screen.Settings -> SettingsContent(container, shellModel, host)
+                                Screen.Settings -> SettingsContent(container, shellModel, host)
                             Screen.Keys -> KeysScreen(wheel, onBack = { shellModel.open(Screen.Settings) })
                             Screen.Preferences -> PreferencesContent(shown, container, shellModel, host)
                             Screen.Theme -> ThemeContent(container)
@@ -611,8 +613,8 @@ private fun BrightnessReadout(dashboard: DashboardViewModel) {
 private fun HomeContent(
     order: List<HomePanel>,
     dashboard: DashboardViewModel,
-    shell: ShellViewModel,
     host: HostActions,
+    onOpenPlayer: () -> Unit,
     onWhereTo: () -> Unit,
     onOpenMaps: () -> Unit,
     onNavigateTo: (SavedPlace) -> Unit,
@@ -631,7 +633,7 @@ private fun HomeContent(
         onWhereTo = onWhereTo,
         onNavigateHome = { onNavigateTo(SavedPlace.Home) },
         onNavigateOffice = { onNavigateTo(SavedPlace.Work) },
-        onOpenNowPlaying = { if (nowPlaying.needsAccess) host.requestNotificationAccess() else shell.open(Screen.Music) },
+        onOpenNowPlaying = { if (nowPlaying.needsAccess) host.requestNotificationAccess() else onOpenPlayer() },
         onPrevious = dashboard::previous,
         onPlayPause = dashboard::playPause,
         onNext = dashboard::next,
@@ -639,32 +641,19 @@ private fun HomeContent(
 }
 
 @Composable
-private fun Strip(dashboard: DashboardViewModel, shell: ShellViewModel, host: HostActions, showMini: Boolean) {
+private fun Strip(dashboard: DashboardViewModel, host: HostActions, onOpenPlayer: () -> Unit) {
     val clock by dashboard.clock.collectAsStateWithLifecycle()
     val status by dashboard.status.collectAsStateWithLifecycle()
-    TopStrip(clock, status, mini = if (!showMini) null else ({
+    TopStrip(clock, status) {
         val nowPlaying by dashboard.nowPlaying.collectAsStateWithLifecycle()
         MiniPlayer(
             nowPlaying = nowPlaying,
-            onOpen = { if (nowPlaying.needsAccess) host.requestNotificationAccess() else shell.open(Screen.Music) },
+            onOpen = { if (nowPlaying.needsAccess) host.requestNotificationAccess() else onOpenPlayer() },
             onPrevious = dashboard::previous,
             onPlayPause = dashboard::playPause,
             onNext = dashboard::next,
         )
-    }))
-}
-
-@Composable
-private fun MusicContent(dashboard: DashboardViewModel) {
-    val nowPlaying by dashboard.nowPlaying.collectAsStateWithLifecycle()
-    MusicScreen(
-        now = nowPlaying,
-        onPrevious = dashboard::previous,
-        onPlayPause = dashboard::playPause,
-        onNext = dashboard::next,
-        onQueueItem = dashboard::playQueueItem,
-        onSeek = dashboard::seekTo,
-    )
+    }
 }
 
 @Composable
@@ -1223,12 +1212,15 @@ private const val PLAYERS_READ_MS = 1_000L
 
 /** What each running player says of itself, kept fresh for as long as the page that shows it is up. */
 @Composable
-private fun rememberPlayers(media: MediaSource): List<PlayerReport> {
+private fun rememberPlayers(container: AppContainer): List<PlayerReport> {
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    val players by produceState(media.players().map(PlayerRules::report), media, lifecycle) {
+    fun read() = container.media.players().map { facts ->
+        PlayerRules.report(facts, inApps = SourceRules.appOf(facts.packageName, container.apps.installed.value) != null)
+    }
+    val players by produceState(read(), container, lifecycle) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             while (true) {
-                value = media.players().map(PlayerRules::report)
+                value = read()
                 delay(PLAYERS_READ_MS)
             }
         }
@@ -1242,7 +1234,7 @@ private fun playersPage(shell: Shell, players: List<PlayerReport>): Int =
 
 @Composable
 private fun PlayersBar(shell: Shell, container: AppContainer, shellModel: ShellViewModel) {
-    val players = rememberPlayers(container.media)
+    val players = rememberPlayers(container)
     val page = playersPage(shell, players)
     val player = players.getOrNull(page)
     TitleBar(
@@ -1264,7 +1256,7 @@ private fun PlayersBar(shell: Shell, container: AppContainer, shellModel: ShellV
 
 @Composable
 private fun PlayersContent(shell: Shell, container: AppContainer) {
-    val players = rememberPlayers(container.media)
+    val players = rememberPlayers(container)
     val access by container.media.access.collectAsStateWithLifecycle()
     PlayerPage(players.getOrNull(playersPage(shell, players)), access)
 }

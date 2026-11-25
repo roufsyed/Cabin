@@ -213,7 +213,7 @@ class AppContainer(
                 apps = FixedApps(),
                 clock = FixedClock(Samples.clock),
                 homeRole = FixedHomeRole(),
-                media = FixedMedia(Samples.playing),
+                media = FixedMedia(Samples.playing, tracks = Samples.tracks),
                 volume = FixedVolume(),
                 // On its own unconfined scope, so a tap on the stepper has changed the level by the time
                 // the tap returns, as it has on the unit's screen a frame later.

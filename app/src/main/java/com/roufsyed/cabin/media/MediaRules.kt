@@ -41,16 +41,6 @@ object MediaRules {
     }
 
     /**
-     * Whether the playing track can be moved to another position from outside its player. It takes
-     * both things a slider needs: the track's length, and the player saying that it takes being
-     * moved, which is one of the [actions] a media session lists. Android's own media card goes by
-     * the same two. A player that lists nothing is taken at its word, so that the slider is never
-     * one that does nothing.
-     */
-    fun seekable(durationMs: Long, actions: Long): Boolean =
-        durationMs > 0L && actions and PlayerRules.SEEK_TO != 0L
-
-    /**
      * Where to read a track's picture when its player sent none: the first of the addresses the
      * player gave that points at something on this unit. An address on the internet is never
      * followed: Cabin does not go online.

@@ -137,6 +137,17 @@ class SourceController(
         return if (apps.launch(app.id)) Opened.Launched else Opened.NeedsApp
     }
 
+    fun openPlayer(): Opened {
+        val now = media.nowPlaying.value
+        if (now != null && (media.openPlayer() || launched(now.packageName))) return Opened.Launched
+        if (open(Slot.Music) == Opened.Launched) return Opened.Launched
+        val last = settings.settings.value.lastPlayer
+        return if (last != null && launched(last)) Opened.Launched else Opened.NeedsApp
+    }
+
+    private fun launched(packageName: String): Boolean =
+        SourceRules.appOf(packageName, apps.installed.value)?.let { apps.launch(it.id) } == true
+
     fun move(source: SourceId, delta: Int) = update { it.copy(sourceOrder = Arrange.move(it.sourceOrder, source, delta)) }
 
     /** Hides or shows a source. The last visible one stays: the row is never empty. */

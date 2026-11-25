@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 
 enum class Screen {
-    Home, Apps, Music, Settings, Keys, Preferences, Theme,
+    Home, Apps, Settings, Keys, Preferences, Theme,
 
     /** The page that turns the screen off and chooses what the dark screen shows. */
     ScreenOff,

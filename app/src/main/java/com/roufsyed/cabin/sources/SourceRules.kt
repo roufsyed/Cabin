@@ -83,6 +83,9 @@ object SourceRules {
     /** The package part of a component id such as "com.example/.Main". */
     fun packageOf(appId: String): String = appId.substringBefore('/')
 
+    fun appOf(packageName: String, installed: List<AppEntry>): AppEntry? =
+        installed.firstOrNull { packageOf(it.id) == packageName }
+
     /**
      * The source to highlight. While an app is actually playing, it is that app's source, or none if
      * the app belongs to no source. Otherwise it is the source tapped last. A paused session left

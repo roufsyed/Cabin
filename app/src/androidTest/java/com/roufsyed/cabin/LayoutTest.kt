@@ -130,19 +130,6 @@ class LayoutTest {
     }
 
     @Test
-    fun theCoverOnTheMusicScreenTakesTheStandInsPlace() {
-        cabin.onNodeWithContentDescription("Open music").performClick()
-        val standIn = inDesign(bounds("Cover art placeholder"))
-        assertEquals(150f, standIn.width, 1.01f)
-        assertEquals(150f, standIn.height, 1.01f)
-        assertEquals(73f, standIn.left, 1.01f)
-
-        (values.container.media as FixedMedia).set(Samples.playing.copy(art = plainCover(Color.Magenta)))
-        cabin.waitForIdle()
-        assertBox("cover", standIn, cover())
-    }
-
-    @Test
     fun railMatchesTheDesignGrid() {
         at("Phone", 1109f, 41f, 130f, 136f)
         at("Phone link", 1109f, 177f, 130f, 136f)
@@ -219,18 +206,6 @@ class LayoutTest {
         // The rail and bottom row do not move between screens.
         at("Home", 1109f, 313f, 130f, 136f)
         at("Radio source", 395f, 665f, 138f, 94f)
-    }
-
-    @Test
-    fun musicScreenMatchesTheDesignGrid() {
-        cabin.onNodeWithContentDescription("Open music").performClick()
-        // Left card 480 x 488 at (40, 152): three 96 px buttons, 28 apart, centred in a 112-high row at its foot.
-        at("Previous", 108f, 519f, 96f, 96f)
-        at("Play or pause", 232f, 519f, 96f, 96f)
-        at("Next", 356f, 519f, 96f, 96f)
-        // Right card 543 x 488 at (533, 152): a 72-high heading, then 96-high rows.
-        at("Play Open Road", 534f, 225f, 541f, 96f)
-        at("Play Slow Tide", 534f, 513f, 541f, 96f)
     }
 
     @Test

@@ -21,13 +21,7 @@ interface MediaSource {
     fun playPause(): Boolean
     fun next()
     fun previous()
-    fun playQueueItem(id: Long)
-
-    /**
-     * Moves the track on show to [positionMs]. Only worth asking while its progress says it is
-     * seekable: a player is free to take no notice.
-     */
-    fun seekTo(positionMs: Long)
+    fun openPlayer(): Boolean
 
     /**
      * What each of the unit's players tells Android about itself just now, in Android's own order:
@@ -58,8 +52,8 @@ class FixedMedia(
     hasAccess: Boolean = true,
     /** Packages that [start] can set playing without their app being opened. */
     private val startable: Set<String> = emptySet(),
-    /** The clock a moved track is timed from. It only matters for a track that is really advancing. */
-    private val elapsed: () -> Long = { 0L },
+    private val tracks: List<Pair<String, String>> = emptyList(),
+    private val ownScreen: Boolean = true,
 ) : MediaSource {
     private val state = MutableStateFlow(initial)
     override val nowPlaying: StateFlow<NowPlaying?> = state
@@ -94,27 +88,9 @@ class FixedMedia(
         step(-1)
     }
 
-    override fun playQueueItem(id: Long) {
-        calls += "queue:$id"
-        val now = state.value ?: return
-        val item = now.queue.firstOrNull { it.id == id } ?: return
-        state.value = now.copy(
-            title = item.title, artist = item.subtitle,
-            queue = now.queue.map { it.copy(current = it.id == id) },
-        )
-    }
-
-    override fun seekTo(positionMs: Long) {
-        calls += "seek:$positionMs"
-        val now = state.value ?: return
-        // A player that cannot be moved takes no notice, as a real one would not.
-        if (!now.progress.seekable) return
-        state.value = now.copy(
-            progress = now.progress.copy(
-                positionMs = positionMs.coerceIn(0L, now.progress.durationMs),
-                atElapsedMs = elapsed(),
-            ),
-        )
+    override fun openPlayer(): Boolean {
+        calls += "open"
+        return ownScreen && state.value != null
     }
 
     override fun players(): List<PlayerFacts> {
@@ -129,12 +105,12 @@ class FixedMedia(
                 positionMs = progress.positionMs,
                 speed = progress.speed,
                 toldAgoMs = null,
-                actions = PlayerRules.TRANSPORT or (if (progress.seekable) PlayerRules.SEEK_TO else 0L),
+                actions = PlayerRules.TRANSPORT,
                 durationMs = progress.durationMs.takeIf { !progress.live },
                 details = listOfNotNull("TITLE", "ARTIST", "DURATION".takeIf { !progress.live }, "ALBUM_ART".takeIf { now.art != null })
                     .map { "android.media.metadata.$it" },
-                queueSize = now.queue.size,
                 extras = emptyList(),
+                screen = ownScreen,
             ),
         )
     }
@@ -157,9 +133,9 @@ class FixedMedia(
 
     private fun step(delta: Int) {
         val now = state.value ?: return
-        if (now.queue.isEmpty()) return
-        val index = now.queue.indexOfFirst { it.current }
-        val next = now.queue[(index + delta + now.queue.size) % now.queue.size]
-        playQueueItem(next.id)
+        if (tracks.isEmpty()) return
+        val index = tracks.indexOfFirst { it.first == now.title }
+        val (title, artist) = tracks[(index + delta + tracks.size) % tracks.size]
+        state.value = now.copy(title = title, artist = artist)
     }
 }

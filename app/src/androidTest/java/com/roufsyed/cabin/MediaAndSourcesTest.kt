@@ -1,9 +1,7 @@
 package com.roufsyed.cabin
 
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -22,7 +20,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** Now playing, the Music screen and the source row, with the design's own track and apps. */
+/** Now playing and the source row, with the design's own track and apps. */
 @RunWith(AndroidJUnit4::class)
 class MediaAndSourcesTest {
 
@@ -41,7 +39,7 @@ class MediaAndSourcesTest {
     private fun gone(description: String) = cabin.onNodeWithContentDescription(description).assertDoesNotExist()
     private fun text(text: String) = cabin.onNodeWithText(text).assertIsDisplayed()
 
-    /** The cover as its own node: on Home it sits inside the button that opens the Music screen. */
+    /** The cover as its own node: on Home it sits inside the button that opens the playing app. */
     private fun cover() = cabin.onNodeWithContentDescription("Cover art", useUnmergedTree = true)
 
     private fun play(track: NowPlaying?) {
@@ -77,83 +75,54 @@ class MediaAndSourcesTest {
     }
 
     @Test
-    fun theCoverIsPartOfTheButtonThatOpensMusic() {
+    fun theCoverIsPartOfTheButtonThatOpensThePlayingApp() {
         play(Samples.playing.copy(art = plainCover(Color.Magenta)))
         cover().performClick()
-        text("Up next")
-    }
-
-    @Test
-    fun musicScreenShowsTheCoverInPlaceOfTheDesignsStandIn() {
-        tap("Open music")
-        shows("Cover art placeholder")
-        gone("Cover art")
-
-        play(Samples.playing.copy(art = plainCover(Color.Magenta)))
-        shows("Cover art")
-        gone("Cover art placeholder")
-        // 150 x 150 less its rounded corners.
-        assertTrue("${pixelsOf(Color.Magenta)} magenta", pixelsOf(Color.Magenta) in 22000..22500)
-
-        play(Samples.playing)
-        shows("Cover art placeholder")
-        assertEquals(0, pixelsOf(Color.Magenta))
+        cabin.waitForIdle()
+        assertEquals(listOf("open"), media.calls)
     }
 
     @Test
     fun homeTransportControlsThePlayer() {
         tap("Next")
+        text("Night Signals")
         tap("Previous")
+        text("Open Road")
         tap("Play or pause")
         cabin.waitForIdle()
-        assertEquals(listOf("next", "queue:2", "previous", "queue:1", "playPause"), media.calls)
+        assertEquals(listOf("next", "previous", "playPause"), media.calls)
     }
 
     @Test
-    fun musicScreenShowsTheTrackAndItsQueue() {
+    fun aTapOnNowPlayingOpensThePlayingAppsOwnScreen() {
         tap("Open music")
-        text("Bluetooth audio")
-        text("Up next")
-        shows("Play Open Road")
-        shows("Play Night Signals")
-        shows("Play Paper Lanterns")
-        shows("Play Slow Tide")
-        // The mini player would repeat what the screen already shows, so it is left out here.
-        gone("Open music")
-    }
-
-    @Test
-    fun tappingAQueueItemPlaysIt() {
-        tap("Open music")
-        tap("Play Paper Lanterns")
         cabin.waitForIdle()
-        assertEquals(listOf("queue:3"), media.calls)
-        // Now both the track card and its queue row name the artist.
-        cabin.onAllNodesWithText("June Harbor").assertCountEquals(2)
+        assertEquals(listOf("open"), media.calls)
+        assertEquals(emptyList<String>(), apps.launched)
+        shows("Open Maps")
     }
 
     @Test
-    fun miniPlayerAppearsOnOtherScreensAndOpensMusic() {
+    fun miniPlayerAppearsOnOtherScreensAndOpensThePlayingApp() {
         tap("All apps")
         shows("Open music")
         tap("Next")
         cabin.waitForIdle()
         assertTrue("next" in media.calls)
         tap("Open music")
-        text("Up next")
+        cabin.waitForIdle()
+        assertEquals("open", media.calls.last())
+        shows("Browser")
     }
 
     @Test
     fun aPlayerWithNoLengthIsOnlyCalledLiveWhileItPlays() {
         // What a phone-link app leaves up while nothing plays: its name, no length, and stopped.
         val idle = Samples.playing.copy(
-            title = "Android Auto", artist = "Connected", queue = emptyList(),
+            title = "Android Auto", artist = "Connected",
             progress = PlaybackProgress(positionMs = 0, durationMs = 0, speed = 0f, playing = false, atElapsedMs = 0),
         )
         play(idle)
-        text("Connected")
-        cabin.onNodeWithText("Live").assertDoesNotExist()
-        tap("Open music")
         text("Connected")
         cabin.onNodeWithText("Live").assertDoesNotExist()
         // The accent is on screen for the play button's ring and little else: the line is empty.
@@ -162,22 +131,7 @@ class MediaAndSourcesTest {
         // Something of no length that really is playing, as radio is, reads "Live" over a full line.
         play(idle.copy(title = "Radio One", artist = "", progress = idle.progress.copy(playing = true, speed = 1f)))
         text("Live")
-        assertTrue("the line should have filled", pixelsOf(Slate.Accent) > idleAccent + 1_000)
-    }
-
-    @Test
-    fun aPlayerThatGivesNoListIsNamedWhereItsListWouldBe() {
-        tap("Open music")
-        shows("Play Night Signals")
-        cabin.onNodeWithText("Bluetooth audio shares no list of tracks.").assertDoesNotExist()
-
-        play(Samples.playing.copy(appLabel = "Unit player", queue = emptyList()))
-        text("Up next")
-        text("Unit player shares no list of tracks.")
-        gone("Play Night Signals")
-
-        play(null)
-        cabin.onNodeWithText("Unit player shares no list of tracks.").assertDoesNotExist()
+        assertTrue("the line should have filled", pixelsOf(Slate.Accent) > idleAccent + 600)
     }
 
     @Test
@@ -256,5 +210,44 @@ class MediaAndSourcesTest {
         tap("Choose automatically")
         text("Opens Radio")
         assertEquals(null, settings.bindings[Slot.Radio])
+    }
+}
+
+@RunWith(AndroidJUnit4::class)
+class PlayerWithNoScreenTest {
+
+    @get:Rule(order = 0)
+    val values = FreshDesignValues { it.copy(media = FixedMedia(Samples.playing, ownScreen = false)) }
+
+    @get:Rule(order = 1)
+    val cabin = cabinRule()
+
+    private val media get() = values.container.media as FixedMedia
+    private val apps get() = values.container.apps as FixedApps
+    private val settings get() = values.container.settings.settings.value
+
+    private fun tap(description: String) = cabin.onNodeWithContentDescription(description).performClick()
+
+    @Test
+    fun aTapOnNowPlayingOpensItsAppFromTheGrid() {
+        tap("Open music")
+        cabin.waitForIdle()
+        assertEquals(listOf(FixedApps.id("Music")), apps.launched)
+    }
+
+    @Test
+    fun aPlayerThatIsNoAppGivesWayToTheMusicAppAndWithNoneChosenToChoosingOne() {
+        media.set(Samples.playing.copy(packageName = "com.unit.media", appLabel = "Unit player"))
+        cabin.waitUntil(2_000) { settings.lastPlayer == "com.unit.media" }
+
+        tap("Open music")
+        cabin.onNodeWithText("Music opens").assertIsDisplayed()
+        assertEquals(emptyList<String>(), apps.launched)
+
+        tap("Radio")
+        cabin.waitUntil(2_000) { values.container.sources.state.value.bindings[Slot.Music]?.label == "Radio" }
+        tap("Open music")
+        cabin.waitForIdle()
+        assertEquals(listOf(FixedApps.id("Radio")), apps.launched)
     }
 }

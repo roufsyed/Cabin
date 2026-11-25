@@ -95,7 +95,7 @@ class ShellViewModelTest {
         shell.swipeRight()
         assertEquals(Shell(), state)
 
-        shell.open(Screen.Music)
+        shell.open(Screen.Settings)
         shell.swipeRight()
         assertEquals(Shell(), state)
     }
@@ -239,22 +239,22 @@ class ShellViewModelTest {
 
     @Test
     fun `the tray's Split screen chooses the left app, then the right, and closes the tray`() {
-        shell.open(Screen.Music)
+        shell.open(Screen.Settings)
         shell.show(Overlay.Tray)
         shell.split()
-        assertEquals(Shell(screen = Screen.Split, pickFrom = Screen.Music), state)
+        assertEquals(Shell(screen = Screen.Split, pickFrom = Screen.Settings), state)
 
         // The second page of apps, then a tap: the chooser for the right starts from its first page.
         shell.swipeLeft(pages = 2)
         shell.splitLeft("maps")
-        assertEquals(Shell(screen = Screen.Split, splitFirst = "maps", pickFrom = Screen.Music), state)
+        assertEquals(Shell(screen = Screen.Split, splitFirst = "maps", pickFrom = Screen.Settings), state)
 
         // A second tap does not change the left app.
         shell.splitLeft("radio")
         assertEquals("maps", state.splitFirst)
 
         shell.splitDone()
-        assertEquals(Shell(screen = Screen.Music), state)
+        assertEquals(Shell(screen = Screen.Settings), state)
     }
 
     @Test

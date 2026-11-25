@@ -119,7 +119,7 @@ class SettingsAndKeysTest {
         tap("Steering key: next")
         tap("Steering key: previous")
         cabin.waitForIdle()
-        assertEquals(listOf("next", "queue:2", "previous", "queue:1"), media.calls)
+        assertEquals(listOf("next", "previous"), media.calls)
 
         // Mode steps to the source after the active one: Bluetooth is active, USB follows it.
         tap("Steering key: mode")
@@ -145,7 +145,7 @@ class SettingsAndKeysTest {
         press(KeyEvent.KEYCODE_MEDIA_PREVIOUS)
         press(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
         cabin.waitForIdle()
-        assertEquals(listOf("next", "queue:2", "previous", "queue:1", "playPause"), media.calls)
+        assertEquals(listOf("next", "previous", "playPause"), media.calls)
 
         press(KeyEvent.KEYCODE_BUTTON_MODE)
         cabin.waitUntil(2_000) { settings.activeSource == SourceId.Usb }

@@ -32,7 +32,7 @@ class CoversTest {
         val cover = Covers.scaled(picture(800, 800, Color.BLUE)).asAndroidBitmap()
         assertEquals(Covers.SIDE_PX, cover.width)
         assertEquals(Covers.SIDE_PX, cover.height)
-        assertEquals(Color.BLUE, cover.getPixel(150, 150))
+        assertEquals(Color.BLUE, cover.getPixel(Covers.SIDE_PX / 2, Covers.SIDE_PX / 2))
     }
 
     @Test
@@ -47,7 +47,9 @@ class CoversTest {
         val cover = Covers.scaled(wide).asAndroidBitmap()
         assertEquals(Covers.SIDE_PX, cover.width)
         assertEquals(Covers.SIDE_PX, cover.height)
-        for ((x, y) in listOf(1 to 1, 298 to 1, 1 to 298, 298 to 298, 150 to 150)) {
+        val far = Covers.SIDE_PX - 2
+        val middle = Covers.SIDE_PX / 2
+        for ((x, y) in listOf(1 to 1, far to 1, 1 to far, far to far, middle to middle)) {
             assertEquals("at $x, $y", Color.GREEN, cover.getPixel(x, y))
         }
     }
@@ -78,7 +80,7 @@ class CoversTest {
             val cover = Covers.read(resolver, address)!!.asAndroidBitmap()
             assertEquals(Covers.SIDE_PX, cover.width)
             assertEquals(Covers.SIDE_PX, cover.height)
-            assertEquals(Color.MAGENTA, cover.getPixel(150, 150))
+            assertEquals(Color.MAGENTA, cover.getPixel(Covers.SIDE_PX / 2, Covers.SIDE_PX / 2))
         } finally {
             resolver.delete(address, null, null)
         }

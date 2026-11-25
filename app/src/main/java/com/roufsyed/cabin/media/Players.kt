@@ -25,21 +25,10 @@ data class PlayerFacts(
     val durationMs: Long?,
     /** The names of the track details the player gives, as Android has them. */
     val details: List<String>,
-    val queueSize: Int,
     /** Whatever else the player sends along: buttons of its own, and values under names of its own. */
     val extras: List<String>,
-    val library: PlayerLibrary = PlayerLibrary.None,
+    val screen: Boolean = false,
 )
-
-enum class PlayerLibrary {
-    None,
-
-    Asking,
-
-    Open,
-
-    Closed,
-}
 
 /** A row of a player's page. [lines] is how many lines of text its value may take there. */
 @Immutable
@@ -96,19 +85,18 @@ object PlayerRules {
     /** How many lines of text the page has room for; the rows of [report] add up to it. */
     const val PAGE_LINES = 12
 
-    fun report(facts: PlayerFacts): PlayerReport = PlayerReport(
+    fun report(facts: PlayerFacts, inApps: Boolean = false): PlayerReport = PlayerReport(
         appLabel = facts.appLabel,
         packageName = facts.packageName,
         shown = facts.shown,
         lines = listOf(
             ReportLine("App", facts.packageName),
-            ReportLine("Slider", slider(facts)),
+            ReportLine("A tap opens", opens(facts, inApps)),
             ReportLine("State", state(facts)),
             ReportLine("Length", length(facts.durationMs)),
             ReportLine("Can be told to", actions(facts.actions), lines = 3),
             ReportLine("Track details", details(facts.details), lines = 2),
-            ReportLine("Lists", lists(facts)),
-            ReportLine("Also sends", facts.extras.joinToString().ifEmpty { "Nothing" }, lines = 2),
+            ReportLine("Also sends", facts.extras.joinToString().ifEmpty { "Nothing" }, lines = 3),
         ),
     )
 
@@ -128,11 +116,10 @@ object PlayerRules {
     fun detail(name: String): String =
         if (name.startsWith(DETAIL_PREFIX)) name.removePrefix(DETAIL_PREFIX).lowercase().replace('_', ' ') else name
 
-    /** Whether Cabin's progress line is a slider for this player, and if not, which of the two things is missing. */
-    fun slider(facts: PlayerFacts): String = when {
-        (facts.durationMs ?: 0L) <= 0L -> "No: it gives no length for the track"
-        !MediaRules.seekable(facts.durationMs ?: 0L, facts.actions) -> "No: it does not say the track can be moved"
-        else -> "Yes"
+    fun opens(facts: PlayerFacts, inApps: Boolean): String = when {
+        facts.screen -> "Its own screen"
+        inApps -> "Its app"
+        else -> "The music app from Setup: it has no screen of its own"
     }
 
     /** "Playing, at 1:24, speed 1.0, said 3 s ago": what the player is doing and where its track is. */
@@ -175,16 +162,5 @@ object PlayerRules {
         val names = ACTIONS.filter { actions and it.first != 0L }.joinToString { it.second }
         val words = names.ifEmpty { "nothing Android has a name for" }
         return words.replaceFirstChar { it.uppercase() } + " (0x" + java.lang.Long.toHexString(actions) + ")"
-    }
-
-    fun lists(facts: PlayerFacts): String = "${queue(facts.queueSize)}; ${library(facts.library)}"
-
-    fun queue(size: Int): String = if (size <= 0) "No queue" else "Queue of $size"
-
-    fun library(library: PlayerLibrary): String = when (library) {
-        PlayerLibrary.None -> "no library to browse"
-        PlayerLibrary.Asking -> "a library, which has not answered yet"
-        PlayerLibrary.Open -> "a library Cabin can browse"
-        PlayerLibrary.Closed -> "a library that turns Cabin away"
     }
 }

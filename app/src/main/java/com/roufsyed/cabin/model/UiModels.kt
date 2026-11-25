@@ -4,7 +4,6 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.ImageBitmap
 import com.roufsyed.cabin.media.NowPlaying
 import com.roufsyed.cabin.media.PlaybackProgress
-import com.roufsyed.cabin.media.QueueItem
 
 /** What the screens draw. Plain immutable values, produced off the main thread by the view models. */
 
@@ -48,11 +47,7 @@ data class NowPlayingUi(
     val title: String,
     val artist: String,
     val progress: PlaybackProgress,
-    /** The playing app's name, shown on the Music screen. */
-    val source: String = "",
     val art: ImageBitmap? = null,
-    val queueTitle: String = "Up next",
-    val queue: List<QueueItem> = emptyList(),
     /** True while Cabin cannot see what is playing because notification access has not been granted. */
     val needsAccess: Boolean = false,
 ) {
@@ -74,10 +69,7 @@ fun nowPlayingUi(now: NowPlaying?, access: Boolean): NowPlayingUi = when {
         title = now.title.ifBlank { now.appLabel },
         artist = now.artist,
         progress = now.progress,
-        source = now.appLabel,
         art = now.art,
-        queueTitle = now.queueTitle,
-        queue = now.queue,
     )
 }
 

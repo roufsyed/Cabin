@@ -27,11 +27,11 @@ import com.roufsyed.cabin.ui.theme.Slate
 import com.roufsyed.cabin.ui.theme.Txt
 
 /**
- * The 1036 x 96 strip at the top of every screen but Home: time, date and status on the left and,
- * when [mini] is given, the mini player on the right.
+ * The 1036 x 96 strip at the top of every screen but Home: time, date and status on the left and
+ * the mini player, [mini], on the right.
  */
 @Composable
-fun TopStrip(clock: ClockUi, status: StatusUi, mini: (@Composable () -> Unit)?) {
+fun TopStrip(clock: ClockUi, status: StatusUi, mini: @Composable () -> Unit) {
     Row(
         modifier = Modifier.size(1036.dp, 96.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -52,11 +52,11 @@ fun TopStrip(clock: ClockUi, status: StatusUi, mini: (@Composable () -> Unit)?) 
                 StatusIcons(status)
             }
         }
-        mini?.invoke()
+        mini()
     }
 }
 
-/** The 600 x 96 mini player: what is playing, which opens the Music screen, and the transport. */
+/** The 600 x 96 mini player: what is playing, which opens the app that plays it, and the transport. */
 @Composable
 fun MiniPlayer(
     nowPlaying: NowPlayingUi,

@@ -210,19 +210,19 @@ class GesturesAndControlsTest {
         choose { it.copy(sideSwipe = SideSwipe.Tracks) }
         swipeLeft()
         cabin.waitForIdle()
-        assertEquals(listOf("next", "queue:2"), media.calls)
+        assertEquals(listOf("next"), media.calls)
         // Still on Home.
         shows("Open Maps")
         swipeRight()
         cabin.waitForIdle()
-        assertEquals(listOf("next", "queue:2", "previous", "queue:1"), media.calls)
+        assertEquals(listOf("next", "previous"), media.calls)
 
         // Away from Home a swipe right still leads back to it, and tracks are left alone.
         tapLater("All apps")
         shows("Browser")
         swipeRight()
         shows("Open Maps")
-        assertEquals(4, media.calls.size)
+        assertEquals(2, media.calls.size)
     }
 
     @Test

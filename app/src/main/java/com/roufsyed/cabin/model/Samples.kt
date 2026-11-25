@@ -2,7 +2,6 @@ package com.roufsyed.cabin.model
 
 import com.roufsyed.cabin.media.NowPlaying
 import com.roufsyed.cabin.media.PlaybackProgress
-import com.roufsyed.cabin.media.QueueItem
 import com.roufsyed.cabin.notify.TrayItem
 import com.roufsyed.cabin.notify.TrayKind
 
@@ -37,13 +36,13 @@ object Samples {
         artist = "Aster Lane",
         // 1:24 of 3:41, held still so a screenshot does not depend on when it is taken.
         progress = PlaybackProgress(positionMs = 84_000, durationMs = 221_000, speed = 0f, playing = true, atElapsedMs = 0),
-        queueTitle = "Up next",
-        queue = listOf(
-            QueueItem(1, "Open Road", "Aster Lane", current = true, duration = "3:41"),
-            QueueItem(2, "Night Signals", "Vela North", current = false, duration = "4:05"),
-            QueueItem(3, "Paper Lanterns", "June Harbor", current = false, duration = "3:12"),
-            QueueItem(4, "Slow Tide", "Marlow Reed", current = false, duration = "2:58"),
-        ),
+    )
+
+    val tracks = listOf(
+        "Open Road" to "Aster Lane",
+        "Night Signals" to "Vela North",
+        "Paper Lanterns" to "June Harbor",
+        "Slow Tide" to "Marlow Reed",
     )
 
     /** The three notifications in the design's tray. */

@@ -277,4 +277,53 @@ class SourceControllerTest {
         val bare = SourceController(InMemorySettings(CabinSettings(loaded = true)), FixedApps(emptyList()), FixedMedia(null), scope)
         assertEquals(Opened.NeedsApp, bare.open(Slot.Phone))
     }
+
+    @Test
+    fun `a tap on Now playing opens the playing app's own screen`() {
+        val media = FixedMedia(track("design.radio", playing = true))
+        assertEquals(Opened.Launched, controller(media).openPlayer())
+        assertEquals(listOf("open"), media.calls)
+        assertEquals(emptyList<String>(), apps.launched)
+    }
+
+    @Test
+    fun `a playing app with no screen of its own is opened as an app`() {
+        val media = FixedMedia(track("design.radio", playing = false), ownScreen = false)
+        assertEquals(Opened.Launched, controller(media).openPlayer())
+        assertEquals(listOf(FixedApps.id("Radio")), apps.launched)
+    }
+
+    @Test
+    fun `a player that cannot be opened at all gives way to the music app from Setup`() {
+        val media = FixedMedia(track("com.unit.media", playing = true), ownScreen = false)
+        val sources = controller(media)
+        sources.chooseMusic(media)
+        assertEquals(Opened.Launched, sources.openPlayer())
+        assertEquals(listOf(FixedApps.id("Music")), apps.launched)
+    }
+
+    @Test
+    fun `with nothing playing the music app from Setup opens, and with none chosen the app that played last`() {
+        val media = FixedMedia(null)
+        val sources = controller(media)
+        assertEquals(Opened.NeedsApp, sources.openPlayer())
+        assertEquals(emptyList<String>(), apps.launched)
+
+        runBlocking { settings.update { it.copy(lastPlayer = "design.radio") } }
+        assertEquals(Opened.Launched, sources.openPlayer())
+        assertEquals(listOf(FixedApps.id("Radio")), apps.launched)
+
+        sources.chooseMusic(media)
+        assertEquals(Opened.Launched, sources.openPlayer())
+        assertEquals(listOf(FixedApps.id("Radio"), FixedApps.id("Music")), apps.launched)
+        assertEquals(emptyList<String>(), media.calls)
+    }
+
+    @Test
+    fun `a player that cannot be opened, with no music app chosen and nothing else to open, leads to choosing one`() {
+        runBlocking { settings.update { it.copy(lastPlayer = "com.unit.media") } }
+        val media = FixedMedia(track("com.unit.media", playing = true), ownScreen = false)
+        assertEquals(Opened.NeedsApp, controller(media).openPlayer())
+        assertEquals(emptyList<String>(), apps.launched)
+    }
 }
