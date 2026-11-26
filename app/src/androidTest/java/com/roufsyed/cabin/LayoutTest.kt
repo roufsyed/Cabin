@@ -345,6 +345,15 @@ class LayoutTest {
     }
 
     @Test
+    fun thisUnitTurnsItsPagesWithTheSameKindOfButtonAsSetup() {
+        for (step in listOf("All apps", "Settings", "Open setup", "Next setup page", "What Android says of this unit")) {
+            cabin.onNodeWithContentDescription(step).performClick()
+        }
+        at("Back to setup", 926f, 40f, 150f, 96f)
+        at("Next page of this unit", 818f, 40f, 96f, 96f)
+    }
+
+    @Test
     fun nightModeIsOneCardInTwoColumnsAndOnManualHasFullHeightButtonsEitherSideOfEachHour() {
         for (step in listOf("All apps", "Settings", "Theme and gestures", "Night mode: auto or manual")) {
             cabin.onNodeWithContentDescription(step).performClick()

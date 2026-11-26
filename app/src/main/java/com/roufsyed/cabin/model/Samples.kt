@@ -45,6 +45,9 @@ object Samples {
         board = "", hardware = "", width = 1280, height = 800, dpi = 160,
         memoryBytes = 4L * 1024 * 1024 * 1024, lowMemory = false, multiWindow = true, splitScreen = true,
         split = SplitWay.Adjacent, serviceOn = false, offered = null,
+        microphone = true, bluetooth = true, volumeFixed = false, wifi = true, wifiOn = true, gps = true, gpsOn = true,
+        touchPoints = 5, cameras = 1, usbHost = true, telephony = false, lightSensor = false,
+        pictureInPicture = true, freeform = false, rotary = emptyList(),
     )
 
     val tracks = listOf(

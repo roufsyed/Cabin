@@ -73,6 +73,7 @@ import com.roufsyed.cabin.nav.SavedPlace
 import com.roufsyed.cabin.sources.Opened
 import com.roufsyed.cabin.sources.SourceRules
 import com.roufsyed.cabin.system.BrightnessRules
+import com.roufsyed.cabin.system.CabinFacts
 import com.roufsyed.cabin.system.Grant
 import com.roufsyed.cabin.system.MemoryRules
 import com.roufsyed.cabin.system.UnitRules
@@ -113,6 +114,7 @@ import com.roufsyed.cabin.ui.shell.SETUP_PAGES
 import com.roufsyed.cabin.ui.shell.Screen
 import com.roufsyed.cabin.ui.shell.Shell
 import com.roufsyed.cabin.ui.shell.ShellViewModel
+import com.roufsyed.cabin.ui.shell.UNIT_PAGES
 import com.roufsyed.cabin.ui.sources.SourcesGrid
 import com.roufsyed.cabin.ui.theme.DesignSurface
 import kotlinx.coroutines.delay
@@ -309,7 +311,7 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
                         shown.screen == Screen.Night -> NightBar(container, shellModel)
                         shown.screen == Screen.ScreenOff -> ScreenOffBar(shellModel)
                         shown.screen == Screen.Players -> PlayersBar(shown, container, shellModel)
-                        shown.screen == Screen.ThisUnit -> UnitBar(shellModel)
+                        shown.screen == Screen.ThisUnit -> UnitBar(shown, shellModel)
                         else -> Strip(dashboard, host, openPlayer)
                     }
                     Spacer(Modifier.height(16.dp))
@@ -324,7 +326,7 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
                             Screen.ScreenOff -> ScreenOffOptions(container, shellModel)
                             Screen.Setup -> SetupContent(shown, container, shellModel, host)
                             Screen.Players -> PlayersContent(shown, container)
-                            Screen.ThisUnit -> UnitContent(container)
+                            Screen.ThisUnit -> UnitContent(shown, container)
                             Screen.Sources -> SourcesContent(shown, container, shellModel)
                             Screen.Pick -> SlotPickContent(shown, container, appsModel, shellModel)
                             Screen.Split -> SplitContent(shown, appsModel, shellModel, host)
@@ -604,6 +606,7 @@ private fun pageCount(shell: Shell, apps: AppsViewModel, media: MediaSource): In
         shell.screen == Screen.Preferences -> PREFERENCES_PAGES
         // A page for each player that is running.
         shell.screen == Screen.Players -> media.players().size
+        shell.screen == Screen.ThisUnit -> UNIT_PAGES
         shell.screen == Screen.Pick -> AppsUi.pagesFor(ui.all.count { it.app.id != apps.ownId })
         shell.screen == Screen.Split -> ui.beside(shell.splitFirst.orEmpty(), apps.ownId).pageCount(editing = false)
         else -> ui.pageCount(editing = shell.edit == EditKind.Apps)
@@ -1281,18 +1284,45 @@ private fun SetupApps(container: AppContainer, shellModel: ShellViewModel) {
 }
 
 @Composable
-private fun UnitBar(shellModel: ShellViewModel) {
+private fun UnitBar(shell: Shell, shellModel: ShellViewModel) {
+    val page = shell.page.coerceIn(0, UNIT_PAGES - 1)
     TitleBar(
         title = "This unit",
-        hint = "What Android says of it. Nothing here can be changed.",
+        hint = when (page) {
+            0 -> "What Android says of it. Nothing here can be changed."
+            1 -> "What Cabin can use here, and what is ready"
+            else -> "What else the unit has, as Android lists it"
+        },
         action = "Done",
         actionDescription = "Back to setup",
         onAction = shellModel::back,
+        pageIcon = SlateIcons.ChevronRight,
+        pageDescription = "Next page of this unit",
+        onPage = { shellModel.unitPage((page + 1) % UNIT_PAGES) },
     )
 }
 
 @Composable
-private fun UnitContent(container: AppContainer) {
+private fun cabinFacts(container: AppContainer): CabinFacts {
+    val home by container.homeRole.held.collectAsStateWithLifecycle()
+    val notifications by container.media.access.collectAsStateWithLifecycle()
+    val brightness by container.brightness.canWrite.collectAsStateWithLifecycle()
+    val barLost by container.sideBar.lost.collectAsStateWithLifecycle()
+    val granted by container.permissions.granted.collectAsStateWithLifecycle()
+    val settings by container.settings.settings.collectAsStateWithLifecycle()
+    val bluetoothOn by container.status.bluetoothOn.collectAsStateWithLifecycle()
+    val headlights by container.headlights.on.collectAsStateWithLifecycle()
+    val keys by container.keysSeen.collectAsStateWithLifecycle()
+    return CabinFacts(
+        home = home, notifications = notifications, brightness = brightness, barLost = barLost != null,
+        granted = granted, speech = container.voice.available,
+        positioned = settings.latitude != null && settings.longitude != null,
+        bluetoothOn = bluetoothOn, headlights = headlights, keys = keys,
+    )
+}
+
+@Composable
+private fun UnitContent(shell: Shell, container: AppContainer) {
     val serviceOn by container.sideBar.allowed.collectAsStateWithLifecycle()
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val first = remember(container) { container.unit.facts() }
@@ -1304,7 +1334,14 @@ private fun UnitContent(container: AppContainer) {
             }
         }
     }
-    UnitPage(remember(facts) { UnitRules.report(facts) })
+    val cabin = cabinFacts(container)
+    UnitPage(
+        when (shell.page.coerceIn(0, UNIT_PAGES - 1)) {
+            0 -> UnitRules.report(facts)
+            1 -> UnitRules.ready(facts, cabin)
+            else -> UnitRules.hardware(facts)
+        },
+    )
 }
 
 private const val UNIT_READ_MS = 2_000L

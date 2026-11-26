@@ -177,6 +177,30 @@ class ShellViewModelTest {
     }
 
     @Test
+    fun `This unit has three pages, turned by its button or a swipe, and back leads to Setup from any`() {
+        shell.open(Screen.ThisUnit)
+        shell.unitPage(1)
+        assertEquals(Shell(screen = Screen.ThisUnit, page = 1), state)
+        shell.unitPage(9)
+        assertEquals(UNIT_PAGES - 1, state.page)
+        shell.unitPage(0)
+        assertEquals(0, state.page)
+
+        shell.swipeLeft(pages = UNIT_PAGES)
+        shell.swipeLeft(pages = UNIT_PAGES)
+        assertEquals(2, state.page)
+        shell.swipeLeft(pages = UNIT_PAGES)
+        assertEquals(2, state.page)
+        shell.swipeRight()
+        assertEquals(Shell(screen = Screen.ThisUnit, page = 1), state)
+        shell.back()
+        assertEquals(Shell(screen = Screen.Setup, page = SETUP_PAGES - 1), state)
+
+        shell.unitPage(1)
+        assertEquals(Shell(screen = Screen.Setup, page = SETUP_PAGES - 1), state)
+    }
+
+    @Test
     fun `turning Setup's page only works on Setup`() {
         shell.open(Screen.Settings)
         shell.setupPage(1)

@@ -26,6 +26,8 @@ const val SETUP_PAGES = 2
 /** So has "Theme and gestures": the theme and what the gestures do, then where things are on screen. */
 const val PREFERENCES_PAGES = 2
 
+const val UNIT_PAGES = 3
+
 enum class EditKind { Apps, Sources }
 
 enum class Overlay { None, Tray, Voice, ScreenOff }
@@ -87,6 +89,10 @@ class ShellViewModel : ViewModel() {
     /** Turns to a page of Players. How many there are is the caller's to know: one for each player running. */
     fun playersPage(page: Int) = _state.update {
         if (it.screen == Screen.Players) it.copy(page = page.coerceAtLeast(0)) else it
+    }
+
+    fun unitPage(page: Int) = _state.update {
+        if (it.screen == Screen.ThisUnit) it.copy(page = page.coerceIn(0, UNIT_PAGES - 1)) else it
     }
 
     fun arrangeApps() = _state.update { Shell(screen = Screen.Apps, edit = EditKind.Apps) }
@@ -188,7 +194,7 @@ class ShellViewModel : ViewModel() {
 
     private val Screen.paged: Boolean
         get() = this == Screen.Apps || this == Screen.Pick || this == Screen.Split || this == Screen.Setup ||
-            this == Screen.Preferences || this == Screen.Players
+            this == Screen.Preferences || this == Screen.Players || this == Screen.ThisUnit
 
     fun show(overlay: Overlay) = _state.update { it.copy(overlay = overlay) }
 

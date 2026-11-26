@@ -42,6 +42,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /** Cabin's only activity. It is the unit's home screen, so it is never finished. */
@@ -202,6 +203,7 @@ class MainActivity : ComponentActivity() {
             Log.d(KEYS_TAG, "key ${KeyEvent.keyCodeToString(keyCode)} ($keyCode) scan ${event.scanCode}")
         }
         val first = event.repeatCount == 0
+        if (first) container.keysSeen.update { if (keyCode in it) it else it + keyCode }
         when (keyCode) {
             KeyEvent.KEYCODE_VOLUME_UP -> container.volume.up()
             KeyEvent.KEYCODE_VOLUME_DOWN -> container.volume.down()

@@ -70,6 +70,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -109,6 +110,8 @@ class AppContainer(
     val unit: UnitSource = FixedUnit(Samples.unit),
 ) {
     val sources = SourceController(settings, apps, media, scope, sourcesNamedAfterApps)
+
+    val keysSeen = MutableStateFlow<List<Int>>(emptyList())
 
     val palette: Flow<Palette> = combine(
         settings.settings.map { it.theme to it.dayColours },
