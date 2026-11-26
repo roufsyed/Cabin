@@ -79,7 +79,7 @@ private fun BrightnessStepper(
                     }
                     Txt(brightness.level.toString(), 30, lineHeight = 1f, tabular = true)
                 }
-                Txt(brightness.mode.label, 24, color = Slate.Muted, lineHeight = 1f)
+                Txt(brightness.label, 24, color = Slate.Muted, lineHeight = 1f)
             }
             Rule(1.dp, 44.dp)
             Box(

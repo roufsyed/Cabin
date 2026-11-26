@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 
 enum class Screen {
-    Home, Apps, Settings, Keys, Preferences, Theme,
+    Home, Apps, Settings, Keys, Preferences, Theme, Night,
 
     /** The page that turns the screen off and chooses what the dark screen shows. */
     ScreenOff,
@@ -204,8 +204,8 @@ class ShellViewModel : ViewModel() {
             it.edit == EditKind.Apps -> Shell(screen = Screen.Apps, page = it.page)
             // The second page of Setup, or of Theme and gestures, leads back to its first.
             (it.screen == Screen.Setup || it.screen == Screen.Preferences) && it.page > 0 -> it.copy(page = it.page - 1)
-            // The theme chooser is reached from the "Theme and gestures" screen.
-            it.screen == Screen.Theme -> Shell(screen = Screen.Preferences)
+            // The theme chooser and the night mode page are reached from the "Theme and gestures" screen.
+            it.screen == Screen.Theme || it.screen == Screen.Night -> Shell(screen = Screen.Preferences)
             // Players is reached from Setup's second page, whichever of its own pages is showing.
             it.screen == Screen.Players || it.screen == Screen.ThisUnit -> Shell(screen = Screen.Setup, page = SETUP_PAGES - 1)
             it.screen == Screen.Keys || it.screen == Screen.Preferences || it.screen == Screen.ScreenOff ||

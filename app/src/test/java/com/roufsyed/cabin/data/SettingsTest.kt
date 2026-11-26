@@ -60,6 +60,9 @@ class SettingsTest {
         assertEquals(BrightnessMode.Auto, settings.brightnessMode)
         assertEquals(8, settings.dayLevel)
         assertEquals(3, settings.nightLevel)
+        assertFalse(settings.nightHours)
+        assertEquals(19 * 60, settings.nightStart)
+        assertEquals(6 * 60, settings.dayStart)
         assertTrue(settings.appOrder.isEmpty())
         assertTrue(settings.appHidden.isEmpty())
         assertFalse(settings.setupDone)
@@ -109,6 +112,9 @@ class SettingsTest {
             dayLevel = 10,
             nightLevel = 1,
             followHeadlights = false,
+            nightHours = true,
+            nightStart = 21 * 60 + 30,
+            dayStart = 5 * 60,
             setupDone = true,
             swipeDownTray = false,
             sideSwipe = SideSwipe.Tracks,
@@ -164,6 +170,8 @@ class SettingsTest {
                 it[stringPreferencesKey("source_order")] = "Usb,Nonsense,Radio"
                 it[stringPreferencesKey("brightness_mode")] = "Dusk"
                 it[intPreferencesKey("brightness_day")] = 99
+                it[intPreferencesKey("night_start")] = 5000
+                it[intPreferencesKey("day_start")] = -30
                 it[stringPreferencesKey("position")] = "not,numbers"
                 it[stringPreferencesKey("app_cache")] = "broken line\ncom.a/.Main\tWhat\tAlpha"
                 it[stringPreferencesKey("gesture_side")] = "Diagonal"
@@ -189,6 +197,8 @@ class SettingsTest {
         )
         assertEquals(BrightnessMode.Auto, settings.brightnessMode)
         assertEquals(10, settings.dayLevel)
+        assertEquals(19 * 60, settings.nightStart)
+        assertEquals(6 * 60, settings.dayStart)
         assertNull(settings.latitude)
         assertEquals(listOf(AppEntry("com.a/.Main", "Alpha", Glyph.Letter)), settings.appCache)
     }

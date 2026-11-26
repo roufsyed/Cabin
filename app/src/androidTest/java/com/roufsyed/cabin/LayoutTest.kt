@@ -309,6 +309,7 @@ class LayoutTest {
         at("Swipe sideways: apps, tracks or off", 40f, 277f, 511.5f, 112f)
         at("Two-finger drag: volume, brightness or off", 564.5f, 277f, 511.5f, 112f)
         at("Long press on an app: split screen or off", 40f, 402f, 511.5f, 112f)
+        at("Night mode: auto or manual", 40f, 527f, 511.5f, 112f)
         // Its second page, Layout, is reached by the same kind of button as Setup's.
         at("Layout page", 818f, 40f, 96f, 96f)
         cabin.onNodeWithContentDescription("Layout page").performClick()
@@ -341,6 +342,29 @@ class LayoutTest {
         at("Amber theme", 879.2f, 152f, 196.8f, 154f)
         at("Copper theme", 40f, 319f, 196.8f, 154f)
         at("Platinum theme", 879.2f, 319f, 196.8f, 154f)
+    }
+
+    @Test
+    fun nightModeIsOneCardInTwoColumnsAndOnManualHasFullHeightButtonsEitherSideOfEachHour() {
+        for (step in listOf("All apps", "Settings", "Theme and gestures", "Night mode: auto or manual")) {
+            cabin.onNodeWithContentDescription(step).performClick()
+        }
+        at("Back to theme and gestures", 926f, 40f, 150f, 96f)
+        at("Auto night mode", 41f, 153f, 516.5f, 112f)
+        at("Manual night mode", 558.5f, 153f, 516.5f, 112f)
+        val detail = line("Night while the car's headlights are on, as the unit reports them. Setup > Headlights switches that off.")
+        assertEquals(69f, detail.left, 1.01f)
+        assertEquals(265f, detail.top, 1.01f)
+        assertEquals(529.5f, detail.right, 1.01f)
+        cabin.onNodeWithContentDescription("Night starts: earlier").assertDoesNotExist()
+        cabin.onNodeWithContentDescription("Manual night mode").performClick()
+        cabin.waitUntil(2_000) { values.container.settings.settings.value.nightHours }
+        at("Auto night mode", 41f, 153f, 516.5f, 112f)
+        at("Manual night mode", 558.5f, 153f, 516.5f, 112f)
+        at("Night starts: earlier", 745f, 265f, 96f, 112f)
+        at("Night starts: later", 979f, 265f, 96f, 112f)
+        at("Day starts: earlier", 745f, 377f, 96f, 112f)
+        at("Day starts: later", 979f, 377f, 96f, 112f)
     }
 
     private fun openScreenOffPage() {

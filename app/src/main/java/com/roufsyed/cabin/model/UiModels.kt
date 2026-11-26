@@ -93,7 +93,9 @@ enum class ThemeId(val label: String) {
 }
 
 @Immutable
-data class BrightnessUi(val level: Int, val night: Boolean, val mode: BrightnessMode)
+data class BrightnessUi(val level: Int, val night: Boolean, val mode: BrightnessMode, val manual: Boolean = false) {
+    val label: String get() = if (manual && mode == BrightnessMode.Auto) "Manual" else mode.label
+}
 
 /** An audio source in the bottom row. [baseWidth] is the design's label width, used to share the row out. */
 enum class SourceId(val label: String, val baseWidth: Int) {

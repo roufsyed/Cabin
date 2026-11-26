@@ -211,6 +211,189 @@ class BrightnessAndSunTest {
         assertEquals(BrightnessUi(9, night = false, mode = BrightnessMode.Auto), brightness.state.value)
     }
 
+    private fun at(hour: Int, minute: Int = 0) = hour * 60 + minute
+
+    @Test
+    fun `hours set for night run from one to the other, through midnight`() {
+        fun night(hour: Int, minute: Int = 0) = BrightnessRules.byHours(at(hour, minute), nightStart = at(19), dayStart = at(6))
+        assertFalse(night(18, 59))
+        assertTrue(night(19))
+        assertTrue(night(23, 59))
+        assertTrue(night(0))
+        assertTrue(night(5, 59))
+        assertFalse(night(6))
+        assertFalse(night(12))
+    }
+
+    @Test
+    fun `a night that starts after midnight ends the same morning, and one of no length never comes`() {
+        fun night(hour: Int, minute: Int = 0) = BrightnessRules.byHours(at(hour, minute), nightStart = at(1), dayStart = at(5))
+        assertFalse(night(0, 59))
+        assertTrue(night(1))
+        assertTrue(night(4, 59))
+        assertFalse(night(5))
+        assertFalse(night(20))
+
+        for (hour in 0..23) assertFalse(BrightnessRules.byHours(at(hour), nightStart = at(7), dayStart = at(7)))
+    }
+
+    @Test
+    fun `on Manual the hours decide, whatever the sun and the headlights say`() {
+        val manual = settings.copy(nightHours = true, nightStart = at(19), dayStart = at(6))
+        assertTrue(BrightnessRules.dark(manual, headlights = null, sunIsDown = false, minuteOfDay = at(20)))
+        assertFalse(BrightnessRules.dark(manual, headlights = null, sunIsDown = true, minuteOfDay = at(12)))
+        assertTrue(BrightnessRules.dark(manual, headlights = false, sunIsDown = false, minuteOfDay = at(20)))
+        assertFalse(BrightnessRules.dark(manual, headlights = true, sunIsDown = true, minuteOfDay = at(12)))
+
+        assertTrue(BrightnessRules.dark(settings, headlights = null, sunIsDown = true, minuteOfDay = at(12)))
+        assertFalse(BrightnessRules.dark(settings, headlights = null, sunIsDown = false, minuteOfDay = at(20)))
+        assertTrue(BrightnessRules.dark(settings, headlights = true, sunIsDown = false, minuteOfDay = at(12)))
+        assertFalse(BrightnessRules.dark(settings, headlights = false, sunIsDown = true, minuteOfDay = at(20)))
+    }
+
+    @Test
+    fun `an hour moves by half an hour at a time, round the clock`() {
+        assertEquals(at(19, 30), BrightnessRules.stepped(at(19), 1))
+        assertEquals(at(18, 30), BrightnessRules.stepped(at(19), -1))
+        assertEquals(at(0), BrightnessRules.stepped(at(23, 30), 1))
+        assertEquals(at(23, 30), BrightnessRules.stepped(at(0), -1))
+    }
+
+    @Test
+    fun `an hour is written as the unit's clock is, on 24 hours or on 12`() {
+        assertEquals("19:00", BrightnessRules.hour(at(19), is24Hour = true))
+        assertEquals("06:00", BrightnessRules.hour(at(6), is24Hour = true))
+        assertEquals("00:30", BrightnessRules.hour(at(0, 30), is24Hour = true))
+        assertEquals("7:00 PM", BrightnessRules.hour(at(19), is24Hour = false))
+        assertEquals("6:00 AM", BrightnessRules.hour(at(6), is24Hour = false))
+        assertEquals("12:30 AM", BrightnessRules.hour(at(0, 30), is24Hour = false))
+        assertEquals("12:00 PM", BrightnessRules.hour(at(12), is24Hour = false))
+    }
+
+    @Test
+    fun `what decides night is written out, for Auto and for Manual`() {
+        assertEquals("By sunrise and sunset", BrightnessRules.how(settings, headlights = null, is24Hour = true))
+        assertEquals("By the headlights", BrightnessRules.how(settings, headlights = false, is24Hour = true))
+        val bySun = settings.copy(followHeadlights = false)
+        assertEquals("By sunrise and sunset", BrightnessRules.how(bySun, headlights = true, is24Hour = true))
+
+        val manual = settings.copy(nightHours = true)
+        assertEquals("From 19:00 to 06:00", BrightnessRules.how(manual, headlights = true, is24Hour = true))
+        assertEquals("From 7:00 PM to 6:00 AM", BrightnessRules.how(manual, headlights = null, is24Hour = false))
+        assertEquals("By the headlights", BrightnessRules.auto(manual, headlights = true))
+    }
+
+    @Test
+    fun `how Auto is worked out is put in words, with the day's own sunrise and sunset`() {
+        val noon = at("12:00")
+        assertEquals(
+            "Night while the car's headlights are on, as the unit reports them. Setup > Headlights switches that off.",
+            BrightnessRules.autoDetail(settings, headlights = false, now = noon, is24Hour = true),
+        )
+
+        val placed = settings.copy(latitude = 12.97, longitude = 77.59)
+        val day = SunTimes.of(noon.toLocalDate(), 12.97, 77.59, noon.zone)!!
+        fun written(time: ZonedDateTime) = BrightnessRules.hour(time.hour * 60 + time.minute, is24Hour = true)
+        val worked = BrightnessRules.autoDetail(placed, headlights = null, now = noon, is24Hour = true)
+        assertEquals(
+            "Worked out on this unit from the date and its last known position. " +
+                "Today: sunrise ${written(day.sunrise)}, sunset ${written(day.sunset)}.",
+            worked,
+        )
+        assertTrue(worked, Regex(".* Today: sunrise 06:[0-2]\\d, sunset 17:[4-5]\\d\\.").matches(worked))
+        assertTrue(
+            Regex(".* Today: sunrise 6:[0-2]\\d AM, sunset 5:[4-5]\\d PM\\.")
+                .matches(BrightnessRules.autoDetail(placed, headlights = null, now = noon, is24Hour = false)),
+        )
+        val unfollowed = placed.copy(followHeadlights = false)
+        assertEquals(worked, BrightnessRules.autoDetail(unfollowed, headlights = true, now = noon, is24Hour = true))
+    }
+
+    @Test
+    fun `with no position, or where the sun does not rise or set, Auto says which plain hours it uses`() {
+        val noon = at("12:00")
+        assertEquals(
+            "No position is known yet, so night runs from 18:30 to 06:30. " +
+                "With Location allowed in Setup it follows sunrise and sunset where you are.",
+            BrightnessRules.autoDetail(settings, headlights = null, now = noon, is24Hour = true),
+        )
+        assertEquals(
+            "No position is known yet, so night runs from 6:30 PM to 6:30 AM. " +
+                "With Location allowed in Setup it follows sunrise and sunset where you are.",
+            BrightnessRules.autoDetail(settings.copy(latitude = 12.97), headlights = null, now = noon, is24Hour = false),
+        )
+
+        val far = settings.copy(latitude = 69.65, longitude = 18.96)
+        val midsummer = ZonedDateTime.of(LocalDate.of(2026, 6, 21), LocalTime.NOON, ZoneId.of("Europe/Oslo"))
+        assertEquals(
+            "The sun does not rise or set here today, so night runs from 18:30 to 06:30.",
+            BrightnessRules.autoDetail(far, headlights = null, now = midsummer, is24Hour = true),
+        )
+    }
+
+    @Test
+    fun `the brightness button names Manual in place of Auto, and Day and Night as before`() {
+        assertEquals("Auto", BrightnessRules.ui(settings, dark = false).label)
+        val manual = settings.copy(nightHours = true)
+        assertEquals("Manual", BrightnessRules.ui(manual, dark = true).label)
+        assertEquals("Day", BrightnessRules.ui(manual.copy(brightnessMode = BrightnessMode.Day), dark = true).label)
+        assertEquals("Night", BrightnessRules.ui(manual.copy(brightnessMode = BrightnessMode.Night), dark = false).label)
+        assertEquals("Day", BrightnessRules.ui(settings.copy(brightnessMode = BrightnessMode.Day), dark = false).label)
+    }
+
+    @Test
+    fun `choosing Auto or Manual lets go of a look held by hand and keeps the hours`() {
+        val held = settings.copy(brightnessMode = BrightnessMode.Night, nightStart = at(21), dayStart = at(5))
+        assertEquals(held.copy(brightnessMode = BrightnessMode.Auto, nightHours = true), BrightnessRules.picked(held, manual = true))
+        assertEquals(held.copy(brightnessMode = BrightnessMode.Auto), BrightnessRules.picked(held, manual = false))
+        val manual = settings.copy(nightHours = true)
+        assertEquals(manual, BrightnessRules.picked(manual, manual = true))
+        assertEquals(settings, BrightnessRules.picked(manual, manual = false))
+    }
+
+    @Test
+    fun `choosing Manual moves the look at once, and Day and Night still hold theirs`() {
+        val store = InMemorySettings(settings.copy(loaded = true))
+        val brightness = FixedBrightness(store, minuteOfDay = at(20))
+        assertEquals(BrightnessUi(8, night = false, mode = BrightnessMode.Auto), brightness.state.value)
+        assertEquals("Day now", BrightnessRules.now(brightness.state.value))
+
+        kotlinx.coroutines.runBlocking { store.update { BrightnessRules.picked(it, manual = true) } }
+        assertEquals(BrightnessUi(3, night = true, mode = BrightnessMode.Auto, manual = true), brightness.state.value)
+        assertEquals("Night now", BrightnessRules.now(brightness.state.value))
+
+        kotlinx.coroutines.runBlocking { store.update { it.copy(nightStart = at(20, 30)) } }
+        assertFalse(brightness.state.value.night)
+        kotlinx.coroutines.runBlocking { store.update { it.copy(nightStart = at(20)) } }
+        assertTrue(brightness.state.value.night)
+
+        brightness.cycleMode()
+        assertEquals(BrightnessUi(8, night = false, mode = BrightnessMode.Day, manual = true), brightness.state.value)
+        assertEquals("Held on Day. Tap Auto or Manual to let it switch again.", BrightnessRules.now(brightness.state.value))
+        brightness.cycleMode()
+        assertEquals("Held on Night. Tap Auto or Manual to let it switch again.", BrightnessRules.now(brightness.state.value))
+
+        kotlinx.coroutines.runBlocking { store.update { it.copy(brightnessMode = BrightnessMode.Day) } }
+        kotlinx.coroutines.runBlocking { store.update { BrightnessRules.picked(it, manual = true) } }
+        assertEquals(BrightnessUi(3, night = true, mode = BrightnessMode.Auto, manual = true), brightness.state.value)
+
+        kotlinx.coroutines.runBlocking { store.update { BrightnessRules.picked(it, manual = false) } }
+        assertEquals(BrightnessUi(8, night = false, mode = BrightnessMode.Auto), brightness.state.value)
+    }
+
+    @Test
+    fun `on Manual the headlights no longer move the look`() {
+        val headlights = FixedHeadlights(false)
+        val store = InMemorySettings(settings.copy(loaded = true, nightHours = true))
+        val brightness = FixedBrightness(store, headlights = headlights, minuteOfDay = at(12))
+        assertFalse(brightness.state.value.night)
+        headlights.set(true)
+        assertFalse(brightness.state.value.night)
+
+        kotlinx.coroutines.runBlocking { store.update { BrightnessRules.picked(it, manual = false) } }
+        assertTrue(brightness.state.value.night)
+    }
+
     // ---- Volume
 
     @Test

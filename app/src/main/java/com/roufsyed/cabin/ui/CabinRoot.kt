@@ -1,6 +1,7 @@
 package com.roufsyed.cabin.ui
 
 import android.content.Context
+import android.text.format.DateFormat
 import android.text.format.DateUtils
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -97,6 +98,8 @@ import com.roufsyed.cabin.ui.overlay.TrayOverlay
 import com.roufsyed.cabin.ui.overlay.VoiceOverlay
 import com.roufsyed.cabin.ui.overlay.VolumeHud
 import com.roufsyed.cabin.ui.settings.KeysScreen
+import com.roufsyed.cabin.ui.settings.NightHour
+import com.roufsyed.cabin.ui.settings.NightModeCard
 import com.roufsyed.cabin.ui.settings.PlayerPage
 import com.roufsyed.cabin.ui.settings.SettingsGrid
 import com.roufsyed.cabin.ui.settings.SettingsTile
@@ -117,6 +120,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import java.time.ZonedDateTime
 
 /** Things only the activity can do, handed down to the screens. */
 class HostActions(
@@ -302,6 +306,7 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
                         shown.screen == Screen.Setup -> SetupBar(shown, container, shellModel)
                         shown.screen == Screen.Preferences -> PreferencesBar(shown, shellModel)
                         shown.screen == Screen.Theme -> ThemeBar(shellModel)
+                        shown.screen == Screen.Night -> NightBar(container, shellModel)
                         shown.screen == Screen.ScreenOff -> ScreenOffBar(shellModel)
                         shown.screen == Screen.Players -> PlayersBar(shown, container, shellModel)
                         shown.screen == Screen.ThisUnit -> UnitBar(shellModel)
@@ -315,6 +320,7 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
                             Screen.Keys -> KeysScreen(wheel, onBack = { shellModel.open(Screen.Settings) })
                             Screen.Preferences -> PreferencesContent(shown, container, shellModel, host)
                             Screen.Theme -> ThemeContent(container)
+                            Screen.Night -> NightContent(container)
                             Screen.ScreenOff -> ScreenOffOptions(container, shellModel)
                             Screen.Setup -> SetupContent(shown, container, shellModel, host)
                             Screen.Players -> PlayersContent(shown, container)
@@ -885,8 +891,10 @@ private fun PreferencesContent(shell: Shell, container: AppContainer, shellModel
 private fun ThemeAndGestureTiles(container: AppContainer, shellModel: ShellViewModel, host: HostActions) {
     val settings by container.settings.settings.collectAsStateWithLifecycle()
     val serviceOn by container.sideBar.allowed.collectAsStateWithLifecycle()
+    val lights by container.headlights.on.collectAsStateWithLifecycle()
     val way = container.apps.split
     val canSplit = SplitScreen.ready(way, serviceOn)
+    val is24Hour = DateFormat.is24HourFormat(LocalContext.current)
     fun change(transform: (CabinSettings) -> CabinSettings) {
         container.scope.launch { container.settings.update(transform) }
     }
@@ -935,6 +943,11 @@ private fun ThemeAndGestureTiles(container: AppContainer, shellModel: ShellViewM
                 "Day colours", "Lighter cards by day, for sunlight", "Day colours: on or off",
                 value = if (settings.dayColours) "On" else "Off", on = settings.dayColours,
                 onClick = { change { it.copy(dayColours = !it.dayColours) } },
+            ),
+            SettingsTile(
+                "Night mode", BrightnessRules.how(settings, lights, is24Hour), "Night mode: auto or manual",
+                value = if (settings.nightHours) "Manual" else "Auto", on = true,
+                onClick = { shellModel.open(Screen.Night) },
             ),
             SettingsTile(
                 "Animations", "Slides and fades", "Animations: on or off",
@@ -1085,6 +1098,42 @@ private fun ThemeBar(shellModel: ShellViewModel) {
         action = "Done",
         actionDescription = "Back to theme and gestures",
         onAction = { shellModel.open(Screen.Preferences) },
+    )
+}
+
+@Composable
+private fun NightBar(container: AppContainer, shellModel: ShellViewModel) {
+    val brightness by container.brightness.state.collectAsStateWithLifecycle()
+    TitleBar(
+        title = "Night mode",
+        hint = BrightnessRules.now(brightness),
+        action = "Done",
+        actionDescription = "Back to theme and gestures",
+        onAction = { shellModel.open(Screen.Preferences) },
+    )
+}
+
+@Composable
+private fun NightContent(container: AppContainer) {
+    val settings by container.settings.settings.collectAsStateWithLifecycle()
+    val lights by container.headlights.on.collectAsStateWithLifecycle()
+    val is24Hour = DateFormat.is24HourFormat(LocalContext.current)
+    fun change(transform: (CabinSettings) -> CabinSettings) {
+        container.scope.launch { container.settings.update(transform) }
+    }
+    NightModeCard(
+        manual = settings.nightHours,
+        autoSummary = BrightnessRules.auto(settings, lights),
+        autoDetail = BrightnessRules.autoDetail(settings, lights, ZonedDateTime.now(), is24Hour),
+        hours = listOf(
+            NightHour("Night", "Night starts", BrightnessRules.hour(settings.nightStart, is24Hour)) { steps ->
+                change { it.copy(nightStart = BrightnessRules.stepped(it.nightStart, steps)) }
+            },
+            NightHour("Day", "Day starts", BrightnessRules.hour(settings.dayStart, is24Hour)) { steps ->
+                change { it.copy(dayStart = BrightnessRules.stepped(it.dayStart, steps)) }
+            },
+        ),
+        onPick = { manual -> change { BrightnessRules.picked(it, manual) } },
     )
 }
 

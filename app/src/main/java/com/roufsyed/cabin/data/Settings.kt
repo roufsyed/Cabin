@@ -74,6 +74,9 @@ data class CabinSettings(
      * when this is off, Auto goes by sunrise and sunset.
      */
     val followHeadlights: Boolean = true,
+    val nightHours: Boolean = false,
+    val nightStart: Int = 19 * 60,
+    val dayStart: Int = 6 * 60,
     val setupDone: Boolean = false,
     /** One finger swiped down opens the notification tray. */
     val swipeDownTray: Boolean = true,
@@ -145,6 +148,9 @@ object SettingsCodec {
     private val dayLevel = intPreferencesKey("brightness_day")
     private val nightLevel = intPreferencesKey("brightness_night")
     private val followHeadlights = booleanPreferencesKey("brightness_headlights")
+    private val nightHours = booleanPreferencesKey("night_hours")
+    private val nightStart = intPreferencesKey("night_start")
+    private val dayStart = intPreferencesKey("day_start")
     private val setupDone = booleanPreferencesKey("setup_done")
     private val swipeDownTray = booleanPreferencesKey("gesture_down")
     private val sideSwipe = stringPreferencesKey("gesture_side")
@@ -191,6 +197,9 @@ object SettingsCodec {
             dayLevel = (prefs[dayLevel] ?: defaults.dayLevel).coerceIn(1, 10),
             nightLevel = (prefs[nightLevel] ?: defaults.nightLevel).coerceIn(1, 10),
             followHeadlights = prefs[followHeadlights] ?: defaults.followHeadlights,
+            nightHours = prefs[nightHours] ?: defaults.nightHours,
+            nightStart = (prefs[nightStart] ?: defaults.nightStart).takeIf { it in 0 until 24 * 60 } ?: defaults.nightStart,
+            dayStart = (prefs[dayStart] ?: defaults.dayStart).takeIf { it in 0 until 24 * 60 } ?: defaults.dayStart,
             setupDone = prefs[setupDone] ?: false,
             swipeDownTray = prefs[swipeDownTray] ?: defaults.swipeDownTray,
             sideSwipe = prefs[sideSwipe]?.let { enumOrNull<SideSwipe>(it) } ?: defaults.sideSwipe,
@@ -236,6 +245,9 @@ object SettingsCodec {
         prefs[dayLevel] = settings.dayLevel
         prefs[nightLevel] = settings.nightLevel
         prefs[followHeadlights] = settings.followHeadlights
+        prefs[nightHours] = settings.nightHours
+        prefs[nightStart] = settings.nightStart
+        prefs[dayStart] = settings.dayStart
         prefs[setupDone] = settings.setupDone
         prefs[swipeDownTray] = settings.swipeDownTray
         prefs[sideSwipe] = settings.sideSwipe.name

@@ -21,7 +21,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.LocalTime
 import java.time.ZonedDateTime
+import java.util.Locale
 import kotlin.math.roundToInt
 
 /** Screen brightness in ten steps, with one level kept for day and one for night. */
@@ -63,12 +65,74 @@ object BrightnessRules {
         BrightnessMode.Night -> BrightnessMode.Auto
     }
 
+    const val MINUTES_IN_DAY = 24 * 60
+    const val HOURS_STEP = 30
+    const val NOON = 12 * 60
+
     /**
-     * Whether Auto should treat it as dark outside. The headlights decide while the unit reports them
-     * and the user has left that on, as in the design; otherwise sunrise and sunset do.
+     * Whether it should be treated as dark outside. On Manual the hours set for night decide. On Auto
+     * the headlights do while the unit reports them and the user has left that on, as in the design;
+     * otherwise sunrise and sunset do.
      */
-    fun dark(settings: CabinSettings, headlights: Boolean?, sunIsDown: Boolean): Boolean =
-        if (settings.followHeadlights && headlights != null) headlights else sunIsDown
+    fun dark(settings: CabinSettings, headlights: Boolean?, sunIsDown: Boolean, minuteOfDay: Int = NOON): Boolean = when {
+        settings.nightHours -> byHours(minuteOfDay, settings.nightStart, settings.dayStart)
+        settings.followHeadlights && headlights != null -> headlights
+        else -> sunIsDown
+    }
+
+    fun byHours(minuteOfDay: Int, nightStart: Int, dayStart: Int): Boolean = when {
+        nightStart == dayStart -> false
+        nightStart < dayStart -> minuteOfDay in nightStart until dayStart
+        else -> minuteOfDay >= nightStart || minuteOfDay < dayStart
+    }
+
+    fun stepped(minutes: Int, steps: Int): Int = Math.floorMod(minutes + steps * HOURS_STEP, MINUTES_IN_DAY)
+
+    fun hour(minutes: Int, is24Hour: Boolean): String {
+        val hour = minutes / 60
+        val minute = "%02d".format(Locale.ROOT, minutes % 60)
+        if (is24Hour) return "%02d".format(Locale.ROOT, hour) + ":" + minute
+        val shown = (hour % 12).let { if (it == 0) 12 else it }
+        return "$shown:$minute ${if (hour < 12) "AM" else "PM"}"
+    }
+
+    fun auto(settings: CabinSettings, headlights: Boolean?): String =
+        if (settings.followHeadlights && headlights != null) "By the headlights" else "By sunrise and sunset"
+
+    fun autoDetail(settings: CabinSettings, headlights: Boolean?, now: ZonedDateTime, is24Hour: Boolean): String {
+        if (settings.followHeadlights && headlights != null) {
+            return "Night while the car's headlights are on, as the unit reports them. Setup > Headlights switches that off."
+        }
+        val plain = "night runs from ${hour(SunTimes.fallbackSunset, is24Hour)} to ${hour(SunTimes.fallbackSunrise, is24Hour)}"
+        val latitude = settings.latitude
+        val longitude = settings.longitude
+        if (latitude == null || longitude == null) {
+            return "No position is known yet, so $plain. " +
+                "With Location allowed in Setup it follows sunrise and sunset where you are."
+        }
+        val today = SunTimes.of(now.toLocalDate(), latitude, longitude, now.zone)
+            ?: return "The sun does not rise or set here today, so $plain."
+        val sunrise = hour(today.sunrise.toLocalTime(), is24Hour)
+        val sunset = hour(today.sunset.toLocalTime(), is24Hour)
+        return "Worked out on this unit from the date and its last known position. Today: sunrise $sunrise, sunset $sunset."
+    }
+
+    private fun hour(time: LocalTime, is24Hour: Boolean): String = hour(time.hour * 60 + time.minute, is24Hour)
+
+    fun manual(settings: CabinSettings, is24Hour: Boolean): String =
+        "From ${hour(settings.nightStart, is24Hour)} to ${hour(settings.dayStart, is24Hour)}"
+
+    fun how(settings: CabinSettings, headlights: Boolean?, is24Hour: Boolean): String =
+        if (settings.nightHours) manual(settings, is24Hour) else auto(settings, headlights)
+
+    fun picked(settings: CabinSettings, manual: Boolean): CabinSettings =
+        settings.copy(nightHours = manual, brightnessMode = BrightnessMode.Auto)
+
+    fun now(ui: BrightnessUi): String = when (ui.mode) {
+        BrightnessMode.Auto -> if (ui.night) "Night now" else "Day now"
+        BrightnessMode.Day -> "Held on Day. Tap Auto or Manual to let it switch again."
+        BrightnessMode.Night -> "Held on Night. Tap Auto or Manual to let it switch again."
+    }
 
     /** Whether the night level applies: forced by Day or Night, otherwise by whether it is [dark]. */
     fun night(mode: BrightnessMode, dark: Boolean): Boolean = when (mode) {
@@ -99,6 +163,7 @@ object BrightnessRules {
             level = if (night) settings.nightLevel else settings.dayLevel,
             night = night,
             mode = settings.brightnessMode,
+            manual = settings.nightHours,
         )
     }
 
@@ -124,21 +189,23 @@ object BrightnessRules {
 }
 
 /**
- * The rules applied to the saved settings, the headlights and the sun. It is the whole of brightness
- * apart from actually setting the screen, and is shared by the unit's control and the in-memory one.
+ * The rules applied to the saved settings, the headlights, the sun and the time of day. It is the
+ * whole of brightness apart from actually setting the screen, and is shared by the unit's control and
+ * the in-memory one.
  */
 private class BrightnessCore(
     private val settings: SettingsStore,
     private val scope: CoroutineScope,
     private val headlights: HeadlightSignal,
     private val sunIsDown: StateFlow<Boolean>,
+    private val minuteOfDay: StateFlow<Int>,
 ) {
     private fun dark(settings: CabinSettings): Boolean =
-        BrightnessRules.dark(settings, headlights.on.value, sunIsDown.value)
+        BrightnessRules.dark(settings, headlights.on.value, sunIsDown.value, minuteOfDay.value)
 
     val state: StateFlow<BrightnessUi> =
-        combine(settings.settings, headlights.on, sunIsDown) { saved, lights, sun ->
-            BrightnessRules.ui(saved, BrightnessRules.dark(saved, lights, sun))
+        combine(settings.settings, headlights.on, sunIsDown, minuteOfDay) { saved, lights, sun, minute ->
+            BrightnessRules.ui(saved, BrightnessRules.dark(saved, lights, sun, minute))
         }.stateIn(scope, SharingStarted.Eagerly, settings.settings.value.let { BrightnessRules.ui(it, dark(it)) })
 
     fun step(delta: Int) = change { BrightnessRules.step(it, dark(it), delta) }
@@ -158,8 +225,9 @@ class FixedBrightness(
     scope: CoroutineScope = CoroutineScope(Dispatchers.Unconfined),
     headlights: HeadlightSignal = NoHeadlightSignal,
     sunIsDown: Boolean = false,
+    minuteOfDay: Int = BrightnessRules.NOON,
 ) : BrightnessControl {
-    private val core = BrightnessCore(settings, scope, headlights, MutableStateFlow(sunIsDown))
+    private val core = BrightnessCore(settings, scope, headlights, MutableStateFlow(sunIsDown), MutableStateFlow(minuteOfDay))
     override val state: StateFlow<BrightnessUi> = core.state
     override val canWrite: StateFlow<Boolean> = MutableStateFlow(true)
     override val windowBrightness: StateFlow<Float?> = MutableStateFlow(null)
@@ -172,7 +240,7 @@ class FixedBrightness(
 /**
  * Sets Android's brightness setting, which needs the "modify system settings" permission. Auto goes
  * by the car's headlights when [headlights] reports them, and otherwise by sunrise and sunset at the
- * unit's last known position.
+ * unit's last known position. Manual goes by the hours set for night.
  */
 class AndroidBrightness(
     private val context: Context,
@@ -183,7 +251,8 @@ class AndroidBrightness(
 ) : BrightnessControl {
 
     private val sunIsDown = MutableStateFlow(readSunIsDown(settings.settings.value))
-    private val core = BrightnessCore(settings, scope, headlights, sunIsDown)
+    private val minuteOfDay = MutableStateFlow(readMinuteOfDay())
+    private val core = BrightnessCore(settings, scope, headlights, sunIsDown, minuteOfDay)
     private val writable = MutableStateFlow(Settings.System.canWrite(context))
     override val canWrite: StateFlow<Boolean> = writable
 
@@ -217,7 +286,10 @@ class AndroidBrightness(
 
     private fun refreshSun() {
         sunIsDown.value = readSunIsDown(settings.settings.value)
+        minuteOfDay.value = readMinuteOfDay()
     }
+
+    private fun readMinuteOfDay(): Int = ZonedDateTime.now().let { it.hour * 60 + it.minute }
 
     private fun readSunIsDown(settings: CabinSettings): Boolean =
         SunTimes.isNight(ZonedDateTime.now(), settings.latitude, settings.longitude)
