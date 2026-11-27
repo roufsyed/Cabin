@@ -52,6 +52,8 @@ data class NowPlayingUi(
     val needsAccess: Boolean = false,
 ) {
     val playing: Boolean get() = progress.playing
+
+    val canSkip: Boolean get() = needsAccess || !progress.empty
 }
 
 /** What the Now playing panel says for each state of the unit's media. */

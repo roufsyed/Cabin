@@ -75,10 +75,10 @@ class LayoutTest {
     fun homeMatchesTheDesignGrid() {
         // Panels are 328 x 600 with a 1 px border, so their buttons start one pixel in.
         at("Open Maps", 395f, 41f, 326f, 598f)
-        at("Open music", 749f, 41f, 326f, 470f)
-        at("Previous", 749f, 511f, 108f, 128f)
-        at("Play or pause", 857f, 511f, 110f, 128f)
-        at("Next", 967f, 511f, 108f, 128f)
+        at("Open music", 749f, 41f, 326f, 483f)
+        at("Previous", 749f, 524f, 113f, 115f)
+        at("Play or pause", 862f, 524f, 100f, 115f)
+        at("Next", 962f, 524f, 113f, 115f)
     }
 
     /** The cover's own box in design pixels, wherever it sits inside a button. */
@@ -93,67 +93,70 @@ class LayoutTest {
         assertEquals("$what expected $expected but was $actual", 0f, worst, 1.01f)
     }
 
+    private fun ringTop(): Float = inDesign(bounds("Play or pause")).top
+
     @Test
-    fun theCoverHangsInTheCornerOfNowPlayingAndMovesNothing() {
+    fun theCoverTakesTheCardsWidthUnderItsCaptionAndMovesNothing() {
         val media = values.container.media as FixedMedia
-        val lines = listOf("Now playing", "Open Road", "Aster Lane", "1:24", "3:41")
+        val lines = listOf("Now playing", "Open Road", "Aster Lane")
         val before = lines.map { line(it) }
 
         media.set(Samples.playing.copy(art = plainCover(Color.Magenta)))
         cabin.waitForIdle()
 
-        // 84 square, its top level with "Now playing" and its right edge on the panel's text margin.
-        assertBox("cover", Rect(959f, 69f, 1043f, 153f), cover())
+        // 262 square, from one text margin of the panel to the other, 30 under "Now playing".
+        assertBox("cover", Rect(781f, 128f, 1043f, 390f), cover())
+        assertEquals("gap under the caption", 30f, cover().top - line("Now playing").bottom, 1.01f)
         assertEquals(before, lines.map { line(it) })
         // The panel's buttons are where the design has them.
         homeMatchesTheDesignGrid()
     }
 
     @Test
-    fun theLongestTitleAndArtistStillClearTheCover() {
+    fun theLongestTitleAndArtistStayBetweenTheCoverAndTheRing() {
         val media = values.container.media as FixedMedia
-        val title = "A Title Long Enough To Fill All Three Of Its Lines And More"
-        val artist = "Several Artists Whose Names Run On To A Second Line"
+        val title = "A Title Long Enough To Fill Both Of Its Lines And More"
+        val artist = "Several Artists Whose Names Run On Past The End"
         media.set(Samples.playing.copy(title = title, artist = artist, art = plainCover(Color.Magenta)))
         cabin.waitForIdle()
 
-        val cover = cover()
         val titleBox = line(title)
         val artistBox = line(artist)
-        // Three lines of title and two of artist, as without a cover.
-        assertEquals(152f, titleBox.height, 3f)
-        assertEquals(68f, artistBox.height, 3f)
-        // The first line runs under the cover, with room between them.
-        assertEquals(true, titleBox.right > cover.left)
-        assertEquals("gap between the cover and the title", true, titleBox.top - cover.bottom >= 12f)
-        // And the artist ends clear of the progress line.
-        assertEquals("gap between the artist and the progress line", true, line("1:24").top - 17f - artistBox.bottom >= 12f)
+        // Two lines of title and one of artist.
+        assertEquals(70f, titleBox.height, 3f)
+        assertEquals(29f, artistBox.height, 2f)
+        assertEquals("gap between the cover and the title", true, titleBox.top - cover().bottom >= 12f)
+        assertEquals("gap between the artist and the ring", true, ringTop() - artistBox.bottom >= 12f)
+        homeMatchesTheDesignGrid()
     }
 
     @Test
-    fun withNoProgressLineTheTitleAndArtistSitJustAboveTheTransport() {
+    fun theTitleAndArtistSitMidwayBetweenThePictureAndTheRing() {
         val media = values.container.media as FixedMedia
         val caption = line("Now playing")
-        assertEquals(
-            "the title and artist should be midway between the caption and the line",
-            line("Open Road").top - caption.bottom, line("1:24").top - 17f - line("Aster Lane").bottom, 1.5f,
+        val pictureEnds = caption.bottom + 30f + 262f
+        fun assertMidway(what: String, first: Rect, last: Rect = first) = assertEquals(
+            "$what should be midway between the picture and the ring",
+            first.top - pictureEnds, ringTop() - last.bottom, 1.5f,
         )
 
-        val floor = inDesign(bounds("Open music")).bottom - 36f
+        assertMidway("the title and artist", line("Open Road"), line("Aster Lane"))
+        assertEquals("where the design has the title start", 422f, line("Open Road").top, 1.5f)
+        assertEquals("gap between the title and the artist", 5f, line("Aster Lane").top - line("Open Road").bottom, 1.01f)
+        val timed = listOf("Open Road", "Aster Lane").map { line(it) }
+
         val noLength = PlaybackProgress(positionMs = 0, durationMs = 0, speed = 1f, playing = true, atElapsedMs = 0)
         media.set(Samples.playing.copy(progress = noLength))
         cabin.waitForIdle()
-        assertEquals("where the artist ends", floor, line("Aster Lane").bottom, 1.01f)
-        assertEquals("gap between the title and the artist", 8f, line("Aster Lane").top - line("Open Road").bottom, 1.01f)
-        assertEquals(caption, line("Now playing"))
+        assertEquals("a player that gives no length moves nothing", timed, listOf("Open Road", "Aster Lane").map { line(it) })
 
         media.set(Samples.playing.copy(artist = "", progress = noLength))
         cabin.waitForIdle()
-        assertEquals("where a title with no artist ends", floor, line("Open Road").bottom, 1.01f)
+        assertMidway("a title with no artist", line("Open Road"))
 
         media.set(null)
         cabin.waitForIdle()
-        assertEquals("where Nothing playing ends", floor, line("Nothing playing").bottom, 1.01f)
+        assertMidway("Nothing playing", line("Nothing playing"))
         assertEquals(caption, line("Now playing"))
         homeMatchesTheDesignGrid()
     }
@@ -185,7 +188,7 @@ class LayoutTest {
         at("Volume up", 41f, 450f, 130f, 104f)
         at("Volume down", 41f, 655f, 130f, 104f)
         at("Open Maps", 559f, 41f, 326f, 598f)
-        at("Open music", 913f, 41f, 326f, 470f)
+        at("Open music", 913f, 41f, 326f, 483f)
         at("Brightness down", 205f, 665f, 96f, 94f)
         at("Radio source", 559f, 665f, 138f, 94f)
         // The same on another screen.
@@ -203,12 +206,12 @@ class LayoutTest {
         // The design: clock, navigation, now playing.
         assertEquals(73f, line("Thursday").left, 1.5f)
         at("Open Maps", 395f, 41f, 326f, 598f)
-        at("Open music", 749f, 41f, 326f, 470f)
+        at("Open music", 749f, 41f, 326f, 483f)
 
         place { it.copy(homeOrder = listOf(HomePanel.NowPlaying, HomePanel.Clock, HomePanel.Navigation)) }
         // The three panels keep their size and the 26 between them; only who is where changes.
-        at("Open music", 41f, 41f, 326f, 470f)
-        at("Previous", 41f, 511f, 108f, 128f)
+        at("Open music", 41f, 41f, 326f, 483f)
+        at("Previous", 41f, 524f, 113f, 115f)
         assertEquals(427f, line("Thursday").left, 1.5f)
         at("Open Maps", 749f, 41f, 326f, 598f)
     }

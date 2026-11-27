@@ -14,16 +14,16 @@ data class PlaybackProgress(
     val playing: Boolean,
     /** The elapsed-realtime clock reading at which [positionMs] was true. */
     val atElapsedMs: Long,
-    /** True when there is no track at all: no line is drawn and no times are shown. */
+    /** True when there is no track at all: no progress is drawn. */
     val empty: Boolean = false,
 ) {
     /** True when there is something on show whose length is not known, playing or not. */
     val live: Boolean get() = !empty && durationMs <= 0L
 
     /**
-     * True when the player gives the track's length. Only that is drawn with a progress line and
-     * its times. A player that gives no length gets neither, playing or not: nothing it says
-     * tells a song from a stream, and a line that cannot move says nothing.
+     * True when the player gives the track's length. Only that is drawn with its progress. A
+     * player that gives no length gets none, playing or not: nothing it says tells a song from
+     * a stream, and progress that cannot move says nothing.
      */
     val hasLength: Boolean get() = !empty && durationMs > 0L
 
@@ -37,11 +37,6 @@ data class PlaybackProgress(
     /** The played part of the track, 0..1. None of it where the length is not known. */
     fun fractionAt(nowElapsedMs: Long): Float =
         if (hasLength) (positionAt(nowElapsedMs).toFloat() / durationMs).coerceIn(0f, 1f) else 0f
-
-    fun positionLabel(nowElapsedMs: Long): String =
-        if (hasLength) formatTime(positionAt(nowElapsedMs)) else ""
-
-    val durationLabel: String get() = if (hasLength) formatTime(durationMs) else ""
 
     companion object {
         /** Nothing is playing. */

@@ -3,13 +3,18 @@ package com.roufsyed.cabin
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.roufsyed.cabin.apps.FixedApps
 import com.roufsyed.cabin.media.FixedMedia
@@ -20,6 +25,8 @@ import com.roufsyed.cabin.model.Slot
 import com.roufsyed.cabin.model.SourceId
 import com.roufsyed.cabin.ui.theme.Slate
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -56,26 +63,30 @@ class MediaAndSourcesTest {
 
     @Test
     fun homeShowsATracksCoverOnlyWhenItsPlayerSuppliesOne() {
-        // The design's own track comes without one, and Home is then exactly the design.
+        // The design's own track comes without one, and a record is drawn in its place.
         cover().assertDoesNotExist()
+        assertTheRecord(drawn = true)
 
         play(Samples.playing.copy(art = plainCover(Color.Magenta)))
         cover().assertIsDisplayed()
-        // 84 x 84 less its rounded corners.
-        assertTrue("${pixelsOf(Color.Magenta)} magenta", pixelsOf(Color.Magenta) in 6750..7056)
+        assertTheRecord(drawn = false)
+        // 262 x 262 less its rounded corners.
+        assertTrue("${pixelsOf(Color.Magenta)} magenta", pixelsOf(Color.Magenta) in 68_000..68_644)
 
         // The next track brings its own.
         play(Samples.playing.copy(title = "Night Signals", artist = "Vela North", art = plainCover(Color.Cyan)))
         assertEquals(0, pixelsOf(Color.Magenta))
-        assertTrue("${pixelsOf(Color.Cyan)} cyan", pixelsOf(Color.Cyan) in 6750..7056)
+        assertTrue("${pixelsOf(Color.Cyan)} cyan", pixelsOf(Color.Cyan) in 68_000..68_644)
 
         // A track without one takes it down again, and so does the player going away.
         play(Samples.playing)
         cover().assertDoesNotExist()
         assertEquals(0, pixelsOf(Color.Cyan))
+        assertTheRecord(drawn = true)
         play(Samples.playing.copy(art = plainCover(Color.Magenta)))
         play(null)
         cover().assertDoesNotExist()
+        assertTheRecord(drawn = true)
         text("Nothing playing")
     }
 
@@ -127,30 +138,45 @@ class MediaAndSourcesTest {
         cabin.onNodeWithContentDescription("Open music").fetchSemanticsNode()
             .config.getOrNull(SemanticsProperties.Text).orEmpty().map { it.text }.filter { it.isNotEmpty() }
 
-    private fun onTheCard(colour: Color): Int {
-        val card = cabin.onNodeWithContentDescription("Open music").captureToImage().asAndroidBitmap()
-        val pixels = IntArray(card.width * card.height)
-        card.getPixels(pixels, 0, card.width, 0, 0, card.width, card.height)
+    private fun pixelsOn(description: String, colour: Color): Int {
+        val image = cabin.onNodeWithContentDescription(description).captureToImage().asAndroidBitmap()
+        val pixels = IntArray(image.width * image.height)
+        image.getPixels(pixels, 0, image.width, 0, 0, image.width, image.height)
         return pixels.count { it == colour.toArgb() }
     }
 
-    private fun assertTheLine(drawn: Boolean) {
-        val played = onTheCard(Slate.Accent)
-        val rest = onTheCard(Slate.Hairline)
+    private fun assertTheRecord(drawn: Boolean) {
+        val label = pixelsOn("Open music", Slate.Raised)
         if (drawn) {
-            assertTrue("the played part of the line is $played pixels", played >= 250)
-            assertTrue("the rest of the line is $rest pixels", rest >= 400)
+            assertTrue("the record's label is $label pixels", label >= 2_500)
         } else {
-            assertTrue("no played part should be drawn, and $played pixels are", played < 50)
-            assertTrue("no line should be drawn, and $rest pixels are", rest < 50)
+            assertTrue("no record should be drawn, and $label pixels of its label are", label < 50)
+        }
+    }
+
+    private fun played(): Float? =
+        cabin.onNodeWithContentDescription("Play or pause").fetchSemanticsNode()
+            .config.getOrNull(SemanticsProperties.ProgressBarRangeInfo)?.current
+
+    private fun assertTheRing(arc: Boolean) {
+        val accent = pixelsOn("Play or pause", Slate.Accent)
+        val rest = pixelsOn("Play or pause", Slate.Outline)
+        if (arc) {
+            assertTrue("the played part of the ring is $accent pixels", accent in 250..700)
+            assertTrue("the rest of the ring is $rest pixels", rest >= 400)
+        } else {
+            assertTrue("the ring should be whole, and $accent pixels of it are", accent >= 900)
+            assertTrue("no track should be drawn under the ring, and $rest pixels are", rest < 50)
+            assertNull(played())
         }
     }
 
     @Test
-    fun aPlayerThatGivesNoLengthGetsNoLineAndNoTimes() {
+    fun onlyAPlayerThatGivesALengthGetsItsProgressOnTheRing() {
         val lines = listOf("Now playing", "Open Road", "Aster Lane")
-        assertEquals(lines + listOf("1:24", "3:41"), wordsOnNowPlaying())
-        assertTheLine(drawn = true)
+        assertEquals(lines, wordsOnNowPlaying())
+        assertTheRing(arc = true)
+        assertEquals(0.38f, played()!!, 0.001f)
         val before = lines.map(::box)
 
         // Something of no length that really is playing, as radio is, and as the unit's own player is.
@@ -159,22 +185,66 @@ class MediaAndSourcesTest {
         )
         play(Samples.playing.copy(progress = noLength))
         assertEquals(lines, wordsOnNowPlaying())
-        assertTheLine(drawn = false)
+        assertTheRing(arc = false)
+        assertEquals(before, lines.map(::box))
 
         // What a phone-link app leaves up while nothing plays: its name, no length, and stopped.
         val stopped = noLength.copy(playing = false)
         play(Samples.playing.copy(title = "Android Auto", artist = "Connected", progress = stopped))
         assertEquals(listOf("Now playing", "Android Auto", "Connected"), wordsOnNowPlaying())
-        assertTheLine(drawn = false)
+        assertTheRing(arc = false)
 
         play(null)
         assertEquals(listOf("Now playing", "Nothing playing"), wordsOnNowPlaying())
-        assertTheLine(drawn = false)
+        assertTheRing(arc = false)
 
         play(Samples.playing)
-        assertEquals(lines + listOf("1:24", "3:41"), wordsOnNowPlaying())
-        assertTheLine(drawn = true)
+        assertEquals(lines, wordsOnNowPlaying())
+        assertTheRing(arc = true)
         assertEquals(before, lines.map(::box))
+    }
+
+    @Test
+    fun theRingFollowsTheTrackFromEmptyToWhole() {
+        fun move(positionMs: Long) =
+            play(Samples.playing.copy(progress = Samples.playing.progress.copy(positionMs = positionMs)))
+        fun accent() = pixelsOn("Play or pause", Slate.Accent)
+
+        move(0)
+        assertEquals(0f, played()!!, 0f)
+        assertTrue("at its start the ring has no played part, and ${accent()} pixels are", accent() < 30)
+
+        move(110_500)
+        assertEquals(0.5f, played()!!, 0.001f)
+        assertTrue("half way the played part is ${accent()} pixels", accent() in 400..700)
+
+        move(221_000)
+        assertEquals(1f, played()!!, 0f)
+        assertTrue("at its end the ring is whole, and ${accent()} pixels of it are", accent() >= 900)
+    }
+
+    @Test
+    fun withNothingPlayingPreviousAndNextAreGreyedAndDoNothing() {
+        play(null)
+        val skips = listOf("Previous", "Next")
+        for (skip in skips) {
+            cabin.onNodeWithContentDescription(skip).assertIsNotEnabled()
+            assertTrue("$skip should be drawn greyed", pixelsOn(skip, Slate.Disabled) > 20)
+            assertEquals("$skip should not be drawn in white", 0, pixelsOn(skip, Slate.Text))
+            tap(skip)
+        }
+        cabin.waitForIdle()
+        assertEquals(emptyList<String>(), media.calls)
+        tap("Play or pause")
+        cabin.waitForIdle()
+        assertEquals("playPause", media.calls.first())
+
+        play(Samples.playing)
+        for (skip in skips) {
+            cabin.onNodeWithContentDescription(skip).assertIsEnabled()
+            assertTrue("$skip should be drawn in white", pixelsOn(skip, Slate.Text) > 20)
+            assertEquals("$skip should not be drawn greyed", 0, pixelsOn(skip, Slate.Disabled))
+        }
     }
 
     @Test
@@ -292,5 +362,44 @@ class PlayerWithNoScreenTest {
         tap("Open music")
         cabin.waitForIdle()
         assertEquals(listOf(FixedApps.id("Radio")), apps.launched)
+    }
+}
+
+@RunWith(AndroidJUnit4::class)
+class NowPlayingWithoutAccessTest {
+
+    @get:Rule(order = 0)
+    val values = FreshDesignValues { it.copy(media = FixedMedia(null, hasAccess = false)) }
+
+    @get:Rule(order = 1)
+    val cabin = cabinRule()
+
+    private val media get() = values.container.media as FixedMedia
+
+    private fun button(description: String) = cabin.onNodeWithContentDescription(description)
+
+    @Test
+    fun theHintIsWholeOnItsTwoLinesAndClearOfTheRing() {
+        val hint = cabin.onNodeWithText("Tap to let Cabin see what is playing", useUnmergedTree = true).fetchSemanticsNode()
+        val laidOut = mutableListOf<TextLayoutResult>()
+        hint.config[SemanticsActions.GetTextLayoutResult].action!!.invoke(laidOut)
+        assertEquals(2, laidOut.single().lineCount)
+        assertFalse("the hint should not be cut short", laidOut.single().hasVisualOverflow)
+
+        val root = cabin.onRoot().fetchSemanticsNode().boundsInRoot
+        val scale = minOf(root.width / 1280f, root.height / 800f)
+        val ringTop = button("Play or pause").fetchSemanticsNode().boundsInRoot.top
+        assertTrue("gap between the hint and the ring", ringTop - hint.boundsInRoot.bottom >= 12f * scale)
+        cabin.onNodeWithText("No access yet").assertIsDisplayed()
+    }
+
+    @Test
+    fun previousAndNextStayOnAsCabinCannotTellWhatPlays() {
+        for (skip in listOf("Previous", "Next")) {
+            button(skip).assertIsEnabled()
+            button(skip).performClick()
+        }
+        cabin.waitForIdle()
+        assertEquals(listOf("previous", "next"), media.calls)
     }
 }

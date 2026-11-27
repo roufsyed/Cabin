@@ -14,9 +14,6 @@ class PlaybackProgressTest {
     fun `a playing track advances with the clock`() {
         assertEquals(84_000, playing.positionAt(10_000))
         assertEquals(89_500, playing.positionAt(15_500))
-        assertEquals("1:24", playing.positionLabel(10_000))
-        assertEquals("1:29", playing.positionLabel(15_500))
-        assertEquals("3:41", playing.durationLabel)
     }
 
     @Test
@@ -43,15 +40,13 @@ class PlaybackProgressTest {
     }
 
     @Test
-    fun `a track of unknown length has no line and no times while it plays`() {
+    fun `a track of unknown length has no progress while it plays`() {
         val radio = PlaybackProgress(positionMs = 5_000, durationMs = 0, speed = 1f, playing = true, atElapsedMs = 0)
         assertTrue(radio.live)
         assertFalse(radio.hasLength)
-        assertEquals("", radio.positionLabel(60_000))
-        assertEquals("", radio.durationLabel)
         assertEquals(0f, radio.fractionAt(60_000), 0f)
         assertFalse(radio.copy(durationMs = -1).hasLength)
-        assertEquals("", radio.copy(durationMs = -1).positionLabel(60_000))
+        assertEquals(0f, radio.copy(durationMs = -1).fractionAt(60_000), 0f)
     }
 
     @Test
@@ -60,29 +55,24 @@ class PlaybackProgressTest {
         val idle = PlaybackProgress(positionMs = 0, durationMs = 0, speed = 0f, playing = false, atElapsedMs = 0)
         assertTrue(idle.live)
         assertFalse(idle.hasLength)
-        assertEquals("", idle.positionLabel(60_000))
-        assertEquals("", idle.durationLabel)
         assertEquals(0f, idle.fractionAt(60_000), 0f)
         // The same goes for a stream that has been paused.
         val radio = PlaybackProgress(positionMs = 5_000, durationMs = 0, speed = 1f, playing = true, atElapsedMs = 0)
         val paused = radio.copy(playing = false)
         assertFalse(paused.hasLength)
-        assertEquals("", paused.positionLabel(60_000))
         assertEquals(0f, paused.fractionAt(60_000), 0f)
-        // A track with a length has its line and its times, playing or not.
+        // A track with a length has its progress, playing or not.
         assertTrue(playing.hasLength)
         assertTrue(playing.copy(playing = false).hasLength)
-        assertEquals("1:24", playing.copy(playing = false).positionLabel(60_000))
+        assertEquals(0.38f, playing.copy(playing = false).fractionAt(60_000), 0.001f)
     }
 
     @Test
-    fun `with nothing playing there is no line and no times are shown`() {
+    fun `with nothing playing there is no progress`() {
         val none = PlaybackProgress.None
         assertFalse(none.live)
         assertFalse(none.hasLength)
         assertEquals(0f, none.fractionAt(60_000), 0f)
-        assertEquals("", none.positionLabel(60_000))
-        assertEquals("", none.durationLabel)
         // The panel for "nothing playing" and for "no access yet" both use it.
         assertEquals(none, nowPlayingUi(null, access = true).progress)
         assertEquals(none, nowPlayingUi(null, access = false).progress)
@@ -128,5 +118,24 @@ class PlaybackProgressTest {
     @Test
     fun `a session with no title falls back to the app's name`() {
         assertEquals("Player", nowPlayingUi(track.copy(title = " "), access = true).title)
+    }
+
+    @Test
+    fun `there is something to skip whenever a player is on show, playing or not`() {
+        assertTrue(nowPlayingUi(track, access = true).canSkip)
+        assertTrue(nowPlayingUi(track.copy(progress = playing.copy(playing = false)), access = true).canSkip)
+        val noLength = PlaybackProgress(positionMs = 0, durationMs = 0, speed = 0f, playing = false, atElapsedMs = 0)
+        assertTrue(nowPlayingUi(track.copy(progress = noLength), access = true).canSkip)
+    }
+
+    @Test
+    fun `with nothing playing there is nothing to skip`() {
+        assertFalse(nowPlayingUi(null, access = true).canSkip)
+    }
+
+    @Test
+    fun `without notification access the skip keys stay on, as Cabin cannot tell what plays`() {
+        assertTrue(nowPlayingUi(null, access = false).canSkip)
+        assertTrue(nowPlayingUi(track, access = false).canSkip)
     }
 }

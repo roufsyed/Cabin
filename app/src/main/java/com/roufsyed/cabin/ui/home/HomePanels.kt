@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -29,7 +30,8 @@ import com.roufsyed.cabin.ui.components.pressable
 import com.roufsyed.cabin.ui.icons.Icon
 import com.roufsyed.cabin.ui.icons.SlateIcons
 import com.roufsyed.cabin.ui.media.CoverArt
-import com.roufsyed.cabin.ui.media.ProgressBlock
+import com.roufsyed.cabin.ui.media.NoCover
+import com.roufsyed.cabin.ui.media.ProgressRing
 import com.roufsyed.cabin.model.ClockUi
 import com.roufsyed.cabin.model.HomePanel
 import com.roufsyed.cabin.model.NavUi
@@ -230,53 +232,56 @@ private fun NowPlayingPanel(
 ) {
     Panel(Modifier.size(328.dp, 600.dp)) {
         Column(Modifier.fillMaxSize()) {
-            Box(
+            Column(
                 Modifier
-                    .size(326.dp, 470.dp)
+                    .size(326.dp, 483.dp)
                     .pressable("Open music", onClick = onOpen)
                     .padding(start = 32.dp, top = 28.dp, end = 32.dp),
             ) {
-                val timed = nowPlaying.progress.hasLength
-                Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
-                    Txt(nowPlaying.caption, 24, color = Slate.Muted)
-                    Column(
-                        modifier = Modifier.padding(bottom = if (timed) 0.dp else 36.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Txt(nowPlaying.title, 46, weight = Slate.SemiBold, lineHeight = 1.1f, maxLines = 3)
+                Txt(nowPlaying.caption, 24, color = Slate.Muted)
+                Spacer(Modifier.height(30.dp))
+                // The playing track's own picture, where its player supplies one, and a record drawn
+                // in its place where it does not: nothing moves when a picture comes and goes.
+                if (nowPlaying.art != null) {
+                    CoverArt(nowPlaying.art, 262.dp, 12.dp)
+                } else {
+                    NoCover(262.dp, 12.dp)
+                }
+                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
+                    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Txt(nowPlaying.title, 32, weight = Slate.SemiBold, lineHeight = 1.1f, maxLines = 2)
                         if (nowPlaying.artist.isNotBlank()) {
-                            Txt(nowPlaying.artist, 28, color = Slate.Muted, maxLines = 2)
+                            Txt(nowPlaying.artist, 24, color = Slate.Muted, ellipsis = !nowPlaying.needsAccess, maxLines = 2)
                         }
                     }
-                    if (timed) ProgressBlock(nowPlaying.progress, gap = 14.dp)
-                }
-                // The playing track's own picture, where its player supplies one. It hangs in the top
-                // right corner, as the status marks do in the clock panel, and takes no room from the
-                // text: nothing moves when it comes and goes, and the longest title still clears it.
-                if (nowPlaying.art != null) {
-                    CoverArt(nowPlaying.art, 84.dp, 10.dp, Modifier.align(Alignment.TopEnd))
                 }
             }
-            Row(Modifier.size(326.dp, 128.dp)) {
+            Row(Modifier.size(326.dp, 115.dp)) {
+                val skip = if (nowPlaying.canSkip) Slate.Text else Slate.Disabled
                 Box(
-                    Modifier.size(108.dp, 128.dp).pressable("Previous", onClick = onPrevious),
+                    Modifier
+                        .size(113.dp, 115.dp)
+                        .pressable("Previous", enabled = nowPlaying.canSkip, onClick = onPrevious)
+                        .padding(start = 13.dp, bottom = 21.dp),
                     contentAlignment = Alignment.Center,
-                ) { Icon(SlateIcons.Previous, 44.dp, Slate.Text, 1.5f) }
+                ) { Icon(SlateIcons.Previous, 44.dp, skip, 1.5f) }
                 Box(
-                    Modifier.size(110.dp, 128.dp).pressable("Play or pause", onClick = onPlayPause),
+                    Modifier
+                        .size(100.dp, 115.dp)
+                        .pressable("Play or pause", onClick = onPlayPause)
+                        .padding(bottom = 21.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Box(
-                        Modifier.size(84.dp).border(1.5.dp, Slate.Accent, CircleShape),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(if (nowPlaying.playing) SlateIcons.Pause else SlateIcons.Play, 44.dp, Slate.Text, 1.75f)
-                    }
+                    ProgressRing(nowPlaying.progress, Modifier.size(94.dp))
+                    Icon(if (nowPlaying.playing) SlateIcons.Pause else SlateIcons.Play, 40.dp, Slate.Text, 1.75f)
                 }
                 Box(
-                    Modifier.size(108.dp, 128.dp).pressable("Next", onClick = onNext),
+                    Modifier
+                        .size(113.dp, 115.dp)
+                        .pressable("Next", enabled = nowPlaying.canSkip, onClick = onNext)
+                        .padding(end = 13.dp, bottom = 21.dp),
                     contentAlignment = Alignment.Center,
-                ) { Icon(SlateIcons.Next, 44.dp, Slate.Text, 1.5f) }
+                ) { Icon(SlateIcons.Next, 44.dp, skip, 1.5f) }
             }
         }
     }
