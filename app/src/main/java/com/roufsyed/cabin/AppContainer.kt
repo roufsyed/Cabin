@@ -53,6 +53,7 @@ import com.roufsyed.cabin.system.FixedBackupDocuments
 import com.roufsyed.cabin.system.FixedBrightness
 import com.roufsyed.cabin.system.FixedClock
 import com.roufsyed.cabin.system.FixedHeadlights
+import com.roufsyed.cabin.system.FlyNightMode
 import com.roufsyed.cabin.system.FixedHomeRole
 import com.roufsyed.cabin.system.FixedMemory
 import com.roufsyed.cabin.system.FixedPermissions
@@ -172,9 +173,9 @@ class AppContainer(
             val apps = AndroidAppsSource(app, settings, scope)
             val navigation = MapsNavigation(app, scope, apps, settings)
             val tray = AndroidTray(app)
-            // How this unit tells apps about its headlights is not known yet, so nothing is read:
-            // Auto goes by sunrise and sunset until a reader for the real signal takes this place.
-            val headlights = NoHeadlightSignal
+            val headlights = FlyNightMode(app, scope)
+            val brightness = AndroidBrightness(app, settings, scope, clock, headlights)
+            headlights.sync(brightness)
             val sideBar = SideBarState()
             return AppContainer(
                 scope = scope,
@@ -184,7 +185,7 @@ class AppContainer(
                 homeRole = AndroidHomeRole(app),
                 media = media,
                 volume = AndroidVolume(app),
-                brightness = AndroidBrightness(app, settings, scope, clock, headlights),
+                brightness = brightness,
                 navigation = navigation,
                 voice = AndroidVoiceInput(app),
                 tray = tray,
