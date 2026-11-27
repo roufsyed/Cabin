@@ -236,13 +236,19 @@ private fun NowPlayingPanel(
                     .pressable("Open music", onClick = onOpen)
                     .padding(start = 32.dp, top = 28.dp, end = 32.dp),
             ) {
+                val timed = nowPlaying.progress.hasLength
                 Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
                     Txt(nowPlaying.caption, 24, color = Slate.Muted)
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(
+                        modifier = Modifier.padding(bottom = if (timed) 0.dp else 36.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
                         Txt(nowPlaying.title, 46, weight = Slate.SemiBold, lineHeight = 1.1f, maxLines = 3)
-                        Txt(nowPlaying.artist, 28, color = Slate.Muted, maxLines = 2)
+                        if (nowPlaying.artist.isNotBlank()) {
+                            Txt(nowPlaying.artist, 28, color = Slate.Muted, maxLines = 2)
+                        }
                     }
-                    ProgressBlock(nowPlaying.progress, gap = 14.dp)
+                    if (timed) ProgressBlock(nowPlaying.progress, gap = 14.dp)
                 }
                 // The playing track's own picture, where its player supplies one. It hangs in the top
                 // right corner, as the status marks do in the clock panel, and takes no room from the

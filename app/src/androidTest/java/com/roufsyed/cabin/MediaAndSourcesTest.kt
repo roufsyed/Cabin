@@ -1,7 +1,12 @@
 package com.roufsyed.cabin
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -115,23 +120,61 @@ class MediaAndSourcesTest {
         shows("Browser")
     }
 
-    @Test
-    fun aPlayerWithNoLengthIsOnlyCalledLiveWhileItPlays() {
-        // What a phone-link app leaves up while nothing plays: its name, no length, and stopped.
-        val idle = Samples.playing.copy(
-            title = "Android Auto", artist = "Connected",
-            progress = PlaybackProgress(positionMs = 0, durationMs = 0, speed = 0f, playing = false, atElapsedMs = 0),
-        )
-        play(idle)
-        text("Connected")
-        cabin.onNodeWithText("Live").assertDoesNotExist()
-        // The accent is on screen for the play button's ring and little else: the line is empty.
-        val idleAccent = pixelsOf(Slate.Accent)
+    private fun box(line: String) =
+        cabin.onNodeWithText(line, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
 
-        // Something of no length that really is playing, as radio is, reads "Live" over a full line.
-        play(idle.copy(title = "Radio One", artist = "", progress = idle.progress.copy(playing = true, speed = 1f)))
-        text("Live")
-        assertTrue("the line should have filled", pixelsOf(Slate.Accent) > idleAccent + 600)
+    private fun wordsOnNowPlaying(): List<String> =
+        cabin.onNodeWithContentDescription("Open music").fetchSemanticsNode()
+            .config.getOrNull(SemanticsProperties.Text).orEmpty().map { it.text }.filter { it.isNotEmpty() }
+
+    private fun onTheCard(colour: Color): Int {
+        val card = cabin.onNodeWithContentDescription("Open music").captureToImage().asAndroidBitmap()
+        val pixels = IntArray(card.width * card.height)
+        card.getPixels(pixels, 0, card.width, 0, 0, card.width, card.height)
+        return pixels.count { it == colour.toArgb() }
+    }
+
+    private fun assertTheLine(drawn: Boolean) {
+        val played = onTheCard(Slate.Accent)
+        val rest = onTheCard(Slate.Hairline)
+        if (drawn) {
+            assertTrue("the played part of the line is $played pixels", played >= 250)
+            assertTrue("the rest of the line is $rest pixels", rest >= 400)
+        } else {
+            assertTrue("no played part should be drawn, and $played pixels are", played < 50)
+            assertTrue("no line should be drawn, and $rest pixels are", rest < 50)
+        }
+    }
+
+    @Test
+    fun aPlayerThatGivesNoLengthGetsNoLineAndNoTimes() {
+        val lines = listOf("Now playing", "Open Road", "Aster Lane")
+        assertEquals(lines + listOf("1:24", "3:41"), wordsOnNowPlaying())
+        assertTheLine(drawn = true)
+        val before = lines.map(::box)
+
+        // Something of no length that really is playing, as radio is, and as the unit's own player is.
+        val noLength = PlaybackProgress(
+            positionMs = 5_000, durationMs = 0, speed = 1f, playing = true, atElapsedMs = 0,
+        )
+        play(Samples.playing.copy(progress = noLength))
+        assertEquals(lines, wordsOnNowPlaying())
+        assertTheLine(drawn = false)
+
+        // What a phone-link app leaves up while nothing plays: its name, no length, and stopped.
+        val stopped = noLength.copy(playing = false)
+        play(Samples.playing.copy(title = "Android Auto", artist = "Connected", progress = stopped))
+        assertEquals(listOf("Now playing", "Android Auto", "Connected"), wordsOnNowPlaying())
+        assertTheLine(drawn = false)
+
+        play(null)
+        assertEquals(listOf("Now playing", "Nothing playing"), wordsOnNowPlaying())
+        assertTheLine(drawn = false)
+
+        play(Samples.playing)
+        assertEquals(lines + listOf("1:24", "3:41"), wordsOnNowPlaying())
+        assertTheLine(drawn = true)
+        assertEquals(before, lines.map(::box))
     }
 
     @Test

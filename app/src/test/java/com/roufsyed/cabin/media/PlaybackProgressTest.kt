@@ -43,37 +43,43 @@ class PlaybackProgressTest {
     }
 
     @Test
-    fun `a stream of unknown length reads as live with a full bar`() {
+    fun `a track of unknown length has no line and no times while it plays`() {
         val radio = PlaybackProgress(positionMs = 5_000, durationMs = 0, speed = 1f, playing = true, atElapsedMs = 0)
         assertTrue(radio.live)
-        assertEquals("Live", radio.positionLabel(60_000))
+        assertFalse(radio.hasLength)
+        assertEquals("", radio.positionLabel(60_000))
         assertEquals("", radio.durationLabel)
-        assertEquals(1f, radio.fractionAt(60_000), 0f)
+        assertEquals(0f, radio.fractionAt(60_000), 0f)
+        assertFalse(radio.copy(durationMs = -1).hasLength)
+        assertEquals("", radio.copy(durationMs = -1).positionLabel(60_000))
     }
 
     @Test
-    fun `a player that gives no length and is not playing is not called live`() {
+    fun `a player that gives no length and is not playing has none either`() {
         // What a phone-link app leaves up while nothing plays: a name, no length, and stopped.
         val idle = PlaybackProgress(positionMs = 0, durationMs = 0, speed = 0f, playing = false, atElapsedMs = 0)
         assertTrue(idle.live)
-        assertFalse(idle.onAir)
+        assertFalse(idle.hasLength)
         assertEquals("", idle.positionLabel(60_000))
         assertEquals("", idle.durationLabel)
         assertEquals(0f, idle.fractionAt(60_000), 0f)
-        // The same goes for a stream that has been paused, until it plays again.
+        // The same goes for a stream that has been paused.
         val radio = PlaybackProgress(positionMs = 5_000, durationMs = 0, speed = 1f, playing = true, atElapsedMs = 0)
         val paused = radio.copy(playing = false)
+        assertFalse(paused.hasLength)
         assertEquals("", paused.positionLabel(60_000))
         assertEquals(0f, paused.fractionAt(60_000), 0f)
-        assertTrue(radio.onAir)
-        // A track with a length is never a stream, playing or not.
-        assertFalse(playing.onAir)
+        // A track with a length has its line and its times, playing or not.
+        assertTrue(playing.hasLength)
+        assertTrue(playing.copy(playing = false).hasLength)
+        assertEquals("1:24", playing.copy(playing = false).positionLabel(60_000))
     }
 
     @Test
-    fun `with nothing playing the line is empty and no times are shown`() {
+    fun `with nothing playing there is no line and no times are shown`() {
         val none = PlaybackProgress.None
         assertFalse(none.live)
+        assertFalse(none.hasLength)
         assertEquals(0f, none.fractionAt(60_000), 0f)
         assertEquals("", none.positionLabel(60_000))
         assertEquals("", none.durationLabel)

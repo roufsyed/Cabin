@@ -13,6 +13,7 @@ import androidx.compose.ui.test.swipe
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.roufsyed.cabin.data.CabinSettings
 import com.roufsyed.cabin.media.FixedMedia
+import com.roufsyed.cabin.media.PlaybackProgress
 import com.roufsyed.cabin.model.BarSide
 import com.roufsyed.cabin.model.HomePanel
 import com.roufsyed.cabin.model.NavUi
@@ -127,6 +128,34 @@ class LayoutTest {
         assertEquals("gap between the cover and the title", true, titleBox.top - cover.bottom >= 12f)
         // And the artist ends clear of the progress line.
         assertEquals("gap between the artist and the progress line", true, line("1:24").top - 17f - artistBox.bottom >= 12f)
+    }
+
+    @Test
+    fun withNoProgressLineTheTitleAndArtistSitJustAboveTheTransport() {
+        val media = values.container.media as FixedMedia
+        val caption = line("Now playing")
+        assertEquals(
+            "the title and artist should be midway between the caption and the line",
+            line("Open Road").top - caption.bottom, line("1:24").top - 17f - line("Aster Lane").bottom, 1.5f,
+        )
+
+        val floor = inDesign(bounds("Open music")).bottom - 36f
+        val noLength = PlaybackProgress(positionMs = 0, durationMs = 0, speed = 1f, playing = true, atElapsedMs = 0)
+        media.set(Samples.playing.copy(progress = noLength))
+        cabin.waitForIdle()
+        assertEquals("where the artist ends", floor, line("Aster Lane").bottom, 1.01f)
+        assertEquals("gap between the title and the artist", 8f, line("Aster Lane").top - line("Open Road").bottom, 1.01f)
+        assertEquals(caption, line("Now playing"))
+
+        media.set(Samples.playing.copy(artist = "", progress = noLength))
+        cabin.waitForIdle()
+        assertEquals("where a title with no artist ends", floor, line("Open Road").bottom, 1.01f)
+
+        media.set(null)
+        cabin.waitForIdle()
+        assertEquals("where Nothing playing ends", floor, line("Nothing playing").bottom, 1.01f)
+        assertEquals(caption, line("Now playing"))
+        homeMatchesTheDesignGrid()
     }
 
     @Test

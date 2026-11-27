@@ -14,19 +14,18 @@ data class PlaybackProgress(
     val playing: Boolean,
     /** The elapsed-realtime clock reading at which [positionMs] was true. */
     val atElapsedMs: Long,
-    /** True when there is no track at all: the line is empty and no times are shown. */
+    /** True when there is no track at all: no line is drawn and no times are shown. */
     val empty: Boolean = false,
 ) {
     /** True when there is something on show whose length is not known, playing or not. */
     val live: Boolean get() = !empty && durationMs <= 0L
 
     /**
-     * True while something of no known length is actually playing. Only that is drawn as a live
-     * stream, with a full line and the word under it, as the design draws radio. A player that
-     * gives no length and is not playing is no stream, only a player sitting idle with its name
-     * up, and gets an empty line with nothing under it.
+     * True when the player gives the track's length. Only that is drawn with a progress line and
+     * its times. A player that gives no length gets neither, playing or not: nothing it says
+     * tells a song from a stream, and a line that cannot move says nothing.
      */
-    val onAir: Boolean get() = live && playing
+    val hasLength: Boolean get() = !empty && durationMs > 0L
 
     /** The position at [nowElapsedMs], advanced by the time gone by while playing. */
     fun positionAt(nowElapsedMs: Long): Long {
@@ -35,20 +34,14 @@ data class PlaybackProgress(
         return if (live) position else position.coerceAtMost(durationMs)
     }
 
-    /** The played part of the track, 0..1. A stream that is playing reads as full. */
-    fun fractionAt(nowElapsedMs: Long): Float = when {
-        empty -> 0f
-        live -> if (onAir) 1f else 0f
-        else -> (positionAt(nowElapsedMs).toFloat() / durationMs).coerceIn(0f, 1f)
-    }
+    /** The played part of the track, 0..1. None of it where the length is not known. */
+    fun fractionAt(nowElapsedMs: Long): Float =
+        if (hasLength) (positionAt(nowElapsedMs).toFloat() / durationMs).coerceIn(0f, 1f) else 0f
 
-    fun positionLabel(nowElapsedMs: Long): String = when {
-        empty -> ""
-        live -> if (onAir) "Live" else ""
-        else -> formatTime(positionAt(nowElapsedMs))
-    }
+    fun positionLabel(nowElapsedMs: Long): String =
+        if (hasLength) formatTime(positionAt(nowElapsedMs)) else ""
 
-    val durationLabel: String get() = if (empty || live) "" else formatTime(durationMs)
+    val durationLabel: String get() = if (hasLength) formatTime(durationMs) else ""
 
     companion object {
         /** Nothing is playing. */
