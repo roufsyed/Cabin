@@ -36,6 +36,14 @@ class SideBarState {
      */
     val tucked = MutableStateFlow(false)
 
+    @Volatile
+    var tuckNext = false
+
+    fun stepAside() {
+        tuckNext = true
+        tucked.value = true
+    }
+
     /** Whether a finger is on the bar, as the bar itself reports through [touched]. */
     val touch = MutableStateFlow(BarTouch())
 
@@ -125,10 +133,12 @@ object SideBarRules {
         }
 
     /**
-     * Whether an app starts with the bar tucked away. Under Immediate it does, wherever the bar can
-     * be tucked away at all, which takes the [handle].
+     * Whether an app starts with the bar tucked away. Under Immediate it does, and so does a screen
+     * Cabin has opened for itself and [asked] it for, wherever the bar can be tucked away at all,
+     * which takes the [handle].
      */
-    fun startsTucked(handle: Boolean, after: TuckAfter): Boolean = handle && after == TuckAfter.Immediate
+    fun startsTucked(handle: Boolean, after: TuckAfter, asked: Boolean = false): Boolean =
+        handle && (asked || after == TuckAfter.Immediate)
 
     /**
      * How long the bar stays out with no finger on it before it tucks itself away, in milliseconds,

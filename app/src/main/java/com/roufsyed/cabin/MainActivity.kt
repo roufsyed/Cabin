@@ -28,7 +28,10 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.roufsyed.cabin.apps.SplitPair
 import com.roufsyed.cabin.apps.SplitScreen
 import com.roufsyed.cabin.apps.SplitWay
+import com.roufsyed.cabin.data.BackupFile
 import com.roufsyed.cabin.notify.CabinNotificationListener
+import com.roufsyed.cabin.system.AndroidBackupDocuments
+import com.roufsyed.cabin.system.BackupChooser
 import com.roufsyed.cabin.system.Grant
 import com.roufsyed.cabin.ui.CabinRoot
 import com.roufsyed.cabin.ui.HostActions
@@ -71,6 +74,27 @@ class MainActivity : ComponentActivity() {
             permissionAnswer = null
         }
 
+    private val backups: AndroidBackupDocuments? get() = container.backups as? AndroidBackupDocuments
+
+    private val backupTarget =
+        registerForActivityResult(ActivityResultContracts.CreateDocument(BackupFile.MIME)) { backups?.created(it) }
+
+    private val backupSource =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { backups?.opened(it) }
+
+    private val backupChooser = BackupChooser(
+        create = { name -> launched { backupTarget.launch(name) } },
+        open = { launched { backupSource.launch(arrayOf("*/*")) } },
+    )
+
+    private fun launched(start: () -> Unit): Boolean = try {
+        start()
+        container.sideBar.stepAside()
+        true
+    } catch (e: ActivityNotFoundException) {
+        false
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (BuildConfig.DEBUG && intent?.getBooleanExtra(EXTRA_DESIGN_VALUES, false) == true) {
@@ -78,6 +102,7 @@ class MainActivity : ComponentActivity() {
         }
         hideSystemBars()
         val container = container
+        backups?.chooser = backupChooser
         followTheme()
         val host = HostActions(
             requestHomeRole = { container.homeRole.requestIntent()?.let(homeRoleRequest::launch) },
@@ -108,6 +133,7 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         val state = container.sideBar
         if (state.openSplitChooser === openSplitChooser) state.openSplitChooser = null
+        backups?.let { if (it.chooser === backupChooser) it.chooser = null }
         super.onDestroy()
     }
 
@@ -134,6 +160,7 @@ class MainActivity : ComponentActivity() {
     /** While Cabin's own screen shows, with the whole rail, the bar kept over other apps steps aside. */
     override fun onStart() {
         super.onStart()
+        container.sideBar.tuckNext = false
         container.sideBar.cabinShowing.value = true
     }
 

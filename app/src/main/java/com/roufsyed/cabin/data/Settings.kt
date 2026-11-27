@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.mutablePreferencesOf
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import com.roufsyed.cabin.model.AppEntry
@@ -177,6 +178,33 @@ object SettingsCodec {
     private val recentPlaces = stringPreferencesKey("recent_places")
     private fun binding(slot: Slot) = stringPreferencesKey("bind_${slot.name.lowercase()}")
 
+    private val observed =
+        setOf(appCache.name, activeSource.name, lastPlayer.name, setupDone.name, sideBarGranted.name, position.name)
+
+    fun portable(settings: CabinSettings): Map<String, Any> {
+        val prefs = mutablePreferencesOf()
+        encode(settings, prefs)
+        return prefs.asMap().mapKeys { it.key.name }.filterKeys { it !in observed }
+    }
+
+    fun restored(values: Map<String, Any>, current: CabinSettings): CabinSettings {
+        val prefs = mutablePreferencesOf()
+        encode(current, prefs)
+        val shape = portable(CabinSettings(bindings = Slot.entries.associateWith { "" }))
+        for ((name, sample) in shape) {
+            val value = values[name]
+            when {
+                sample is Boolean && value is Boolean -> prefs[booleanPreferencesKey(name)] = value
+                sample is Int && value is Int -> prefs[intPreferencesKey(name)] = value
+                sample is String && value is String -> prefs[stringPreferencesKey(name)] = value
+                sample is Set<*> && value is Set<*> ->
+                    prefs[stringSetPreferencesKey(name)] = value.filterIsInstance<String>().toSet()
+                else -> prefs.remove(stringPreferencesKey(name))
+            }
+        }
+        return decode(prefs)
+    }
+
     fun decode(prefs: Preferences): CabinSettings {
         val defaults = CabinSettings()
         val savedSources = prefs[sourceOrder]?.split(',')?.mapNotNull { enumOrNull<SourceId>(it) }.orEmpty()
@@ -190,7 +218,8 @@ object SettingsCodec {
             sourceOrder = Arrange.ordered(savedSources, SourceId.entries),
             sourceHidden = prefs[sourceHidden]?.mapNotNull { enumOrNull<SourceId>(it) }?.toSet()
                 ?: defaults.sourceHidden,
-            bindings = Slot.entries.mapNotNull { slot -> prefs[binding(slot)]?.let { slot to it } }.toMap(),
+            bindings = Slot.entries
+                .mapNotNull { slot -> prefs[binding(slot)]?.takeIf { it.isNotEmpty() }?.let { slot to it } }.toMap(),
             activeSource = prefs[activeSource]?.let { enumOrNull<SourceId>(it) },
             lastPlayer = prefs[lastPlayer]?.takeIf { it.isNotEmpty() },
             brightnessMode = prefs[brightnessMode]?.let { enumOrNull<BrightnessMode>(it) } ?: defaults.brightnessMode,

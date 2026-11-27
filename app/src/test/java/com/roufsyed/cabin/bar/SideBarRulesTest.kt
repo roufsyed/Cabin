@@ -67,6 +67,23 @@ class SideBarRulesTest {
     }
 
     @Test
+    fun `a screen Cabin opened for itself starts with the bar tucked away whatever the wait`() {
+        for (after in TuckAfter.entries) {
+            assertEquals(true, SideBarRules.startsTucked(handle = true, after = after, asked = true))
+            assertEquals(false, SideBarRules.startsTucked(handle = false, after = after, asked = true))
+        }
+    }
+
+    @Test
+    fun `stepping aside tucks the bar away now and for the screen that comes next`() {
+        val state = SideBarState()
+        assertEquals(false, state.tuckNext)
+        state.stepAside()
+        assertEquals(true, state.tuckNext)
+        assertEquals(true, state.tucked.value)
+    }
+
+    @Test
     fun `left untouched the bar tucks itself away after the time chosen`() {
         assertEquals(5_000L, SideBarRules.stayMs(handle = true, after = TuckAfter.FiveSeconds))
         assertEquals(10_000L, SideBarRules.stayMs(handle = true, after = TuckAfter.TenSeconds))

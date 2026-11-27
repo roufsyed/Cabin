@@ -20,6 +20,8 @@ import androidx.compose.ui.test.swipeRight
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.roufsyed.cabin.apps.FixedApps
 import com.roufsyed.cabin.bar.FixedSideBarAccess
+import com.roufsyed.cabin.data.Backup
+import com.roufsyed.cabin.data.BackupFile
 import com.roufsyed.cabin.data.CabinSettings
 import com.roufsyed.cabin.data.InMemorySettings
 import com.roufsyed.cabin.data.SideSwipe
@@ -30,7 +32,9 @@ import com.roufsyed.cabin.model.HomePanel
 import com.roufsyed.cabin.model.LayoutRules
 import com.roufsyed.cabin.model.Slot
 import com.roufsyed.cabin.model.SourceId
+import com.roufsyed.cabin.model.ThemeId
 import com.roufsyed.cabin.model.TuckAfter
+import com.roufsyed.cabin.system.FixedBackupDocuments
 import com.roufsyed.cabin.system.FixedHeadlights
 import com.roufsyed.cabin.system.FixedPermissions
 import com.roufsyed.cabin.system.Grant
@@ -539,6 +543,25 @@ class FirstRunTest {
         cabin.onNodeWithContentDescription("Choose the phone app").performClick()
         cabin.onNodeWithText("Phone opens").assertIsDisplayed()
         cabin.onNodeWithContentDescription("Maps").performClick()
+        cabin.onNodeWithText("Welcome to Cabin").assertIsDisplayed()
+        assertTrue(!values.container.settings.settings.value.setupDone)
+        cabin.onNodeWithContentDescription("Finish setup").performClick()
+        cabin.onNodeWithContentDescription("Open Maps").assertIsDisplayed()
+        cabin.waitUntil(2_000) { values.container.settings.settings.value.setupDone }
+    }
+
+    @Test
+    fun restoringABackupFromTheWelcomeScreenIsNotLeavingIt() {
+        val backup = Backup(savedAtMs = null, version = "0.2.0", values = mapOf("theme" to "Teal", "setup_done" to true))
+        (values.container.backups as FixedBackupDocuments).file = BackupFile.write(backup)
+        cabin.onNodeWithText("Welcome to Cabin").assertIsDisplayed()
+        cabin.onNodeWithContentDescription("Next setup page").performClick()
+        cabin.onNodeWithContentDescription("Back up or restore Cabin's settings").performClick()
+        cabin.onNodeWithText("Backup and restore").assertIsDisplayed()
+        cabin.onNodeWithContentDescription("Restore Cabin's settings").performClick()
+        cabin.onNodeWithContentDescription("Restore this backup").performClick()
+        cabin.waitUntil(2_000) { values.container.settings.settings.value.theme == ThemeId.Teal }
+        cabin.onNodeWithContentDescription("Back to setup").performClick()
         cabin.onNodeWithText("Welcome to Cabin").assertIsDisplayed()
         assertTrue(!values.container.settings.settings.value.setupDone)
         cabin.onNodeWithContentDescription("Finish setup").performClick()

@@ -201,6 +201,16 @@ class ShellViewModelTest {
     }
 
     @Test
+    fun `back from Backup and restore leads to Setup's second page`() {
+        shell.open(Screen.Backup)
+        assertEquals(Shell(screen = Screen.Backup), state)
+        shell.swipeLeft(pages = 1)
+        assertEquals(Shell(screen = Screen.Backup), state)
+        shell.back()
+        assertEquals(Shell(screen = Screen.Setup, page = SETUP_PAGES - 1), state)
+    }
+
+    @Test
     fun `turning Setup's page only works on Setup`() {
         shell.open(Screen.Settings)
         shell.setupPage(1)

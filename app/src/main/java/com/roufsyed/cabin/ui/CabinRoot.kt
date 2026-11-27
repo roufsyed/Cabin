@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -50,6 +51,7 @@ import com.roufsyed.cabin.apps.SplitPair
 import com.roufsyed.cabin.apps.SplitScreen
 import com.roufsyed.cabin.apps.SplitWay
 import com.roufsyed.cabin.bar.SideBarRules
+import com.roufsyed.cabin.data.BackupRules
 import com.roufsyed.cabin.data.CabinSettings
 import com.roufsyed.cabin.data.SideSwipe
 import com.roufsyed.cabin.data.TwoFingerDrag
@@ -216,7 +218,8 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
         val settings = container.settings.settings.first { it.loaded }
         when {
             shell.screen == Screen.Setup -> if (!settings.setupDone) welcoming = true
-            shell.screen == Screen.Pick || shell.screen == Screen.Players || shell.screen == Screen.ThisUnit -> Unit
+            shell.screen == Screen.Pick || shell.screen == Screen.Players || shell.screen == Screen.ThisUnit ||
+                shell.screen == Screen.Backup -> Unit
             welcoming -> {
                 welcoming = false
                 container.settings.update { it.copy(setupDone = true) }
@@ -312,6 +315,7 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
                         shown.screen == Screen.ScreenOff -> ScreenOffBar(shellModel)
                         shown.screen == Screen.Players -> PlayersBar(shown, container, shellModel)
                         shown.screen == Screen.ThisUnit -> UnitBar(shown, shellModel)
+                        shown.screen == Screen.Backup -> BackupBar(container, shellModel)
                         else -> Strip(dashboard, host, openPlayer)
                     }
                     Spacer(Modifier.height(16.dp))
@@ -327,6 +331,7 @@ fun CabinRoot(container: AppContainer, host: HostActions = HostActions()) {
                             Screen.Setup -> SetupContent(shown, container, shellModel, host)
                             Screen.Players -> PlayersContent(shown, container)
                             Screen.ThisUnit -> UnitContent(shown, container)
+                            Screen.Backup -> BackupContent(container)
                             Screen.Sources -> SourcesContent(shown, container, shellModel)
                             Screen.Pick -> SlotPickContent(shown, container, appsModel, shellModel)
                             Screen.Split -> SplitContent(shown, appsModel, shellModel, host)
@@ -1279,7 +1284,43 @@ private fun SetupApps(container: AppContainer, shellModel: ShellViewModel) {
             SettingsTile("This unit", "What Android says of it", "What Android says of this unit") {
                 shellModel.open(Screen.ThisUnit)
             },
+            SettingsTile("Backup and restore", "Cabin's settings as a file", "Back up or restore Cabin's settings") {
+                shellModel.open(Screen.Backup)
+            },
         ),
+    )
+}
+
+@Composable
+private fun BackupBar(container: AppContainer, shellModel: ShellViewModel) {
+    val ui by container.backup.ui.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    TitleBar(
+        title = "Backup and restore",
+        hint = BackupRules.hint(ui, ui.found?.savedAtMs?.let { whenText(context, it) }),
+        action = "Done",
+        actionDescription = "Back to setup",
+        onAction = shellModel::back,
+    )
+}
+
+@Composable
+private fun BackupContent(container: AppContainer) {
+    val ui by container.backup.ui.collectAsStateWithLifecycle()
+    val backup = container.backup
+    DisposableEffect(backup) { onDispose { backup.cancel() } }
+    SettingsGrid(
+        if (ui.found == null) {
+            listOf(
+                SettingsTile("Back up", "Save every setting to a file", "Back up Cabin's settings") { backup.backUp() },
+                SettingsTile("Restore", "Bring settings back from a file", "Restore Cabin's settings") { backup.choose() },
+            )
+        } else {
+            listOf(
+                SettingsTile("Restore this backup", "Replaces every setting here", "Restore this backup") { backup.restore() },
+                SettingsTile("Cancel", "Leave everything as it is", "Cancel the restore") { backup.cancel() },
+            )
+        },
     )
 }
 

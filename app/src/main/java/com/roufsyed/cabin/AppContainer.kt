@@ -11,6 +11,7 @@ import com.roufsyed.cabin.bar.FixedSideBarAccess
 import com.roufsyed.cabin.bar.SideBarAccess
 import com.roufsyed.cabin.bar.SideBarRules
 import com.roufsyed.cabin.bar.SideBarState
+import com.roufsyed.cabin.data.BackupController
 import com.roufsyed.cabin.data.CabinSettings
 import com.roufsyed.cabin.data.DataStoreSettings
 import com.roufsyed.cabin.data.InMemorySettings
@@ -35,6 +36,7 @@ import com.roufsyed.cabin.notify.TraySource
 import com.roufsyed.cabin.sources.SourceController
 import com.roufsyed.cabin.ui.theme.Palette
 import com.roufsyed.cabin.ui.theme.Themes
+import com.roufsyed.cabin.system.AndroidBackupDocuments
 import com.roufsyed.cabin.system.AndroidBrightness
 import com.roufsyed.cabin.system.AndroidClock
 import com.roufsyed.cabin.system.AndroidHomeRole
@@ -44,8 +46,10 @@ import com.roufsyed.cabin.system.AndroidStatus
 import com.roufsyed.cabin.system.AndroidSwitches
 import com.roufsyed.cabin.system.AndroidUnit
 import com.roufsyed.cabin.system.AndroidVolume
+import com.roufsyed.cabin.system.BackupDocuments
 import com.roufsyed.cabin.system.BrightnessControl
 import com.roufsyed.cabin.system.ClockSource
+import com.roufsyed.cabin.system.FixedBackupDocuments
 import com.roufsyed.cabin.system.FixedBrightness
 import com.roufsyed.cabin.system.FixedClock
 import com.roufsyed.cabin.system.FixedHeadlights
@@ -108,8 +112,11 @@ class AppContainer(
     private val sourcesNamedAfterApps: Boolean = true,
     private val sideBarAccess: SideBarAccess = FixedSideBarAccess(),
     val unit: UnitSource = FixedUnit(Samples.unit),
+    val backups: BackupDocuments = FixedBackupDocuments(),
 ) {
     val sources = SourceController(settings, apps, media, scope, sourcesNamedAfterApps)
+
+    val backup = BackupController(settings, backups, scope, BuildConfig.VERSION_NAME)
 
     val keysSeen = MutableStateFlow<List<Int>>(emptyList())
 
@@ -145,9 +152,11 @@ class AppContainer(
         sourcesNamedAfterApps: Boolean = this.sourcesNamedAfterApps,
         sideBarAccess: SideBarAccess = this.sideBarAccess,
         unit: UnitSource = this.unit,
+        backups: BackupDocuments = this.backups,
     ): AppContainer = AppContainer(
         scope, settings, apps, clock, homeRole, media, volume, brightness, navigation, voice, tray, status,
         permissions, switches, memory, headlights, listenerHub, sideBar, sourcesNamedAfterApps, sideBarAccess, unit,
+        backups,
     )
 
     companion object {
@@ -197,6 +206,7 @@ class AppContainer(
                 sideBar = sideBar,
                 sideBarAccess = AndroidSideBarAccess(app),
                 unit = AndroidUnit(app, apps.split, sideBar),
+                backups = AndroidBackupDocuments(app, scope),
             ).also { it.keepSideBar() }
         }
 

@@ -18,6 +18,7 @@ enum class Screen {
     /** What each of the unit's players tells Cabin, a player to a page. Reached from Setup. */
     Players,
     ThisUnit,
+    Backup,
 }
 
 /** Setup has more tiles than fit at once: what Cabin may do on the first page, the apps it opens on the second. */
@@ -213,7 +214,8 @@ class ShellViewModel : ViewModel() {
             // The theme chooser and the night mode page are reached from the "Theme and gestures" screen.
             it.screen == Screen.Theme || it.screen == Screen.Night -> Shell(screen = Screen.Preferences)
             // Players is reached from Setup's second page, whichever of its own pages is showing.
-            it.screen == Screen.Players || it.screen == Screen.ThisUnit -> Shell(screen = Screen.Setup, page = SETUP_PAGES - 1)
+            it.screen == Screen.Players || it.screen == Screen.ThisUnit || it.screen == Screen.Backup ->
+                Shell(screen = Screen.Setup, page = SETUP_PAGES - 1)
             it.screen == Screen.Keys || it.screen == Screen.Preferences || it.screen == Screen.ScreenOff ||
                 it.screen == Screen.Sources || it.screen == Screen.Setup -> Shell(screen = Screen.Settings)
             it.screen == Screen.Settings -> Shell(screen = Screen.Apps)

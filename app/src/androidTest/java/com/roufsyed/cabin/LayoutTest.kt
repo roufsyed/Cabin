@@ -383,6 +383,23 @@ class LayoutTest {
     }
 
     @Test
+    fun backupAndRestoreIsATileOnSetupsSecondPageAndAPageOfTwoTiles() {
+        for (step in listOf("All apps", "Settings", "Open setup", "Next setup page")) {
+            cabin.onNodeWithContentDescription(step).performClick()
+        }
+        at("What the players tell Cabin", 40f, 402f, 511.5f, 112f)
+        at("Back up or restore Cabin's settings", 40f, 527f, 511.5f, 112f)
+        cabin.onNodeWithContentDescription("Back up or restore Cabin's settings").performClick()
+        at("Back to setup", 926f, 40f, 150f, 96f)
+        at("Back up Cabin's settings", 40f, 152f, 511.5f, 112f)
+        at("Restore Cabin's settings", 564.5f, 152f, 511.5f, 112f)
+        cabin.onNodeWithContentDescription("Back up Cabin's settings").performClick()
+        cabin.onNodeWithContentDescription("Restore Cabin's settings").performClick()
+        at("Restore this backup", 40f, 152f, 511.5f, 112f)
+        at("Cancel the restore", 564.5f, 152f, 511.5f, 112f)
+    }
+
+    @Test
     fun nightModeIsOneCardInTwoColumnsAndOnManualHasFullHeightButtonsEitherSideOfEachHour() {
         for (step in listOf("All apps", "Settings", "Theme and gestures", "Night mode: auto or manual")) {
             cabin.onNodeWithContentDescription(step).performClick()

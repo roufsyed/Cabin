@@ -138,11 +138,12 @@ class SideBarService : AccessibilityService() {
                     .collectLatest { (view, edge) -> change(view, edge, container) }
             }
             // Tucked away is for the app in front. Whenever Cabin's own screen comes or goes, or the
-            // setting is changed, the bar is put back to what an app starts with: whole, or under
-            // Immediate tucked away already.
+            // setting is changed, the bar is put back to what an app starts with: whole, or tucked
+            // away already under Immediate and over a screen Cabin has opened for itself.
             launch {
-                combine(tuck, state.cabinShowing) { (handle, after), _ -> SideBarRules.startsTucked(handle, after) }
-                    .collect { state.tucked.value = it }
+                combine(tuck, state.cabinShowing) { (handle, after), _ ->
+                    SideBarRules.startsTucked(handle, after, state.tuckNext)
+                }.collect { state.tucked.value = it }
             }
             // Left with no finger on it for as long as Settings says, the bar tucks itself away. The
             // wait starts again each time the bar comes up and each time a finger leaves it.
